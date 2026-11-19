@@ -224,6 +224,36 @@
       .statusbar { gap: 9px; }
     }
   </style>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/codemirror@5.65.21/lib/codemirror.min.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/codemirror@5.65.21/theme/eclipse.min.css">
+  <style>
+    .editor-surface.codemirror-ready .gutter,
+    .editor-surface.codemirror-ready .highlight-layer { display:none !important; }
+    .editor-surface.codemirror-ready .CodeMirror {
+      flex:1 1 auto; width:100%; height:100%; min-width:0; min-height:0;
+      font:12px/21px "SFMono-Regular",Consolas,monospace;
+      background:#fff; color:#1f1f1f;
+    }
+    .editor-surface.codemirror-ready .CodeMirror-scroll { min-height:100%; }
+    .editor-surface.codemirror-ready .CodeMirror-gutters { background:#f3f3f3; border-right:1px solid #e1e1e1; }
+    .editor-surface.codemirror-ready .CodeMirror-linenumber { color:#858585; padding:0 12px 0 8px; }
+    .editor-surface.codemirror-ready .CodeMirror-lines { padding:16px 0 24px; }
+    .editor-surface.codemirror-ready .CodeMirror pre { padding:0 18px 0 4px; font:inherit; }
+    .editor-surface.codemirror-ready .CodeMirror-cursor { border-left:2px solid #007acc; }
+    .editor-surface.codemirror-ready .CodeMirror-selected { background:#add6ff !important; }
+    .editor-surface.codemirror-ready .CodeMirror-activeline-background { background:#f7faff; }
+    .editor-surface.codemirror-ready .cm-s-eclipse .cm-tag { color:#800000; }
+    .editor-surface.codemirror-ready .cm-s-eclipse .cm-attribute { color:#e50000; }
+    .editor-surface.codemirror-ready .cm-s-eclipse .cm-string { color:#a31515; }
+    .editor-surface.codemirror-ready .cm-s-eclipse .cm-comment { color:#008000; font-style:italic; }
+    .editor-surface.codemirror-ready .cm-s-eclipse .cm-keyword { color:#0000ff; }
+    .editor-surface.codemirror-ready .cm-s-eclipse .cm-number { color:#098658; }
+    .editor-surface.codemirror-ready .cm-s-eclipse .cm-property { color:#0451a5; }
+    .editor-surface.codemirror-ready .cm-s-eclipse .cm-def { color:#795e26; }
+    .editor-surface.codemirror-ready .cm-s-eclipse .cm-variable-2 { color:#001080; }
+    .editor-surface.codemirror-ready .CodeMirror-matchingbracket { color:#16834a !important; background:#e6f4ea; outline:1px solid #a5d6a7; }
+    .editor-surface.codemirror-ready .CodeMirror-nonmatchingbracket { color:#c62828 !important; }
+  </style>
 </head>
 <body>
   <div class="app">
@@ -354,6 +384,13 @@
   <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdn.jsdelivr.net/npm/codemirror@5.65.21/lib/codemirror.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/codemirror@5.65.21/mode/xml/xml.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/codemirror@5.65.21/mode/javascript/javascript.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/codemirror@5.65.21/mode/css/css.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/codemirror@5.65.21/mode/htmlmixed/htmlmixed.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/codemirror@5.65.21/addon/edit/closebrackets.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/codemirror@5.65.21/addon/edit/closetag.js"></script>
   <script>
     (() => {
       "use strict";
@@ -472,6 +509,81 @@ button.addEventListener("click", () => {
         resendConfirmationButton: document.getElementById("resendConfirmationButton"),
         submitAuth: document.getElementById("submitAuth")
       };
+
+      // Upgrade the native textarea to a real editor while keeping a safe textarea fallback.
+      const nativeEditor = elements.editor;
+      let codeMirror = null;
+      if (window.CodeMirror) {
+        try {
+          codeMirror = window.CodeMirror.fromTextArea(nativeEditor, {
+            value: nativeEditor.value,
+            mode: "text/html",
+            theme: "eclipse",
+            lineNumbers: true,
+            lineWrapping: false,
+            tabSize: 2,
+            indentUnit: 2,
+            matchBrackets: true,
+            autoCloseBrackets: true,
+            autoCloseTags: true,
+            styleActiveLine: true,
+            viewportMargin: 20
+          });
+          const wrapper = codeMirror.getWrapperElement();
+          const inputListeners = new Set();
+          let settingValue = false;
+          elements.editor = {
+            get value() { return codeMirror.getValue(); },
+            set value(value) {
+              settingValue = true;
+              codeMirror.setValue(String(value ?? ""));
+              settingValue = false;
+            },
+            get selectionStart() { return codeMirror.indexFromPos(codeMirror.getCursor("from")); },
+            get selectionEnd() { return codeMirror.indexFromPos(codeMirror.getCursor("to")); },
+            get scrollTop() { return codeMirror.getScrollInfo().top; },
+            set scrollTop(value) { codeMirror.scrollTo(null, Number(value) || 0); },
+            get scrollLeft() { return codeMirror.getScrollInfo().left; },
+            set scrollLeft(value) { codeMirror.scrollTo(Number(value) || 0, null); },
+            get clientHeight() { return codeMirror.getScrollerElement().clientHeight; },
+            get hidden() { return wrapper.hidden; },
+            set hidden(value) { wrapper.hidden = Boolean(value); },
+            get dataset() { return nativeEditor.dataset; },
+            closest(selector) { return nativeEditor.closest(selector); },
+            focus() { codeMirror.focus(); },
+            setSelectionRange(start, end) {
+              codeMirror.setSelection(codeMirror.posFromIndex(start), codeMirror.posFromIndex(end));
+            },
+            setRangeText(text, start, end, selectionMode) {
+              codeMirror.replaceRange(String(text), codeMirror.posFromIndex(start), codeMirror.posFromIndex(end), "+input");
+              if (selectionMode === "end") {
+                const cursor = codeMirror.posFromIndex(start + String(text).length);
+                codeMirror.setCursor(cursor);
+              }
+            },
+            addEventListener(type, listener) {
+              if (type === "input") {
+                inputListeners.add(listener);
+              } else if (type === "scroll") {
+                codeMirror.on("scroll", listener);
+              } else {
+                wrapper.addEventListener(type, listener, type === "keydown");
+              }
+            }
+          };
+          codeMirror.on("change", (_instance, change) => {
+            if (!settingValue && change.origin !== "setValue") {
+              inputListeners.forEach(listener => listener());
+            }
+          });
+          elements.editor.closest(".editor-surface").classList.add("codemirror-ready");
+          elements.gutter.hidden = true;
+        } catch (error) {
+          console.error("CodeMirror could not start; using the built-in editor instead:", error);
+          codeMirror = null;
+          elements.editor = nativeEditor;
+        }
+      }
 
       let state = loadState();
       let modalAction = null;
@@ -830,6 +942,11 @@ button.addEventListener("click", () => {
         if (editorReady && elements.editor.dataset.file !== activeFile) {
           elements.editor.value = project.files[activeFile];
           elements.editor.dataset.file = activeFile;
+          if (codeMirror) {
+            const kind = fileKind(activeFile);
+            codeMirror.setOption("mode", kind === "html" ? "text/html" : kind === "css" ? "text/css" : kind === "js" ? "text/javascript" : "text/plain");
+            codeMirror.setOption("autoCloseTags", kind === "html");
+          }
           elements.editor.scrollTop = 0;
           elements.editor.scrollLeft = 0;
           updateLineNumbers();
@@ -1532,6 +1649,7 @@ button.addEventListener("click", () => {
       });
 
       render();
+      if (codeMirror) codeMirror.refresh();
       void initializeCloud();
     })();
   </script>

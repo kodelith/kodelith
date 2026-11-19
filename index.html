@@ -135,6 +135,14 @@
       color: #616161; cursor: pointer; font-size: 11px;
     }
     .tab.active { border-top-color: var(--accent); background: var(--bg); color: var(--text); }
+    .tab { user-select:none; }
+    .tab.dragging { opacity:.45; }
+    .tab.drop-target { box-shadow:inset 2px 0 var(--accent); }
+    .tab-context-menu { position:fixed; z-index:80; min-width:165px; padding:5px; border:1px solid var(--line); border-radius:8px; background:var(--panel); box-shadow:0 12px 32px #0003; }
+    .tab-context-menu button { display:block; width:100%; padding:8px 10px; border:0; border-radius:5px; background:transparent; color:var(--text); text-align:left; font:inherit; font-size:12px; cursor:pointer; }
+    .tab-context-menu button:hover { background:var(--panel-soft); }
+    .tab-context-menu button:disabled { opacity:.4; cursor:default; }
+
     .tab-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .tab-close { margin-left: auto; border: 0; background: none; color: var(--muted); cursor: pointer; }
     .editor-toolbar { display: flex; align-items: center; gap: 6px; padding: 0 12px; margin-left: auto; }
@@ -393,6 +401,11 @@
     </footer>
   </div>
 
+  <div class="tab-context-menu" id="tabContextMenu" role="menu" hidden>
+    <button type="button" data-tab-action="close">Close</button>
+    <button type="button" data-tab-action="others">Close Others</button>
+    <button type="button" data-tab-action="all">Close All</button>
+  </div>
   <input id="importInput" type="file" accept=".json,application/json" hidden>
   <div class="modal-backdrop" id="modalBackdrop" hidden>
     <form class="modal" id="nameForm">
@@ -1001,6 +1014,38 @@ button.addEventListener("click", () => {
             event.stopPropagation();
             closeFile(file);
           });
+          tab.draggable = true;
+          tab.dataset.file = file;
+          tab.addEventListener("dragstart", event => {
+            event.dataTransfer.setData("text/plain", file);
+            event.dataTransfer.effectAllowed = "move";
+            tab.classList.add("dragging");
+          });
+          tab.addEventListener("dragend", () => {
+            tab.classList.remove("dragging");
+            elements.tabs.querySelectorAll(".drop-target").forEach(node => node.classList.remove("drop-target"));
+          });
+          tab.addEventListener("dragover", event => {
+            event.preventDefault();
+            tab.classList.add("drop-target");
+          });
+          tab.addEventListener("dragleave", () => tab.classList.remove("drop-target"));
+          tab.addEventListener("drop", event => {
+            event.preventDefault();
+            tab.classList.remove("drop-target");
+            const dragged = event.dataTransfer.getData("text/plain");
+            const from = project.openFiles.indexOf(dragged);
+            const to = project.openFiles.indexOf(file);
+            if (from < 0 || to < 0 || from === to) return;
+            project.openFiles.splice(from, 1);
+            project.openFiles.splice(to, 0, dragged);
+            render();
+            scheduleSave();
+          });
+          tab.addEventListener("contextmenu", event => {
+            event.preventDefault();
+            showTabContextMenu(event.clientX, event.clientY, file);
+          });
           tab.append(icon, label, close);
           tab.addEventListener("click", () => activateFile(file));
           tab.addEventListener("keydown", event => {
@@ -1047,6 +1092,36 @@ button.addEventListener("click", () => {
         elements.editor.dataset.file = "";
         render();
         scheduleSave();
+      }
+
+      let contextTabFile = null;
+      function showTabContextMenu(x, y, file) {
+        contextTabFile = file;
+        const menu = document.getElementById("tabContextMenu");
+        menu.hidden = false;
+        menu.style.left = `${Math.min(x, window.innerWidth - 180)}px`;
+        menu.style.top = `${Math.min(y, window.innerHeight - 120)}px`;
+        menu.querySelector('[data-tab-action="others"]').disabled = currentProject().openFiles.length <= 1;
+      }
+      function hideTabContextMenu() {
+        document.getElementById("tabContextMenu").hidden = true;
+        contextTabFile = null;
+      }
+      function closeOtherTabs(file) {
+        const project = currentProject();
+        if (project.activeFile && project.activeFile === elements.editor.dataset.file) project.files[project.activeFile] = elements.editor.value;
+        project.openFiles = project.openFiles.includes(file) ? [file] : [];
+        project.activeFile = file;
+        elements.editor.dataset.file = "";
+        render(); scheduleSave(); hideTabContextMenu();
+      }
+      function closeAllTabs() {
+        const project = currentProject();
+        if (project.activeFile && project.activeFile === elements.editor.dataset.file) project.files[project.activeFile] = elements.editor.value;
+        project.openFiles = [];
+        project.activeFile = "";
+        elements.editor.dataset.file = "";
+        render(); scheduleSave(); hideTabContextMenu();
       }
 
       function closeFile(file) {
@@ -1731,6 +1806,17 @@ button.addEventListener("click", () => {
         event.preventDefault();
         if (modalAction && modalAction(elements.nameInput.value)) closeNameModal();
       });
+      document.getElementById("tabContextMenu").addEventListener("click", event => {
+        const action = event.target.closest("button")?.dataset.tabAction;
+        if (action === "close" && contextTabFile) closeFile(contextTabFile);
+        if (action === "others" && contextTabFile) closeOtherTabs(contextTabFile);
+        if (action === "all") closeAllTabs();
+        hideTabContextMenu();
+      });
+      document.addEventListener("click", event => {
+        if (!event.target.closest("#tabContextMenu")) hideTabContextMenu();
+      });
+      window.addEventListener("resize", hideTabContextMenu);
       elements.editor.addEventListener("input", saveEditorValue);
       elements.editor.addEventListener("input", updateHtmlSuggestions);
       elements.editor.addEventListener("scroll", () => { elements.gutter.scrollTop=elements.editor.scrollTop; elements.highlightLayer.scrollTop=elements.editor.scrollTop; elements.highlightLayer.scrollLeft=elements.editor.scrollLeft; });

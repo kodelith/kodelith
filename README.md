@@ -8,17 +8,7 @@ The browser uses the project's publishable key. It is expected to be public; nev
 
 1. In Supabase, open **SQL Editor**, paste and run [`supabase/setup.sql`](supabase/setup.sql).
 2. In **Authentication → URL Configuration**, set the Site URL to `https://save-codes.github.io/my-code/` and add that URL to the redirect URL allowlist.
-3. Keep the **Email** provider enabled. Users choose a username, recovery email, and password. No confirmation email is sent after signup. Password recovery uses that email; Google sign-in is not used.
-   Configure custom SMTP in **Authentication → SMTP Settings** if you want password reset emails delivered to users.
-4. Install the Supabase CLI, then from this repository run:
+3. Keep the **Email** provider enabled and turn off **Confirm email** in **Authentication → Sign In / Providers**. Users can create an account and sign in with only their email and password; signup does not send a confirmation email. Configure custom SMTP in **Authentication → SMTP Settings** if you want password reset emails delivered to users.
+4. Upload the updated `index.html`, `README.md`, and `supabase/setup.sql` to the GitHub repository that publishes the Pages site. Pages will redeploy from its configured branch.
 
-   ```sh
-   supabase login
-   supabase link --project-ref xxielgvlkjrkdnhiddrh
-   supabase functions deploy username-login
-   ```
-
-   The deployed function uses Supabase's server-side environment variables. Do not copy a service-role or secret key into the website or share it.
-5. Upload the updated `index.html`, `README.md`, and `supabase/` files to the GitHub repository that publishes the Pages site. Pages will redeploy from its configured branch.
-
-The SQL enables row-level security so authenticated users can only read or change their own projects. Username lookup is performed by the `username-login` Edge Function; it does not expose account email addresses to other visitors.
+The SQL enables row-level security so authenticated users can only read or change their own projects. It also removes the old username-based signup trigger; existing accounts and their project data remain intact.

@@ -54,3 +54,18 @@ create policy "Users can delete their own projects"
   using ((select auth.uid()) = user_id);
 
 drop function if exists public.create_profile_for_new_user();
+
+
+-- Admin-managed usernames that are allowed to activate an Orbit account.
+-- Add rows here before giving a username to a user.
+create table if not exists public.account_invites (
+  username text not null,
+  username_key text primary key,
+  created_at timestamptz not null default now(),
+  constraint account_invites_username_format check (username ~ '^[A-Za-z0-9_]{3,24}$'),
+  constraint account_invites_username_key_format check (username_key = lower(username))
+);
+
+alter table public.account_invites enable row level security;
+revoke all on table public.account_invites from anon, authenticated;
+grant all on table public.account_invites to service_role;

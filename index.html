@@ -139,6 +139,17 @@
     .code-editor { position:relative; z-index:2; flex:1; min-width:0; resize:none; padding:16px 18px 24px 0; border:0; border-radius:0; outline:none; overflow:auto; background:transparent; color:transparent; -webkit-text-fill-color:transparent; caret-color:#007acc; tab-size:2; white-space:pre; font:12px/21px "SFMono-Regular",Consolas,monospace; }
     .code-editor::selection { background:#add6ff99; -webkit-text-fill-color:transparent; }
     .code-editor:focus { outline:none; }
+    /* HTML editing uses native textarea text so browser caret hit-testing stays exact. */
+    .editor-surface.html-editing .highlight-layer { display:none; }
+    .editor-surface.html-editing .code-editor {
+      color:#1f1f1f;
+      -webkit-text-fill-color:#1f1f1f;
+      background:#fff;
+    }
+    .editor-surface.html-editing .code-editor::selection {
+      background:#add6ff;
+      -webkit-text-fill-color:#1f1f1f;
+    }
     .empty-editor { padding: 28px; color: var(--muted); font-size: 12px; }
     .preview-area { grid-column:2; grid-row:2; min-width:0; min-height:220px; display:flex; flex-direction:column; border-left:1px solid var(--line); background:#f3f3f3; }
     .main-area.preview-hidden { grid-template-columns:minmax(0,1fr) 0; }
@@ -798,6 +809,7 @@ button.addEventListener("click", () => {
 
         const activeFile = project.activeFile;
         const editorReady = Boolean(activeFile && Object.hasOwn(project.files, activeFile));
+        elements.editor.closest(".editor-surface").classList.toggle("html-editing", editorReady && fileKind(activeFile) === "html");
         elements.editor.hidden = !editorReady;
         elements.gutter.hidden = !editorReady;
         elements.emptyEditor.hidden = editorReady;

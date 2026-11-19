@@ -267,6 +267,28 @@
       .preview-frame-wrap { padding: 8px; }
       .statusbar { gap: 9px; }
     }
+
+    .ai-panel{position:fixed;z-index:90;top:54px;right:0;bottom:28px;width:min(390px,94vw);display:flex;flex-direction:column;background:var(--panel-raised);border-left:1px solid var(--line);box-shadow:-14px 0 38px #0002}
+    .ai-panel[hidden]{display:none}
+    .ai-head{height:58px;flex:none;display:flex;align-items:center;justify-content:space-between;padding:0 15px;border-bottom:1px solid var(--line)}
+    .ai-brand{display:flex;align-items:center;gap:10px;font-size:14px;font-weight:700}.ai-brand-mark{width:30px;height:30px;border-radius:9px;display:grid;place-items:center;background:#e8f2ff;color:#0874c9;font-size:18px}
+    .ai-model{display:block;color:var(--muted);font-size:11px;font-weight:400;margin-top:2px}
+    .ai-close{border:0;background:transparent;color:var(--muted);font-size:23px;cursor:pointer;padding:4px 8px;border-radius:6px}.ai-close:hover{background:var(--panel-soft)}
+    .ai-messages{flex:1;overflow:auto;padding:15px;display:flex;flex-direction:column;gap:13px}
+    .ai-message{max-width:100%;border-radius:10px;padding:11px 12px;font-size:13px;line-height:1.55;white-space:pre-wrap;overflow-wrap:anywhere}
+    .ai-message.assistant{background:var(--panel);border:1px solid var(--line);align-self:stretch}
+    .ai-message.user{background:#e7f2ff;color:#153e65;align-self:flex-end;max-width:90%}
+    .ai-message.error{background:#fff0f0;color:#a12626;border:1px solid #f0caca}
+    .ai-composer{padding:12px;border-top:1px solid var(--line);background:var(--panel-raised)}
+    .ai-composer textarea{display:block;width:100%;min-height:82px;max-height:180px;resize:vertical;border:1px solid var(--line);border-radius:8px;padding:10px;background:var(--bg);color:var(--text);font:13px/1.5 inherit;outline:none}
+    .ai-composer textarea:focus{border-color:var(--accent);box-shadow:0 0 0 2px #007acc22}
+    .ai-compose-row{display:flex;align-items:center;justify-content:space-between;margin-top:9px;gap:8px}
+    .ai-hint{font-size:11px;color:var(--muted)}
+    .ai-send,.ai-apply{border:0;border-radius:7px;background:var(--accent);color:white;padding:8px 14px;font-weight:600;cursor:pointer}
+    .ai-send:disabled{opacity:.55;cursor:wait}
+    .ai-update-card{border:1px solid #9fc8ed;border-radius:9px;padding:11px;background:#f2f8ff;color:#1f3952;font-size:12px}
+    .ai-update-card strong{display:block;margin-bottom:7px}.ai-update-files{margin:0 0 10px;padding-left:18px}.ai-update-card button{border:0;border-radius:6px;padding:7px 11px;background:#0874c9;color:#fff;font-weight:600;cursor:pointer}
+    @media(max-width:650px){.ai-panel{top:50px;bottom:24px;width:min(100vw,420px)}}
   </style>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/codemirror@5.65.21/lib/codemirror.css">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/codemirror@5.65.21/theme/eclipse.css">
@@ -363,6 +385,7 @@
         <div class="editor-top">
           <div class="tabs" id="tabs" role="tablist" aria-label="Open files"></div>
           <div class="editor-toolbar">
+            <button class="toolbar-button" id="aiToggle" type="button" title="Open Orbit AI">✦ AI</button>
             <button class="toolbar-button active" id="previewToggle" type="button" aria-pressed="true"><span aria-hidden="true">◉</span><span>Preview</span></button>
             <button class="toolbar-button" id="undoButton" type="button" title="Undo">↶ Undo</button>
             <button class="toolbar-button" id="redoButton" type="button" title="Redo">↷ Redo</button>
@@ -400,6 +423,20 @@
       <span class="status-muted" id="cursorPosition">Ln 1, Col 1</span>
     </footer>
   </div>
+
+  <aside class="ai-panel" id="aiPanel" aria-label="Orbit AI assistant" hidden>
+    <div class="ai-head">
+      <div class="ai-brand"><span class="ai-brand-mark">✦</span><span>Orbit AI<span class="ai-model">GPT-4.1 mini · Project assistant</span></span></div>
+      <button class="ai-close" id="aiClose" type="button" aria-label="Close AI panel">×</button>
+    </div>
+    <div class="ai-messages" id="aiMessages" aria-live="polite">
+      <div class="ai-message assistant">Hi! I can explain your code, find bugs, build features, and edit your project. I can see the files in your current project. Ask me what you'd like to do.</div>
+    </div>
+    <form class="ai-composer" id="aiForm">
+      <textarea id="aiPrompt" maxlength="6000" placeholder="Ask Orbit AI to explain, fix, or build something…" aria-label="Message Orbit AI"></textarea>
+      <div class="ai-compose-row"><span class="ai-hint">Enter to send · Shift+Enter for newline</span><button class="ai-send" id="aiSend" type="submit">Send ↑</button></div>
+    </form>
+  </aside>
 
   <div class="tab-context-menu" id="tabContextMenu" role="menu" hidden>
     <button type="button" data-tab-action="close">Close</button>
@@ -580,7 +617,14 @@ button.addEventListener("click", () => {
         authModeToggle: document.getElementById("authModeToggle"),
         forgotPasswordButton: document.getElementById("forgotPasswordButton"),
         resendConfirmationButton: document.getElementById("resendConfirmationButton"),
-        submitAuth: document.getElementById("submitAuth")
+        submitAuth: document.getElementById("submitAuth"),
+        aiPanel: document.getElementById("aiPanel"),
+        aiToggle: document.getElementById("aiToggle"),
+        aiClose: document.getElementById("aiClose"),
+        aiMessages: document.getElementById("aiMessages"),
+        aiForm: document.getElementById("aiForm"),
+        aiPrompt: document.getElementById("aiPrompt"),
+        aiSend: document.getElementById("aiSend")
       };
 
       // Upgrade the native textarea to a real editor while keeping a safe textarea fallback.
@@ -673,6 +717,7 @@ button.addEventListener("click", () => {
       let loadedCloudUserId = "";
       let cloudProjectIds = new Set();
       let cloudSaveQueue = Promise.resolve();
+      let aiBusy = false;
 
       function makeStarterProject(name) {
         return {
@@ -1159,6 +1204,100 @@ button.addEventListener("click", () => {
         const entry=fileDeletionRedo.pop();if(entry){const p=state.projects[entry.projectId];if(p&&!Object.hasOwn(p.files,entry.file)){delete p.files[entry.file];p.openFiles=p.openFiles.filter(f=>f!==entry.file);if(p.activeFile===entry.file)p.activeFile=Object.keys(p.files)[0];if(state.activeProject===entry.projectId)elements.editor.dataset.file="";fileDeletionUndo.push(entry);render();scheduleSave();showToast("File deletion redone.");}return;}
         if(codeMirror)codeMirror.redo();else document.execCommand("redo");
       }
+
+      function addAiMessage(role, message) {
+        const item = document.createElement("div");
+        item.className = "ai-message " + role;
+        item.textContent = message;
+        elements.aiMessages.append(item);
+        elements.aiMessages.scrollTop = elements.aiMessages.scrollHeight;
+        return item;
+      }
+
+      function showAiPanel() {
+        elements.aiPanel.hidden = false;
+        elements.aiToggle.classList.add("active");
+        elements.aiPrompt.focus();
+      }
+
+      async function sendAiMessage(event) {
+        event?.preventDefault();
+        const prompt = elements.aiPrompt.value.trim();
+        if (!prompt || aiBusy) return;
+        if (!cloudUser || !supabaseClient) {
+          addAiMessage("error", "Please sign in to Orbit first. AI access is available to signed-in accounts.");
+          return;
+        }
+        saveEditorValue();
+        const project = currentProject();
+        const activeFile = project.activeFile || "";
+        const files = Object.fromEntries(Object.entries(project.files).slice(0, 12).map(([name, content]) => [name, String(content).slice(0, 14000)]));
+        addAiMessage("user", prompt);
+        elements.aiPrompt.value = "";
+        aiBusy = true;
+        elements.aiSend.disabled = true;
+        elements.aiSend.textContent = "Thinking…";
+        const waiting = addAiMessage("assistant", "Working on your project…");
+        try {
+          const { data, error } = await supabaseClient.functions.invoke("orbit-ai", {
+            body: { prompt, projectName: project.name, activeFile, files }
+          });
+          waiting.remove();
+          if (error) {
+            let detail = error.message || "The AI request failed.";
+            try { if (error.context) { const body = await error.context.json(); if (body.error) detail = body.error; } } catch {}
+            throw new Error(detail);
+          }
+          if (!data || typeof data.message !== "string") throw new Error("Orbit AI returned an invalid response.");
+          addAiMessage("assistant", data.message);
+          const updates = Array.isArray(data.updates) ? data.updates.filter(update =>
+            update && typeof update.file === "string" && /^[A-Za-z0-9._-]{1,80}$/.test(update.file) &&
+            typeof update.content === "string" && update.content.length <= 50000
+          ).slice(0, 8) : [];
+          if (updates.length) {
+            const card = document.createElement("div");
+            card.className = "ai-update-card";
+            const heading = document.createElement("strong");
+            heading.textContent = "Code changes ready to review";
+            const list = document.createElement("ul");
+            list.className = "ai-update-files";
+            updates.forEach(update => {
+              const li = document.createElement("li");
+              li.textContent = update.file + (Object.hasOwn(project.files, update.file) ? " · update" : " · new file");
+              list.append(li);
+            });
+            const apply = document.createElement("button");
+            apply.type = "button";
+            apply.textContent = "Apply changes";
+            apply.addEventListener("click", () => {
+              saveEditorValue();
+              const current = currentProject();
+              updates.forEach(update => {
+                current.files[update.file] = update.content;
+                if (!current.openFiles.includes(update.file)) current.openFiles.push(update.file);
+              });
+              current.activeFile = updates[0].file;
+              render();
+              saveState();
+              buildPreview();
+              card.remove();
+              showToast("AI changes applied. You can undo with ⌘Z / Ctrl+Z.");
+            });
+            card.append(heading, list, apply);
+            elements.aiMessages.append(card);
+            elements.aiMessages.scrollTop = elements.aiMessages.scrollHeight;
+          }
+        } catch (error) {
+          waiting.remove();
+          addAiMessage("error", error instanceof Error ? error.message : "Orbit AI couldn't complete that request.");
+        } finally {
+          aiBusy = false;
+          elements.aiSend.disabled = false;
+          elements.aiSend.textContent = "Send ↑";
+          elements.aiPrompt.focus();
+        }
+      }
+
       function showToastWithUndo(message) {
         elements.toast.replaceChildren(document.createTextNode(message));const button=document.createElement("button");button.type="button";button.textContent="Undo";
         button.style.cssText="margin-left:14px;border:0;background:transparent;color:#0067b8;font-weight:700;cursor:pointer";button.addEventListener("click",undoOrbit);elements.toast.append(button);elements.toast.hidden=false;
@@ -1853,6 +1992,12 @@ button.addEventListener("click", () => {
             document.getElementById("formatButton").addEventListener("click",formatCurrentCode);
       document.getElementById("undoButton").addEventListener("click",undoOrbit);
       document.getElementById("redoButton").addEventListener("click",redoOrbit);
+      elements.aiToggle.addEventListener("click", () => elements.aiPanel.hidden ? showAiPanel() : (elements.aiPanel.hidden = true, elements.aiToggle.classList.remove("active")));
+      elements.aiClose.addEventListener("click", () => { elements.aiPanel.hidden = true; elements.aiToggle.classList.remove("active"); });
+      elements.aiForm.addEventListener("submit", sendAiMessage);
+      elements.aiPrompt.addEventListener("keydown", event => {
+        if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); elements.aiForm.requestSubmit(); }
+      });
       document.getElementById("runButton").addEventListener("click", () => {
         saveEditorValue();
         buildPreview();

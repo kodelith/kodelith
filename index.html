@@ -882,13 +882,6 @@ button.addEventListener("click", () => {
         elements.highlightLayer.scrollLeft = elements.editor.scrollLeft;
       }
 
-      function updateLineNumbers() {</span>');
-        }
-        elements.highlightCode.innerHTML = html + (source.endsWith("\n") ? " " : "");
-        elements.highlightLayer.scrollTop = elements.editor.scrollTop;
-        elements.highlightLayer.scrollLeft = elements.editor.scrollLeft;
-      }
-
       function updateLineNumbers() {
         const lineCount = elements.editor.value.split("\n").length;
         elements.gutter.textContent = Array.from({ length: lineCount }, (_, index) => index + 1).join("\n");

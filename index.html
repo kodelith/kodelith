@@ -140,7 +140,7 @@
     .code-editor::selection { background:#add6ff99; -webkit-text-fill-color:transparent; }
     .code-editor:focus { outline:none; }
     /* HTML editing uses native textarea text so browser caret hit-testing stays exact. */
-    .editor-surface.html-editing .highlight-layer { display:block; }
+    .editor-surface.html-editing .highlight-layer { display:block; z-index:3; }
     .editor-surface.html-editing .code-editor {
       color:transparent;
       -webkit-text-fill-color:transparent;
@@ -963,7 +963,7 @@ button.addEventListener("click", () => {
         return "Orbit couldn't complete that request. Please check your details and try again.";
       }
 
-      const htmlTagNames = ["a","article","aside","audio","body","button","canvas","caption","code","div","em","fieldset","footer","form","h1","h2","h3","head","header","hr","html","iframe","img","input","label","li","link","main","meta","nav","ol","option","p","script","section","select","small","span","strong","style","table","tbody","td","textarea","th","thead","title","tr","ul","video"];
+      const htmlTagNames = ["a","abbr","address","area","article","aside","audio","b","base","blockquote","body","br","button","canvas","caption","cite","code","col","colgroup","data","datalist","dd","del","details","dfn","dialog","div","dl","dt","em","embed","fieldset","figcaption","figure","footer","form","h1","h2","h3","h4","h5","h6","head","header","hr","html","i","iframe","img","input","ins","kbd","label","legend","li","link","main","map","mark","meta","meter","nav","noscript","object","ol","optgroup","option","output","p","param","picture","pre","progress","q","rp","rt","ruby","s","samp","script","search","section","select","small","source","span","strong","style","sub","summary","sup","table","tbody","td","template","textarea","tfoot","th","thead","time","title","tr","track","u","ul","var","video","wbr"]
       let htmlSuggestionMatches = [];
       let htmlSuggestionIndex = 0;
 
@@ -1368,21 +1368,8 @@ button.addEventListener("click", () => {
             [...elements.htmlSuggestionItems.children].forEach((item, index) => item.classList.toggle("active", index === htmlSuggestionIndex));
             return;
           }
-          if (event.key === "Enter" || event.key === "Tab") { event.preventDefault(); acceptHtmlSuggestion(); return; }
+          if (event.key === "Tab") { event.preventDefault(); acceptHtmlSuggestion(); return; }
           if (event.key === "Escape") { hideHtmlSuggestions(); return; }
-        }
-        if (event.key === ">" && fileKind(currentProject().activeFile) === "html") {
-          const start=elements.editor.selectionStart;
-          const opening=elements.editor.value.slice(0,start).match(/<([A-Za-z][\w:-]*)\s*$/);
-          const voidTags=/^(area|base|br|col|embed|hr|img|input|link|meta|param|source|track|wbr)$/i;
-          if(opening && !voidTags.test(opening[1])) {
-            event.preventDefault();
-            const insert="></"+opening[1]+">";
-            elements.editor.setRangeText(insert,start,elements.editor.selectionEnd,"end");
-            elements.editor.setSelectionRange(start+1,start+1);
-            saveEditorValue();
-            return;
-          }
         }
         if (event.key === "Tab") {
           event.preventDefault();

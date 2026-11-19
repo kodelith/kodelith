@@ -917,7 +917,7 @@ button.addEventListener("click", () => {
         elements.authUsernameLabel.hidden = recovering;
         elements.authUsername.hidden = recovering;
         elements.authUsername.required = !recovering;
-        elements.authUsername.autocomplete = signingUp ? "username" : "username";
+        elements.authUsername.autocomplete = signingUp ? "username" : "username";         elements.authUsername.maxLength = 254;
         elements.authUsername.placeholder = signingUp ? "3–24 letters, numbers, or underscores" : "Your username or email";
         elements.authEmailLabel.hidden = !signingUp || recovering;
         elements.authEmail.hidden = !signingUp || recovering;
@@ -926,7 +926,7 @@ button.addEventListener("click", () => {
         elements.authPassword.required = true;
         elements.authHint.hidden = recovering;
         elements.authHint.textContent = signingUp
-          ? "Use a real email for recovery and at least 8 characters for your password."
+          ? "No confirmation email is sent. Use an email you can access for password recovery."
           : recovering
             ? "Use at least 8 characters."
             : "You can sign in with your username or email.";
@@ -978,7 +978,7 @@ button.addEventListener("click", () => {
             const { data, error } = await supabaseClient.auth.signUp({
               email,
               password,
-              options: { data: { username }, emailRedirectTo: AUTH_REDIRECT_URL }
+              options: { data: { username } }
             });
             if (error) throw error;
             if (data.session) {
@@ -986,8 +986,8 @@ button.addEventListener("click", () => {
               await loadCloudWorkspace(data.session);
               showToast("Your account is ready.");
             } else {
-              setAuthMessage("Confirmation pending. Check your inbox and spam for the confirmation link. After confirming, return here and sign in.");
-              elements.resendConfirmationButton.hidden = false;
+              setAuthMessage("Your account was created, but sign-in did not complete. Sign in with your username or email and password.");
+              elements.resendConfirmationButton.hidden = true;
             }
           } else if (authMode === "signin") {
             const identity = elements.authUsername.value.trim();

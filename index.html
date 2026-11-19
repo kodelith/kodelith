@@ -1558,13 +1558,17 @@ button.addEventListener("click", () => {
         }
       }
 
-      document.getElementById("newProjectButton").addEventListener("click", () => openNameModal({
-        title: "Create a project",
-        description: "Start with a ready-to-edit HTML, CSS, and JavaScript project.",
-        button: "Create project",
-        placeholder: "e.g. Portfolio site",
-        action: createProject
-      }));
+      document.getElementById("newProjectButton").addEventListener("click", () => {
+        let number = 1;
+        let projectName = "My Project";
+        const existingNames = new Set(Object.values(state.projects).map(project => project.name.toLowerCase()));
+        while (existingNames.has(projectName.toLowerCase())) {
+          number += 1;
+          projectName = `My Project ${number}`;
+        }
+        createProject(projectName);
+        showToast(`Created ${projectName}. Your HTML, CSS and JavaScript files are ready!`);
+      });
       document.getElementById("projectSwitcher").addEventListener("click", switchProject);
       document.getElementById("newFileButton").addEventListener("click", () => openNameModal({
         title: "Create a file",

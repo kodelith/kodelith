@@ -977,49 +977,66 @@ button.addEventListener("click", () => {
         htmlSuggestionIndex = 0;
       }
 
-      const htmlGlobalAttributes = ["accesskey","autocapitalize","autofocus","class","contenteditable","data-","dir","draggable","enterkeyhint","hidden","id","inert","inputmode","is","itemid","itemprop","itemref","itemscope","itemtype","lang","nonce","part","popover","role","slot","spellcheck","style","tabindex","title","translate"];
+      const htmlGlobalAttributes = ["accesskey","autocapitalize","autofocus","class","contenteditable","contextmenu","data-","dir","draggable","enterkeyhint","exportparts","hidden","id","inert","inputmode","is","itemid","itemprop","itemref","itemscope","itemtype","lang","nonce","part","popover","role","slot","spellcheck","style","tabindex","title","translate","xmlns"];
       const htmlTagAttributes = {
-        a:["href","target","download","rel","hreflang","type"],
+        a:["href","target","download","rel","hreflang","type","ping","referrerpolicy"],
         area:["alt","coords","download","href","hreflang","rel","shape","target"],
-        audio:["autoplay","controls","loop","muted","preload","src"],
-        button:["autofocus","disabled","form","name","type","value"],
+        audio:["autoplay","controls","controlslist","crossorigin","loop","muted","preload","src"],
+        base:["href","target"],
+        blockquote:["cite"], q:["cite"], del:["cite","datetime"], ins:["cite","datetime"],
+        button:["autofocus","disabled","form","formaction","formenctype","formmethod","formnovalidate","formtarget","name","type","value"],
+        canvas:["height","width"],
+        col:["span"], colgroup:["span"],
+        data:["value"], meter:["high","low","max","min","optimum","value"], progress:["max","value"],
+        details:["name","open"], dialog:["open"],
         form:["accept-charset","action","autocomplete","enctype","method","name","novalidate","target"],
-        iframe:["allow","allowfullscreen","height","loading","name","referrerpolicy","sandbox","src","srcdoc","width"],
-        img:["alt","crossorigin","decoding","fetchpriority","height","ismap","loading"," sizes","src","srcset","usemap","width"],
-        input:["accept","alt","autocomplete","autofocus","checked","disabled","form","height","max","maxlength","min","minlength","multiple","name","pattern","placeholder","readonly","required","size","src","step","type","value","width"],
-        label:["for","form"],
-        link:["crossorigin","href","hreflang","media","rel","sizes","type"],
-        meta:["charset","content","http-equiv","name"],
-        script:["async","crossorigin","defer","integrity","nomodule","referrerpolicy","src","type"],
-        select:["autocomplete","disabled","multiple","name","required","size"],
+        iframe:["allow","allowfullscreen","allowpaymentrequest","credentialless","csp","height","loading","name","referrerpolicy","sandbox","src","srcdoc","width"],
+        img:["alt","crossorigin","decoding","fetchpriority","height","ismap","loading","referrerpolicy","sizes","src","srcset","usemap","width"],
+        input:["accept","alt","autocomplete","autofocus","capture","checked","dirname","disabled","form","formaction","formenctype","formmethod","formnovalidate","formtarget","height","list","max","maxlength","min","minlength","multiple","name","pattern","placeholder","readonly","required","size","src","step","type","value","width"],
+        label:["for","form"], fieldset:["disabled","form","name"], legend:["align"],
+        link:["as","crossorigin","disabled","fetchpriority","href","hreflang","imagesizes","imagesrcset","integrity","media"," referrerpolicy","rel","sizes","type"],
+        meta:["charset","content","http-equiv","media","name"],
+        script:["async","crossorigin","defer","fetchpriority","integrity","nomodule","referrerpolicy","src","type"],
+        select:["autocomplete","autofocus","disabled","form","multiple","name","required","size"],
+        option:["disabled","label","selected","value"], optgroup:["disabled","label"],
         source:["media","sizes","src","srcset","type"],
-        textarea:["autocomplete","cols","dirname","disabled","maxlength","minlength","name","placeholder","readonly","required","rows","wrap"],
-        video:["autoplay","controls","height","loop","muted","poster","preload","src","width"],
-        ol:["reversed","start","type"], li:["value"], td:["colspan","headers","rowspan"], th:["colspan","headers","rowspan","scope"],
-        svg:["height","viewBox","width","xmlns"], path:["d","fill","stroke","stroke-width"], circle:["cx","cy","r","fill","stroke"]
+        textarea:["autocomplete","autofocus","cols","dirname","disabled","form","maxlength","minlength","name","placeholder","readonly","required","rows","wrap"],
+        video:["autoplay","controls","controlslist","crossorigin","height","loop","muted","playsinline","poster","preload","src","width"],
+        ol:["reversed","start","type"], li:["value"], td:["colspan","headers","rowspan"], th:["colspan","headers","rowspan","scope","abbr"],
+        table:["border"], time:["datetime"], meter:["high","low","max","min","optimum","value"],
+        svg:["height","viewBox","width","xmlns","fill","stroke","role","aria-label"],
+        path:["d","fill","pathLength","stroke","stroke-width"], circle:["cx","cy","r","fill","stroke","stroke-width"],
+        rect:["x","y","width","height","rx","ry","fill","stroke"], line:["x1","x2","y1","y2","stroke"],
+        use:["href","xlink:href"], image:["href","xlink:href","x","y","width","height"]
       };
       function getHtmlCompletionContext() {
         const cursor = elements.editor.selectionStart;
         const before = elements.editor.value.slice(0, cursor);
-        const openTag = before.match(/<([a-z][a-z0-9-]*)\\b([^<>]*)$/i);
-        if (openTag && !before.endsWith("</") && /\\s/.test(openTag[2].slice(-1))) {
-          return { prefix:"", start:cursor, mode:"attribute", tag:openTag[1].toLowerCase() };
-        }
+        const openTag = before.match(/<([a-z][a-z0-9:-]*)\\b([^<>]*)$/i);
         if (openTag && !before.endsWith("</")) {
-          const attrMatch = openTag[2].match(/(?:^|\\s)([a-z_:][-a-z0-9_:.]*)$/i);
-          if (attrMatch) return { prefix:attrMatch[1].toLowerCase(), start:cursor-attrMatch[1].length, mode:"attribute", tag:openTag[1].toLowerCase() };
+          const tail = openTag[2];
+          const quoteCount = (tail.match(/["']/g) || []).length;
+          if (quoteCount % 2 === 0) {
+            const attrMatch = tail.match(/(?:^|\\s)([a-z_:][-a-z0-9_:.]*)$/i);
+            if (attrMatch) {
+              const partial = attrMatch[1];
+              return { prefix: partial.toLowerCase(), start: cursor - partial.length, mode: "attribute", tag: openTag[1].toLowerCase() };
+            }
+            if (/\\s$/.test(tail)) {
+              return { prefix: "", start: cursor, mode: "attribute", tag: openTag[1].toLowerCase() };
+            }
+          }
         }
         const angleMatch = before.match(/<([a-z][a-z0-9-]*)?$/i);
         if (angleMatch && !before.endsWith("</")) {
           return { prefix: (angleMatch[1] || "").toLowerCase(), start: cursor - angleMatch[0].length, mode: "angle" };
         }
-        const lineStart = before.lastIndexOf("\n") + 1;
+        const lineStart = before.lastIndexOf("\\n") + 1;
         const linePrefix = before.slice(lineStart);
         const bareMatch = linePrefix.match(/^(\\s*)([a-z][a-z0-9-]*)$/i);
         if (bareMatch) return { prefix:bareMatch[2].toLowerCase(), start:cursor-bareMatch[2].length, mode:"bare" };
         return null;
       }
-
       function updateHtmlSuggestions() {
         if (fileKind(currentProject().activeFile) !== "html") { hideHtmlSuggestions(); return; }
         const context = getHtmlCompletionContext();

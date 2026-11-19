@@ -120,20 +120,29 @@
     .editor-toolbar { display: flex; align-items: center; gap: 6px; padding: 0 12px; margin-left: auto; }
     .toolbar-button { height: 28px; display: inline-flex; align-items: center; gap: 6px; padding: 0 9px; border: 1px solid transparent; border-radius: 6px; background: transparent; color: #424242; cursor: pointer; font-size: 10px; }
     .toolbar-button.active { border-color: #b3d8f1; background: #e6f3fb; color: #005a9e; }
-    .editor-surface { flex: 1; min-height: 220px; display: flex; overflow: hidden; background: var(--bg); }
+    .main-area { display:grid; grid-template-columns:minmax(0,1fr) minmax(320px,42%); grid-template-rows:44px minmax(0,1fr); min-height:0; }
+    .editor-top { grid-column:1 / -1; grid-row:1; }
+    .editor-surface { grid-column:1; grid-row:2; position:relative; min-width:0; min-height:220px; display:flex; overflow:hidden; background:var(--bg); }
     .gutter {
       width: 52px; flex: 0 0 52px; padding: 16px 13px 20px 0; overflow: hidden; color: #858585;
       text-align: right; white-space: pre; font: 12px/21px "SFMono-Regular", Consolas, "Liberation Mono", monospace;
       user-select: none;
     }
-    .code-editor {
-      flex: 1; min-width: 0; resize: none; padding: 16px 18px 24px 0; border: 0; border-radius: 0;
-      outline: none; overflow: auto; background: transparent; color: #1f1f1f; caret-color: #007acc;
-      tab-size: 2; white-space: pre; font: 12px/21px "SFMono-Regular", Consolas, "Liberation Mono", monospace;
-    }
-    .code-editor:focus { outline: none; }
+    .highlight-layer { position:absolute; inset:0 0 0 52px; z-index:1; margin:0; padding:16px 18px 24px 0; overflow:hidden; pointer-events:none; color:#1f1f1f; tab-size:2; white-space:pre; font:12px/21px "SFMono-Regular",Consolas,monospace; }
+    .highlight-layer code { font:inherit; }
+    .tok-tag,.tok-keyword { color:#0000ff; }
+    .tok-attr,.tok-property { color:#e50000; }
+    .tok-string { color:#a31515; }
+    .tok-comment { color:#008000; font-style:italic; }
+    .tok-value,.tok-number { color:#098658; }
+    .tok-selector { color:#800000; }
+    .code-editor { position:relative; z-index:2; flex:1; min-width:0; resize:none; padding:16px 18px 24px 0; border:0; border-radius:0; outline:none; overflow:auto; background:transparent; color:transparent; -webkit-text-fill-color:transparent; caret-color:#007acc; tab-size:2; white-space:pre; font:12px/21px "SFMono-Regular",Consolas,monospace; }
+    .code-editor::selection { background:#add6ff99; -webkit-text-fill-color:transparent; }
+    .code-editor:focus { outline:none; }
     .empty-editor { padding: 28px; color: var(--muted); font-size: 12px; }
-    .preview-area { height: 42%; min-height: 220px; display: flex; flex-direction: column; border-top: 1px solid var(--line); background: #f3f3f3; }
+    .preview-area { grid-column:2; grid-row:2; min-width:0; min-height:220px; display:flex; flex-direction:column; border-left:1px solid var(--line); background:#f3f3f3; }
+    .main-area.preview-hidden { grid-template-columns:minmax(0,1fr) 0; }
+    .main-area.preview-hidden .preview-area { display:none; }
     .preview-toolbar { height: 39px; flex: 0 0 39px; display: flex; align-items: center; gap: 10px; padding: 0 14px; border-bottom: 1px solid var(--line); }
     .preview-heading { color: #333333; font-size: 10px; font-weight: 700; letter-spacing: .09em; }
     .preview-url { flex: 1; max-width: 370px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 5px 9px; border: 1px solid #d4d4d4; border-radius: 5px; color: #616161; font: 10px "SFMono-Regular", Consolas, monospace; }
@@ -182,7 +191,11 @@
       .workspace { min-height: calc(100vh - 76px); }
       .editor-toolbar { padding: 0 5px; gap: 2px; }
       .toolbar-button { padding: 0 6px; }
-      .preview-area { height: 42%; }
+      .main-area { grid-template-columns:minmax(0,1fr); grid-template-rows:44px minmax(260px,1fr) minmax(220px,42vh); }
+      .editor-top { grid-column:1; grid-row:1; }
+      .editor-surface { grid-column:1; grid-row:2; }
+      .preview-area { grid-column:1; grid-row:3; border-left:0; border-top:1px solid var(--line); }
+      .main-area.preview-hidden { grid-template-rows:44px minmax(260px,1fr) 0; }
       .preview-toolbar { gap: 7px; padding: 0 9px; }
       .preview-message { display: none; }
       .preview-frame-wrap { padding: 8px; }
@@ -248,11 +261,13 @@
           <div class="tabs" id="tabs" role="tablist" aria-label="Open files"></div>
           <div class="editor-toolbar">
             <button class="toolbar-button active" id="previewToggle" type="button" aria-pressed="true"><span aria-hidden="true">◉</span><span>Preview</span></button>
-            <button class="toolbar-button" id="runButton" type="button" title="Run preview (Ctrl+Enter)"><span aria-hidden="true">▶</span><span>Run</span></button>
+            <button class="toolbar-button" id="formatButton" type="button" title="Format code"><span aria-hidden="true">⌘</span><span>Format</span></button>
+          <button class="toolbar-button" id="runButton" type="button" title="Run preview (Ctrl+Enter)"><span aria-hidden="true">▶</span><span>Run</span></button>
           </div>
         </div>
         <section class="editor-surface" aria-label="Code editor">
           <div class="gutter" id="lineNumbers" aria-hidden="true">1</div>
+          <pre class="highlight-layer" id="highlightLayer" aria-hidden="true"><code id="highlightCode"></code></pre>
           <textarea class="code-editor" id="codeEditor" aria-label="Code editor" spellcheck="false" autocapitalize="off" autocomplete="off" autocorrect="off"></textarea>
           <div class="empty-editor" id="emptyEditor" hidden>Select a file to start editing.</div>
         </section>
@@ -397,6 +412,8 @@ button.addEventListener("click", () => {
         tabs: document.getElementById("tabs"),
         editor: document.getElementById("codeEditor"),
         gutter: document.getElementById("lineNumbers"),
+        highlightLayer: document.getElementById("highlightLayer"),
+        highlightCode: document.getElementById("highlightCode"),
         emptyEditor: document.getElementById("emptyEditor"),
         preview: document.getElementById("previewFrame"),
         previewUrl: document.getElementById("previewUrl"),
@@ -838,9 +855,37 @@ button.addEventListener("click", () => {
         scheduleSave();
       }
 
+      function renderSyntaxHighlight() {
+        const file = currentProject()?.activeFile || "";
+        const kind = fileKind(file);
+        const source = elements.editor.value;
+        const esc = value => value.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+        let html = esc(source);
+        if (kind === "html") {
+          html = html.replace(/(&lt;!--[\\s\\S]*?--&gt;)/g,'<span class="tok-comment">$1</span>');
+          html = html.replace(/(&lt;\\/?)([A-Za-z][\\w:-]*)/g,'$1<span class="tok-tag">$2</span>');
+          html = html.replace(/([\\w:-]+)(=)("[^"]*"|'[^']*')/g,'<span class="tok-attr">$1</span>$2<span class="tok-string">$3</span>');
+        } else if (kind === "css") {
+          html = html.replace(/(\\/\\*[\\s\\S]*?\\*\\/|\\/\\/[^\\n]*)/g,'<span class="tok-comment">$1</span>');
+          html = html.replace(/(["'][^"']*["'])/g,'<span class="tok-string">$1</span>');
+          html = html.replace(/([\\w-]+)(\\s*:)(?=\\s*[^{}])/g,'<span class="tok-property">$1</span>$2');
+          html = html.replace(/([^{};\\n]+)(?=\\s*\\{)/g,'<span class="tok-selector">$1</span>');
+          html = html.replace(/(#[0-9a-fA-F]{3,8}\\b|\\b\\d+(?:\\.\\d+)?(?:px|rem|em|%)?\\b)/g,'<span class="tok-value">$1</span>');
+        } else if (kind === "js") {
+          html = html.replace(/(\\/\\*[\\s\\S]*?\\*\\/|\\/\\/[^\\n]*)/g,'<span class="tok-comment">$1</span>');
+          html = html.replace(/(["'`](?:\\\\.|[^"'`])*?["'`])/g,'<span class="tok-string">$1</span>');
+          html = html.replace(/\\b(const|let|var|function|return|if|else|for|while|class|new|async|await|try|catch|throw|true|false|null|undefined|import|from|export|default)\\b/g,'<span class="tok-keyword">$1</span>');
+          html = html.replace(/\\b\\d+(?:\\.\\d+)?\\b/g,'<span class="tok-number">      function updateLineNumbers() {</span>');
+        }
+        elements.highlightCode.innerHTML = html + (source.endsWith("\n") ? " " : "");
+        elements.highlightLayer.scrollTop = elements.editor.scrollTop;
+        elements.highlightLayer.scrollLeft = elements.editor.scrollLeft;
+      }
+
       function updateLineNumbers() {
         const lineCount = elements.editor.value.split("\n").length;
         elements.gutter.textContent = Array.from({ length: lineCount }, (_, index) => index + 1).join("\n");
+        renderSyntaxHighlight();
         elements.gutter.scrollTop = elements.editor.scrollTop;
       }
 
@@ -848,6 +893,46 @@ button.addEventListener("click", () => {
         const beforeCursor = elements.editor.value.slice(0, elements.editor.selectionStart);
         const line = beforeCursor.split("\n");
         elements.cursorPosition.textContent = `Ln ${line.length}, Col ${line[line.length - 1].length + 1}`;
+      }
+
+      function formatCurrentCode() {
+        const value = elements.editor.value;
+        const kind = fileKind(currentProject().activeFile);
+        const lines = value.replace(/\\r\\n?/g,"\n").split("\n");
+        let depth = 0;
+        const output = [];
+        if (kind === "html") {
+          const tokens = value.replace(/>\\s*</g,">\n<").split("\n").map(x=>x.trim()).filter(Boolean);
+          for (const token of tokens) {
+            if (/^<\\//.test(token)) depth = Math.max(0,depth-1);
+            output.push("  ".repeat(depth)+token);
+            if (/^<([A-Za-z][\\w:-]*)\\b[^>]*>$/.test(token) && !/\\/>$/.test(token) && !/^<(area|base|br|col|embed|hr|img|input|link|meta|param|source|track|wbr)\\b/i.test(token)) depth++;
+          }
+        } else {
+          for (const raw of lines) {
+            const line=raw.trim(); if(!line){if(output.at(-1)!=="")output.push("");continue;}
+            if(/^[})\\]]/.test(line)) depth=Math.max(0,depth-1);
+            output.push("  ".repeat(depth)+line);
+            const opens=(line.match(/[({[]/g)||[]).length, closes=(line.match(/[)}\\]]/g)||[]).length;
+            depth=Math.max(0,depth+opens-closes);
+          }
+        }
+        const result=output.join("\n").trimEnd()+"\n";
+        if(result===value){showToast("Code is already formatted.");return;}
+        const cursor=elements.editor.selectionStart; elements.editor.value=result;
+        elements.editor.setSelectionRange(Math.min(cursor,result.length),Math.min(cursor,result.length));
+        saveEditorValue(); showToast("Code formatted.");
+      }
+
+      function friendlyAuthError(error) {
+        const raw=String(error?.context?.error||error?.message||"").toLowerCase();
+        if(/invalid.*(login|credential)|invalid username|invalid password|user not found/.test(raw)) return "Username or password is incorrect. Check both and try again.";
+        if(/already.*(registered|exists)|already activated/.test(raw)) return "This username is already activated. Please sign in instead.";
+        if(/invite|not authorized|not allowed/.test(raw)) return "This username has not been assigned by Orbit. Contact the administrator.";
+        if(/password.*(short|weak)|at least 8/.test(raw)) return "Choose a password with at least 8 characters.";
+        if(/rate limit|too many/.test(raw)) return "Too many attempts. Please wait a little and try again.";
+        if(/fetch|network|timeout|failed to send/.test(raw)) return "Couldn't reach Orbit's account service. Check your internet connection and try again.";
+        return "Orbit couldn't complete that request. Please check your details and try again.";
       }
 
       function saveEditorValue() {
@@ -979,8 +1064,7 @@ button.addEventListener("click", () => {
           showToast(authMode === "activate" ? "Your Orbit account is ready." : "Signed in successfully.");
         } catch (error) {
           console.error("Orbit account action failed:", error);
-          const message = error?.context?.error || error.message || "Account action failed. Check your details and try again.";
-          setAuthMessage(message, true);
+          setAuthMessage(friendlyAuthError(error), true);
         } finally {
           elements.submitAuth.disabled = false;
           elements.authModeToggle.disabled = false;
@@ -1166,6 +1250,7 @@ button.addEventListener("click", () => {
           return;
         }
         try {
+          if (!window.confirm("Sign out of Orbit? Your cloud projects will remain saved to your account.")) return;
           const { error } = await supabaseClient.auth.signOut();
           if (error) throw error;
           handleSignedOut();
@@ -1198,10 +1283,20 @@ button.addEventListener("click", () => {
         if (modalAction && modalAction(elements.nameInput.value)) closeNameModal();
       });
       elements.editor.addEventListener("input", saveEditorValue);
-      elements.editor.addEventListener("scroll", () => { elements.gutter.scrollTop = elements.editor.scrollTop; });
+      elements.editor.addEventListener("scroll", () => { elements.gutter.scrollTop=elements.editor.scrollTop; elements.highlightLayer.scrollTop=elements.editor.scrollTop; elements.highlightLayer.scrollLeft=elements.editor.scrollLeft; });
       elements.editor.addEventListener("click", updateCursorPosition);
       elements.editor.addEventListener("keyup", updateCursorPosition);
       elements.editor.addEventListener("keydown", event => {
+        if (event.key === ">" && fileKind(currentProject().activeFile) === "html") {
+          const start=elements.editor.selectionStart;
+          const opening=elements.editor.value.slice(0,start).match(/<([A-Za-z][\\w:-]*)\\s*$/);
+          const voidTags=/^(area|base|br|col|embed|hr|img|input|link|meta|param|source|track|wbr)$/i;
+          if(opening && !voidTags.test(opening[1])) {
+            event.preventDefault(); const insert=`></${opening[1]}>`;
+            elements.editor.setRangeText(insert,start,elements.editor.selectionEnd,"end");
+            elements.editor.setSelectionRange(start+1,start+1); saveEditorValue(); return;
+          }
+        }
         if (event.key === "Tab") {
           event.preventDefault();
           const start = elements.editor.selectionStart;
@@ -1210,6 +1305,7 @@ button.addEventListener("click", () => {
           saveEditorValue();
         }
       });
+      document.getElementById("formatButton").addEventListener("click",formatCurrentCode);
       document.getElementById("runButton").addEventListener("click", () => {
         saveEditorValue();
         buildPreview();
@@ -1220,6 +1316,7 @@ button.addEventListener("click", () => {
         const button = event.currentTarget;
         const isVisible = !elements.previewArea.hidden;
         elements.previewArea.hidden = isVisible;
+        elements.previewArea.closest(".main-area").classList.toggle("preview-hidden",isVisible);
         button.classList.toggle("active", !isVisible);
         button.setAttribute("aria-pressed", String(!isVisible));
       });

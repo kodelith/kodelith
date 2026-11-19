@@ -977,13 +977,27 @@ button.addEventListener("click", () => {
         htmlSuggestionIndex = 0;
       }
 
-      function updateHtmlSuggestions() {
-        if (fileKind(currentProject().activeFile) !== "html") { hideHtmlSuggestions(); return; }
+      function getHtmlCompletionContext() {
         const cursor = elements.editor.selectionStart;
         const before = elements.editor.value.slice(0, cursor);
-        const match = before.match(/<([a-z][a-z0-9-]*)?$/i);
-        if (!match || before.endsWith("</")) { hideHtmlSuggestions(); return; }
-        const prefix = (match[1] || "").toLowerCase();
+        const angleMatch = before.match(/<([a-z][a-z0-9-]*)?$/i);
+        if (angleMatch && !before.endsWith("</")) {
+          return { prefix: (angleMatch[1] || "").toLowerCase(), start: cursor - angleMatch[0].length, mode: "angle" };
+        }
+        const lineStart = before.lastIndexOf("\\n") + 1;
+        const linePrefix = before.slice(lineStart);
+        const bareMatch = linePrefix.match(/^(\\s*)([a-z][a-z0-9-]*)$/i);
+        if (bareMatch) {
+          return { prefix: bareMatch[2].toLowerCase(), start: cursor - bareMatch[2].length, mode: "bare" };
+        }
+        return null;
+      }
+
+      function updateHtmlSuggestions() {
+        if (fileKind(currentProject().activeFile) !== "html") { hideHtmlSuggestions(); return; }
+        const context = getHtmlCompletionContext();
+        if (!context) { hideHtmlSuggestions(); return; }
+        const { prefix } = context;
         htmlSuggestionMatches = htmlTagNames.filter(tag => tag.toLowerCase().startsWith(prefix)).slice(0, 40);
         if (!htmlSuggestionMatches.length) { hideHtmlSuggestions(); return; }
         htmlSuggestionIndex = 0;
@@ -1001,7 +1015,8 @@ button.addEventListener("click", () => {
           elements.htmlSuggestionItems.append(item);
         });
         elements.htmlSuggestions.classList.add("visible");
-        const beforeLines = before.split("\n");
+        const before = elements.editor.value.slice(0, elements.editor.selectionStart);
+        const beforeLines = before.split("\\n");
         const lineHeight = 21;
         const caretLineTop = 16 + (beforeLines.length - 1) * lineHeight - elements.editor.scrollTop;
         const popupHeight = Math.min(520, elements.editor.clientHeight - 28, htmlSuggestionMatches.length * 48 + 2);
@@ -1014,13 +1029,15 @@ button.addEventListener("click", () => {
 
       function acceptHtmlSuggestion() {
         if (!htmlSuggestionMatches.length) return false;
+        const context = getHtmlCompletionContext();
+        if (!context) { hideHtmlSuggestions(); return false; }
         const tag = htmlSuggestionMatches[htmlSuggestionIndex];
-        const cursor = elements.editor.selectionStart;
-        const match = elements.editor.value.slice(0, cursor).match(/<([a-z][a-z0-9-]*)?$/i);
-        if (!match) { hideHtmlSuggestions(); return false; }
-        const start = cursor - match[0].length;
-        elements.editor.setRangeText("<" + tag + ">", start, cursor, "end");
-        elements.editor.setSelectionRange(start + tag.length + 2, start + tag.length + 2);
+        const voidTags = new Set(["area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "param", "source", "track", "wbr"]);
+        const openingTag = "<" + tag + ">";
+        const insertion = voidTags.has(tag.toLowerCase()) ? openingTag : openingTag + "</" + tag + ">";
+        const cursor = context.start + openingTag.length;
+        elements.editor.setRangeText(insertion, context.start, elements.editor.selectionStart, "end");
+        elements.editor.setSelectionRange(cursor, cursor);
         hideHtmlSuggestions();
         saveEditorValue();
         return true;

@@ -14,6 +14,7 @@ create table if not exists public.projects (
   updated_at timestamptz not null default now()
 );
 
+drop trigger if exists create_profile_after_signup on auth.users;
 create index if not exists projects_user_updated_idx
   on public.projects (user_id, updated_at desc);
 
@@ -23,6 +24,7 @@ alter table public.projects enable row level security;
 revoke all on table public.profiles from anon, authenticated;
 revoke all on table public.projects from anon, authenticated;
 grant select on table public.profiles to authenticated;
+grant select on table public.profiles to service_role;
 grant select, insert, update, delete on table public.projects to authenticated;
 
 drop policy if exists "Users can read their own profile" on public.profiles;
@@ -51,31 +53,4 @@ create policy "Users can delete their own projects"
   on public.projects for delete to authenticated
   using ((select auth.uid()) = user_id);
 
-create or replace function public.create_profile_for_new_user()
-returns trigger
-language plpgsql
-security definer
-set search_path = ''
-as $$
-declare
-  submitted_username text := new.raw_user_meta_data ->> 'username';
-begin
-  if submitted_username is null or submitted_username !~ '^[A-Za-z0-9_]{3,24}$' then
-    raise exception 'Username must be 3-24 letters, numbers, or underscores';
-  end if;
-
-  insert into public.profiles (id, username, username_key)
-  values (new.id, submitted_username, lower(submitted_username));
-
-  return new;
-end;
-$$;
-
-revoke all on function public.create_profile_for_new_user() from public, anon, authenticated;
-
-drop trigger if exists create_profile_after_signup on auth.users;
-create trigger create_profile_after_signup
-  after insert on auth.users
-  for each row execute function public.create_profile_for_new_user();
-
-grant select on table public.profiles to service_role;
+drop function if exists public.create_profile_for_new_user();

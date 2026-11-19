@@ -977,19 +977,46 @@ button.addEventListener("click", () => {
         htmlSuggestionIndex = 0;
       }
 
+      const htmlGlobalAttributes = ["accesskey","autocapitalize","autofocus","class","contenteditable","data-","dir","draggable","enterkeyhint","hidden","id","inert","inputmode","is","itemid","itemprop","itemref","itemscope","itemtype","lang","nonce","part","popover","role","slot","spellcheck","style","tabindex","title","translate"];
+      const htmlTagAttributes = {
+        a:["href","target","download","rel","hreflang","type"],
+        area:["alt","coords","download","href","hreflang","rel","shape","target"],
+        audio:["autoplay","controls","loop","muted","preload","src"],
+        button:["autofocus","disabled","form","name","type","value"],
+        form:["accept-charset","action","autocomplete","enctype","method","name","novalidate","target"],
+        iframe:["allow","allowfullscreen","height","loading","name","referrerpolicy","sandbox","src","srcdoc","width"],
+        img:["alt","crossorigin","decoding","fetchpriority","height","ismap","loading"," sizes","src","srcset","usemap","width"],
+        input:["accept","alt","autocomplete","autofocus","checked","disabled","form","height","max","maxlength","min","minlength","multiple","name","pattern","placeholder","readonly","required","size","src","step","type","value","width"],
+        label:["for","form"],
+        link:["crossorigin","href","hreflang","media","rel","sizes","type"],
+        meta:["charset","content","http-equiv","name"],
+        script:["async","crossorigin","defer","integrity","nomodule","referrerpolicy","src","type"],
+        select:["autocomplete","disabled","multiple","name","required","size"],
+        source:["media","sizes","src","srcset","type"],
+        textarea:["autocomplete","cols","dirname","disabled","maxlength","minlength","name","placeholder","readonly","required","rows","wrap"],
+        video:["autoplay","controls","height","loop","muted","poster","preload","src","width"],
+        ol:["reversed","start","type"], li:["value"], td:["colspan","headers","rowspan"], th:["colspan","headers","rowspan","scope"],
+        svg:["height","viewBox","width","xmlns"], path:["d","fill","stroke","stroke-width"], circle:["cx","cy","r","fill","stroke"]
+      };
       function getHtmlCompletionContext() {
         const cursor = elements.editor.selectionStart;
         const before = elements.editor.value.slice(0, cursor);
+        const openTag = before.match(/<([a-z][a-z0-9-]*)\\b([^<>]*)$/i);
+        if (openTag && !before.endsWith("</") && /\\s/.test(openTag[2].slice(-1))) {
+          return { prefix:"", start:cursor, mode:"attribute", tag:openTag[1].toLowerCase() };
+        }
+        if (openTag && !before.endsWith("</")) {
+          const attrMatch = openTag[2].match(/(?:^|\\s)([a-z_:][-a-z0-9_:.]*)$/i);
+          if (attrMatch) return { prefix:attrMatch[1].toLowerCase(), start:cursor-attrMatch[1].length, mode:"attribute", tag:openTag[1].toLowerCase() };
+        }
         const angleMatch = before.match(/<([a-z][a-z0-9-]*)?$/i);
         if (angleMatch && !before.endsWith("</")) {
           return { prefix: (angleMatch[1] || "").toLowerCase(), start: cursor - angleMatch[0].length, mode: "angle" };
         }
         const lineStart = before.lastIndexOf("\n") + 1;
         const linePrefix = before.slice(lineStart);
-        const bareMatch = linePrefix.match(/^(\s*)([a-z][a-z0-9-]*)$/i);
-        if (bareMatch) {
-          return { prefix: bareMatch[2].toLowerCase(), start: cursor - bareMatch[2].length, mode: "bare" };
-        }
+        const bareMatch = linePrefix.match(/^(\\s*)([a-z][a-z0-9-]*)$/i);
+        if (bareMatch) return { prefix:bareMatch[2].toLowerCase(), start:cursor-bareMatch[2].length, mode:"bare" };
         return null;
       }
 
@@ -998,7 +1025,10 @@ button.addEventListener("click", () => {
         const context = getHtmlCompletionContext();
         if (!context) { hideHtmlSuggestions(); return; }
         const { prefix } = context;
-        htmlSuggestionMatches = htmlTagNames.filter(tag => tag.toLowerCase().startsWith(prefix)).slice(0, 40);
+        const candidates = context.mode === "attribute"
+          ? [...new Set([...(htmlGlobalAttributes), ...(htmlTagAttributes[context.tag] || [])])]
+          : htmlTagNames;
+        htmlSuggestionMatches = candidates.filter(item => item.toLowerCase().startsWith(prefix)).slice(0, 60);
         if (!htmlSuggestionMatches.length) { hideHtmlSuggestions(); return; }
         htmlSuggestionIndex = 0;
         elements.htmlSuggestionItems.replaceChildren();
@@ -1042,10 +1072,19 @@ button.addEventListener("click", () => {
         if (!htmlSuggestionMatches.length) return false;
         const context = getHtmlCompletionContext();
         if (!context) { hideHtmlSuggestions(); return false; }
-        const tag = htmlSuggestionMatches[htmlSuggestionIndex];
+        const selected = htmlSuggestionMatches[htmlSuggestionIndex];
+        if (context.mode === "attribute") {
+          const insertion = selected + '=""';
+          const cursor = context.start + selected.length + 2;
+          elements.editor.setRangeText(insertion, context.start, elements.editor.selectionStart, "end");
+          elements.editor.setSelectionRange(cursor, cursor);
+          hideHtmlSuggestions();
+          saveEditorValue();
+          return true;
+        }
         const voidTags = new Set(["area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "param", "source", "track", "wbr"]);
-        const openingTag = "<" + tag + ">";
-        const insertion = voidTags.has(tag.toLowerCase()) ? openingTag : openingTag + "</" + tag + ">";
+        const openingTag = "<" + selected + ">";
+        const insertion = voidTags.has(selected.toLowerCase()) ? openingTag : openingTag + "</" + selected + ">";
         const cursorBeforeCompletion = elements.editor.selectionStart;
         const cursor = context.start + openingTag.length;
         elements.editor.setRangeText(insertion, context.start, cursorBeforeCompletion, "end");

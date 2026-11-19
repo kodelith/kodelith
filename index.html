@@ -133,7 +133,13 @@
     .editor-toolbar { display: flex; align-items: center; gap: 6px; padding: 0 12px; margin-left: auto; }
     .toolbar-button { height: 28px; display: inline-flex; align-items: center; gap: 6px; padding: 0 9px; border: 1px solid transparent; border-radius: 6px; background: transparent; color: #424242; cursor: pointer; font-size: 10px; }
     .toolbar-button.active { border-color: #b3d8f1; background: #e6f3fb; color: #005a9e; }
-    .main-area { display:grid; grid-template-columns:minmax(0,1fr) minmax(320px,42%); grid-template-rows:44px minmax(0,1fr); min-height:0; }
+    .main-area { display:grid; grid-template-columns:minmax(320px,58%) 6px minmax(280px,42%); grid-template-rows:44px minmax(0,1fr); min-height:0; }
+    .preview-splitter { grid-column:2; grid-row:2; position:relative; z-index:5; cursor:col-resize; background:var(--line); touch-action:none; outline:none; }
+    .preview-splitter::after { content:""; position:absolute; top:0; bottom:0; left:1px; width:4px; background:transparent; }
+    .preview-splitter:hover, .preview-splitter:focus, .preview-splitter.dragging { background:var(--accent); }
+    .preview-splitter:focus-visible { box-shadow:0 0 0 2px var(--accent); }
+    .main-area.preview-hidden { grid-template-columns:minmax(0,1fr) 0 0; }
+    .main-area.preview-hidden .preview-splitter { display:none; }
     .editor-top { grid-column:1 / -1; grid-row:1; }
     .editor-surface { grid-column:1; grid-row:2; position:relative; min-width:0; min-height:220px; display:flex; overflow:hidden; background:var(--bg); }
     .gutter {
@@ -239,6 +245,7 @@
       .editor-top { grid-column:1; grid-row:1; }
       .editor-surface { grid-column:1; grid-row:2; }
       .preview-area { grid-column:1; grid-row:3; border-left:0; border-top:1px solid var(--line); }
+      .preview-splitter { display:none; }
       .main-area.preview-hidden { grid-template-rows:44px minmax(260px,1fr) 0; }
       .preview-toolbar { gap: 7px; padding: 0 9px; }
       .preview-message { display: none; }
@@ -353,6 +360,7 @@
           <div class="html-suggestions" id="htmlSuggestions" role="listbox" aria-label="HTML tag suggestions"><div class="html-suggestions-title">SUGGESTIONS</div><div id="htmlSuggestionItems"></div></div>
           <div class="empty-editor" id="emptyEditor" hidden>Select a file to start editing.</div>
         </section>
+        <div class="preview-splitter" id="previewSplitter" role="separator" aria-label="Resize editor and preview" aria-orientation="vertical" aria-valuemin="25" aria-valuemax="75" aria-valuenow="58" tabindex="0" title="Drag to resize editor and preview"></div>
         <section class="preview-area" id="previewArea" aria-label="Live preview">
           <div class="preview-toolbar">
             <span class="preview-heading">LIVE PREVIEW</span>
@@ -1736,11 +1744,48 @@ button.addEventListener("click", () => {
         showToast("Preview refreshed.");
       });
       document.getElementById("refreshButton").addEventListener("click", buildPreview);
+      const previewSplitter = document.getElementById("previewSplitter");
+      const mainArea = previewSplitter.closest(".main-area");
+      let previewDrag = null;
+      previewSplitter.addEventListener("pointerdown", event => {
+        if (window.matchMedia("(max-width: 650px)").matches) return;
+        previewDrag = { pointerId: event.pointerId };
+        previewSplitter.setPointerCapture(event.pointerId);
+        previewSplitter.classList.add("dragging");
+        event.preventDefault();
+      });
+      previewSplitter.addEventListener("pointermove", event => {
+        if (!previewDrag || previewDrag.pointerId !== event.pointerId) return;
+        const bounds = mainArea.getBoundingClientRect();
+        const editorWidth = Math.max(320, Math.min(bounds.width - 280, event.clientX - bounds.left));
+        mainArea.style.gridTemplateColumns = `${editorWidth}px 6px minmax(280px, 1fr)`;
+        const percent = Math.round(editorWidth / bounds.width * 100);
+        previewSplitter.setAttribute("aria-valuenow", String(percent));
+      });
+      const stopPreviewDrag = event => {
+        if (!previewDrag || (event && previewDrag.pointerId !== event.pointerId)) return;
+        previewDrag = null;
+        previewSplitter.classList.remove("dragging");
+      };
+      previewSplitter.addEventListener("pointerup", stopPreviewDrag);
+      previewSplitter.addEventListener("pointercancel", stopPreviewDrag);
+      previewSplitter.addEventListener("lostpointercapture", stopPreviewDrag);
+      previewSplitter.addEventListener("keydown", event => {
+        if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+        event.preventDefault();
+        const bounds = mainArea.getBoundingClientRect();
+        const current = mainArea.querySelector(".editor-surface").getBoundingClientRect().width;
+        const next = Math.max(320, Math.min(bounds.width - 280, current + (event.key === "ArrowRight" ? 24 : -24)));
+        mainArea.style.gridTemplateColumns = `${next}px 6px minmax(280px, 1fr)`;
+        previewSplitter.setAttribute("aria-valuenow", String(Math.round(next / bounds.width * 100)));
+      });
       document.getElementById("previewToggle").addEventListener("click", event => {
         const button = event.currentTarget;
         const isVisible = !elements.previewArea.hidden;
         elements.previewArea.hidden = isVisible;
-        elements.previewArea.closest(".main-area").classList.toggle("preview-hidden",isVisible);
+        const layout = elements.previewArea.closest(".main-area");
+        layout.classList.toggle("preview-hidden",isVisible);
+        if (!isVisible) layout.style.removeProperty("grid-template-columns");
         button.classList.toggle("active", !isVisible);
         button.setAttribute("aria-pressed", String(!isVisible));
       });

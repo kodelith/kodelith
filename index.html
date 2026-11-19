@@ -862,20 +862,27 @@ button.addEventListener("click", () => {
         const esc = value => value.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
         let html = esc(source);
         if (kind === "html") {
-          html = html.replace(/(&lt;!--[\\s\\S]*?--&gt;)/g,'<span class="tok-comment">$1</span>');
-          html = html.replace(/(&lt;\\/?)([A-Za-z][\\w:-]*)/g,'$1<span class="tok-tag">$2</span>');
-          html = html.replace(/([\\w:-]+)(=)("[^"]*"|'[^']*')/g,'<span class="tok-attr">$1</span>$2<span class="tok-string">$3</span>');
+          html = html.replace(/(&lt;!--[\s\S]*?--&gt;)/g,'<span class="tok-comment">$1</span>');
+          html = html.replace(/(&lt;\/?)([A-Za-z][\w:-]*)/g,'$1<span class="tok-tag">$2</span>');
+          html = html.replace(/([\w:-]+)(=)("[^"]*"|'[^']*')/g,'<span class="tok-attr">$1</span>$2<span class="tok-string">$3</span>');
         } else if (kind === "css") {
-          html = html.replace(/(\\/\\*[\\s\\S]*?\\*\\/|\\/\\/[^\\n]*)/g,'<span class="tok-comment">$1</span>');
+          html = html.replace(/(\/\*[\s\S]*?\*\/|\/\/[^\n]*)/g,'<span class="tok-comment">$1</span>');
           html = html.replace(/(["'][^"']*["'])/g,'<span class="tok-string">$1</span>');
-          html = html.replace(/([\\w-]+)(\\s*:)(?=\\s*[^{}])/g,'<span class="tok-property">$1</span>$2');
-          html = html.replace(/([^{};\\n]+)(?=\\s*\\{)/g,'<span class="tok-selector">$1</span>');
-          html = html.replace(/(#[0-9a-fA-F]{3,8}\\b|\\b\\d+(?:\\.\\d+)?(?:px|rem|em|%)?\\b)/g,'<span class="tok-value">$1</span>');
+          html = html.replace(/([\w-]+)(\s*:)(?=\s*[^{}])/g,'<span class="tok-property">$1</span>$2');
+          html = html.replace(/([^{};\n]+)(?=\s*\{)/g,'<span class="tok-selector">$1</span>');
+          html = html.replace(/(#[0-9a-fA-F]{3,8}\b|\b\d+(?:\.\d+)?(?:px|rem|em|%)?\b)/g,'<span class="tok-value">$1</span>');
         } else if (kind === "js") {
-          html = html.replace(/(\\/\\*[\\s\\S]*?\\*\\/|\\/\\/[^\\n]*)/g,'<span class="tok-comment">$1</span>');
-          html = html.replace(/(["'`](?:\\\\.|[^"'`])*?["'`])/g,'<span class="tok-string">$1</span>');
-          html = html.replace(/\\b(const|let|var|function|return|if|else|for|while|class|new|async|await|try|catch|throw|true|false|null|undefined|import|from|export|default)\\b/g,'<span class="tok-keyword">$1</span>');
-          html = html.replace(/\\b\\d+(?:\\.\\d+)?\\b/g,'<span class="tok-number">      function updateLineNumbers() {</span>');
+          html = html.replace(/(\/\*[\s\S]*?\*\/|\/\/[^\n]*)/g,'<span class="tok-comment">$1</span>');
+          html = html.replace(/(["'`](?:\\.|[^"'`])*?["'`])/g,'<span class="tok-string">$1</span>');
+          html = html.replace(/\b(const|let|var|function|return|if|else|for|while|class|new|async|await|try|catch|throw|true|false|null|undefined|import|from|export|default)\b/g,'<span class="tok-keyword">$1</span>');
+          html = html.replace(/\b\d+(?:\.\d+)?\b/g, match => '<span class="tok-number">'+match+'</span>');
+        }
+        elements.highlightCode.innerHTML = html + (source.endsWith("\n") ? " " : "");
+        elements.highlightLayer.scrollTop = elements.editor.scrollTop;
+        elements.highlightLayer.scrollLeft = elements.editor.scrollLeft;
+      }
+
+      function updateLineNumbers() {</span>');
         }
         elements.highlightCode.innerHTML = html + (source.endsWith("\n") ? " " : "");
         elements.highlightLayer.scrollTop = elements.editor.scrollTop;
@@ -898,30 +905,33 @@ button.addEventListener("click", () => {
       function formatCurrentCode() {
         const value = elements.editor.value;
         const kind = fileKind(currentProject().activeFile);
-        const lines = value.replace(/\\r\\n?/g,"\n").split("\n");
-        let depth = 0;
         const output = [];
+        let depth = 0;
         if (kind === "html") {
-          const tokens = value.replace(/>\\s*</g,">\n<").split("\n").map(x=>x.trim()).filter(Boolean);
+          const tokens = value.replace(/>\s*</g,">\n<").split("\n").map(line=>line.trim()).filter(Boolean);
           for (const token of tokens) {
-            if (/^<\\//.test(token)) depth = Math.max(0,depth-1);
+            if (/^<\//.test(token)) depth = Math.max(0,depth-1);
             output.push("  ".repeat(depth)+token);
-            if (/^<([A-Za-z][\\w:-]*)\\b[^>]*>$/.test(token) && !/\\/>$/.test(token) && !/^<(area|base|br|col|embed|hr|img|input|link|meta|param|source|track|wbr)\\b/i.test(token)) depth++;
+            if (/^<([A-Za-z][\w:-]*)\b[^>]*>$/.test(token) && !/\/>$/.test(token) && !/^<(area|base|br|col|embed|hr|img|input|link|meta|param|source|track|wbr)\b/i.test(token)) depth++;
           }
         } else {
-          for (const raw of lines) {
-            const line=raw.trim(); if(!line){if(output.at(-1)!=="")output.push("");continue;}
-            if(/^[})\\]]/.test(line)) depth=Math.max(0,depth-1);
+          for (const raw of value.replace(/\r\n?/g,"\n").split("\n")) {
+            const line=raw.trim();
+            if (!line) { if(output.at(-1)!=="") output.push(""); continue; }
+            if (/^[})\]]/.test(line)) depth=Math.max(0,depth-1);
             output.push("  ".repeat(depth)+line);
-            const opens=(line.match(/[({[]/g)||[]).length, closes=(line.match(/[)}\\]]/g)||[]).length;
+            const opens=(line.match(/[({\[]/g)||[]).length;
+            const closes=(line.match(/[)}\]]/g)||[]).length;
             depth=Math.max(0,depth+opens-closes);
           }
         }
         const result=output.join("\n").trimEnd()+"\n";
         if(result===value){showToast("Code is already formatted.");return;}
-        const cursor=elements.editor.selectionStart; elements.editor.value=result;
+        const cursor=elements.editor.selectionStart;
+        elements.editor.value=result;
         elements.editor.setSelectionRange(Math.min(cursor,result.length),Math.min(cursor,result.length));
-        saveEditorValue(); showToast("Code formatted.");
+        saveEditorValue();
+        showToast("Code formatted.");
       }
 
       function friendlyAuthError(error) {
@@ -1289,12 +1299,15 @@ button.addEventListener("click", () => {
       elements.editor.addEventListener("keydown", event => {
         if (event.key === ">" && fileKind(currentProject().activeFile) === "html") {
           const start=elements.editor.selectionStart;
-          const opening=elements.editor.value.slice(0,start).match(/<([A-Za-z][\\w:-]*)\\s*$/);
+          const opening=elements.editor.value.slice(0,start).match(/<([A-Za-z][\w:-]*)\s*$/);
           const voidTags=/^(area|base|br|col|embed|hr|img|input|link|meta|param|source|track|wbr)$/i;
           if(opening && !voidTags.test(opening[1])) {
-            event.preventDefault(); const insert=`></${opening[1]}>`;
+            event.preventDefault();
+            const insert="></"+opening[1]+">";
             elements.editor.setRangeText(insert,start,elements.editor.selectionEnd,"end");
-            elements.editor.setSelectionRange(start+1,start+1); saveEditorValue(); return;
+            elements.editor.setSelectionRange(start+1,start+1);
+            saveEditorValue();
+            return;
           }
         }
         if (event.key === "Tab") {
@@ -1305,7 +1318,7 @@ button.addEventListener("click", () => {
           saveEditorValue();
         }
       });
-      document.getElementById("formatButton").addEventListener("click",formatCurrentCode);
+            document.getElementById("formatButton").addEventListener("click",formatCurrentCode);
       document.getElementById("runButton").addEventListener("click", () => {
         saveEditorValue();
         buildPreview();

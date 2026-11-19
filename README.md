@@ -8,8 +8,8 @@ The browser uses the project's publishable key. It is expected to be public; nev
 
 1. In Supabase, open **SQL Editor**, paste and run [`supabase/setup.sql`](supabase/setup.sql).
 2. In **Authentication → URL Configuration**, set the Site URL to `https://save-codes.github.io/my-code/` and add that URL to the redirect URL allowlist.
-3. Keep the **Email** provider enabled. Users choose a username, recovery email, and password. Email confirmation and password recovery use that email; Google sign-in is not used.
-   The default Supabase email sender is for testing and may only send to project-team addresses. To confirm accounts for other people, configure a custom SMTP provider in **Authentication → SMTP Settings**.
+3. Keep the **Email** provider enabled. Users choose a username, recovery email, and password. No confirmation email is sent after signup. Password recovery uses that email; Google sign-in is not used.
+   Configure custom SMTP in **Authentication → SMTP Settings** if you want password reset emails delivered to users.
 4. Install the Supabase CLI, then from this repository run:
 
    ```sh

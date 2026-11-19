@@ -81,6 +81,19 @@
     .activity-button.active { border-left-color: var(--accent); }
     .activity-bottom { flex: 1; }
     .sidebar { width: 216px; flex: 0 0 216px; display: flex; flex-direction: column; background: var(--panel); border-right: 1px solid var(--line); }
+    .projects-panel { padding:10px 9px 11px; border-bottom:1px solid var(--line); }
+    .projects-panel-head { display:flex; align-items:center; justify-content:space-between; padding:0 5px 8px; color:var(--muted); font-size:10px; font-weight:750; letter-spacing:.11em; }
+    .projects-count { margin-left:auto; margin-right:8px; padding:2px 6px; border-radius:10px; background:var(--panel-soft); color:var(--muted); font-size:10px; letter-spacing:0; }
+    .projects-add { width:23px; height:23px; border:0; border-radius:6px; background:transparent; color:var(--muted); cursor:pointer; font-size:17px; line-height:1; }
+    .projects-add:hover { background:var(--panel-soft); color:var(--text); }
+    .projects-list { display:flex; flex-direction:column; gap:3px; max-height:190px; overflow-y:auto; }
+    .project-item { width:100%; min-width:0; display:flex; align-items:center; gap:8px; padding:7px 8px; border:1px solid transparent; border-radius:7px; background:transparent; color:var(--text); text-align:left; cursor:pointer; font:inherit; font-size:11px; }
+    .project-item:hover { background:var(--panel-soft); }
+    .project-item.active { border-color:color-mix(in srgb,var(--accent) 22%,transparent); background:color-mix(in srgb,var(--accent) 9%,transparent); color:var(--accent); }
+    .project-item-icon { flex:0 0 auto; color:var(--muted); font-size:12px; }
+    .project-item.active .project-item-icon { color:var(--accent); }
+    .project-item-name { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex:1; }
+    .project-item-check { color:var(--accent); font-size:11px; }
     .sidebar-heading { height: 43px; display: flex; align-items: center; justify-content: space-between; padding: 0 13px; color: #424242; font-size: 10px; font-weight: 700; letter-spacing: .12em; }
     .sidebar-controls { display: flex; gap: 3px; }
     .mini-button { width: 24px; height: 24px; border: 0; border-radius: 5px; background: transparent; color: var(--muted); cursor: pointer; }
@@ -299,7 +312,14 @@
         <button class="activity-button" id="importActivity" type="button" title="Import project" aria-label="Import project">↥</button>
       </nav>
 
-      <aside class="sidebar" aria-label="Project files">
+      <aside class="sidebar" aria-label="Workspace">
+        <section class="projects-panel" aria-label="Projects">
+          <div class="projects-panel-head">
+            <span>PROJECTS</span><span class="projects-count" id="projectsCount">1</span>
+            <button class="projects-add" id="sidebarNewProject" type="button" title="Create a new project" aria-label="Create a new project">＋</button>
+          </div>
+          <div class="projects-list" id="projectsList"></div>
+        </section>
         <div class="sidebar-heading">
           <span>EXPLORER</span>
           <div class="sidebar-controls">
@@ -490,6 +510,8 @@ button.addEventListener("click", () => {
         folderName: document.getElementById("folderName"),
         statusProject: document.getElementById("statusProject"),
         fileList: document.getElementById("fileList"),
+        projectsList: document.getElementById("projectsList"),
+        projectsCount: document.getElementById("projectsCount"),
         tabs: document.getElementById("tabs"),
         editor: document.getElementById("codeEditor"),
         htmlSuggestions: document.getElementById("htmlSuggestions"),
@@ -886,6 +908,30 @@ button.addEventListener("click", () => {
         elements.projectName.textContent = project.name;
         elements.folderName.textContent = project.name.toLocaleUpperCase();
         elements.statusProject.textContent = project.name;
+        elements.projectsCount.textContent = String(Object.keys(state.projects).length);
+        elements.projectsList.replaceChildren();
+        for (const [projectId, projectData] of Object.entries(state.projects)) {
+          const item = document.createElement("button");
+          item.type = "button";
+          item.className = `project-item${projectId === state.activeProject ? " active" : ""}`;
+          item.setAttribute("aria-current", projectId === state.activeProject ? "page" : "false");
+          item.title = projectData.name;
+          const icon = document.createElement("span");
+          icon.className = "project-item-icon";
+          icon.textContent = "▰";
+          const name = document.createElement("span");
+          name.className = "project-item-name";
+          name.textContent = projectData.name;
+          item.append(icon, name);
+          if (projectId === state.activeProject) {
+            const check = document.createElement("span");
+            check.className = "project-item-check";
+            check.textContent = "✓";
+            item.append(check);
+          }
+          item.addEventListener("click", () => selectProject(projectId));
+          elements.projectsList.append(item);
+        }
         elements.fileList.replaceChildren();
         for (const file of Object.keys(project.files)) {
           const row = document.createElement("div");
@@ -1498,6 +1544,15 @@ button.addEventListener("click", () => {
         return true;
       }
 
+      function selectProject(projectId) {
+        if (!Object.hasOwn(state.projects, projectId) || projectId === state.activeProject) return;
+        state.activeProject = projectId;
+        elements.editor.dataset.file = "";
+        render();
+        scheduleSave();
+        showToast(`Opened ${currentProject().name}`);
+      }
+
       function switchProject() {
         const projects = Object.entries(state.projects);
         if (projects.length < 2) {
@@ -1569,7 +1624,12 @@ button.addEventListener("click", () => {
         createProject(projectName);
         showToast(`Created ${projectName}. Your HTML, CSS and JavaScript files are ready!`);
       });
-      document.getElementById("projectSwitcher").addEventListener("click", switchProject);
+      document.getElementById("projectSwitcher").addEventListener("click", () => {
+        const firstOther = Object.keys(state.projects).find(id => id !== state.activeProject);
+        if (firstOther) selectProject(firstOther);
+        else showToast("Your projects are listed in the Projects panel.");
+      });
+      document.getElementById("sidebarNewProject").addEventListener("click", () => document.getElementById("newProjectButton").click());
       document.getElementById("newFileButton").addEventListener("click", () => openNameModal({
         title: "Create a file",
         description: "Add a file to this project, such as about.html or app.js.",

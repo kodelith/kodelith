@@ -151,6 +151,13 @@
     .modal h2 { margin: 0 0 7px; font-size: 16px; }
     .modal p { margin: 0 0 18px; color: var(--muted); font-size: 11px; line-height: 1.6; }
     .modal input { width: 100%; padding: 10px 11px; border: 1px solid #bdbdbd; border-radius: 7px; background: #ffffff; color: var(--text); font-size: 12px; }
+    .modal label { display: block; margin: 0 0 6px; color: #424242; font-size: 11px; font-weight: 600; }
+    .modal input + label { margin-top: 13px; }
+    .auth-hint { margin: 8px 0 0 !important; font-size: 10px !important; }
+    .auth-message { margin: 12px 0 0 !important; padding: 9px 10px; border-radius: 6px; background: #edf6fc; color: #075985 !important; }
+    .auth-message.error { background: #fdf0ef; color: #a12622 !important; }
+    .auth-links { display: flex; justify-content: space-between; gap: 8px; margin-top: 12px; }
+    .auth-links button { padding: 0; border: 0; background: transparent; color: #0969a8; cursor: pointer; font-size: 10px; }
     .modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 18px; }
     .modal-actions button { padding: 8px 12px; border: 1px solid var(--line); border-radius: 7px; background: #f3f3f3; cursor: pointer; font-size: 11px; }
     .modal-actions .confirm { border-color: var(--accent); background: var(--accent); color: white; }
@@ -200,6 +207,7 @@
       <div class="save-state" title="Saved in this browser">
         <span class="save-dot" id="saveDot"></span><span id="saveLabel">Saved locally</span>
       </div>
+      <button class="top-action" id="accountButton" type="button">Sign in</button>
       <button class="top-action" id="exportButton" type="button" title="Export this project to your device">
         <span aria-hidden="true">↓</span><span class="top-action-label">Export</span>
       </button>
@@ -228,8 +236,8 @@
         <div class="file-list" id="fileList"></div>
         <div class="sidebar-bottom">
           <div class="storage-card">
-            <div class="storage-title"><span aria-hidden="true">✦</span> Your projects, in your browser</div>
-            <div class="storage-copy">Autosaved on this device. <strong>Export a backup</strong> to open your project on another device.</div>
+            <div class="storage-title"><span aria-hidden="true">✦</span> Projects that travel with you</div>
+            <div class="storage-copy" id="storageCopy">Sign in to save your projects to your account and open them on another device.</div>
           </div>
         </div>
       </aside>
@@ -282,13 +290,40 @@
       </div>
     </form>
   </div>
+  <div class="modal-backdrop" id="authBackdrop" hidden>
+    <form class="modal" id="authForm">
+      <h2 id="authTitle">Sign in to Orbit</h2>
+      <p id="authDescription">Access your cloud projects from any device.</p>
+      <label id="authUsernameLabel" for="authUsername">Username</label>
+      <input id="authUsername" maxlength="24" autocomplete="username" required>
+      <label id="authEmailLabel" for="authEmail">Recovery email</label>
+      <input id="authEmail" type="email" autocomplete="email" required>
+      <label for="authPassword">Password</label>
+      <input id="authPassword" type="password" minlength="8" autocomplete="current-password" required>
+      <p class="auth-hint" id="authHint">Use at least 8 characters. Your email is for account recovery.</p>
+      <p class="auth-message" id="authMessage" role="status" aria-live="polite" hidden></p>
+      <div class="auth-links">
+        <button id="authModeToggle" type="button">Need an account? Sign up</button>
+        <button id="forgotPasswordButton" type="button">Forgot password?</button>
+        <button id="resendConfirmationButton" type="button" hidden>Resend confirmation email</button>
+      </div>
+      <div class="modal-actions">
+        <button id="cancelAuth" type="button">Cancel</button>
+        <button class="confirm" id="submitAuth" type="submit">Sign in</button>
+      </div>
+    </form>
+  </div>
   <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
 
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script>
     (() => {
       "use strict";
 
       const STORAGE_KEY = "orbit-studio-v1";
+      const SUPABASE_URL = "https://xxielgvlkjrkdnhiddrh.supabase.co";
+      const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_FIo9gJJ1rGSQGhxhHIy09w_HDI0LeLn";
+      const AUTH_REDIRECT_URL = "https://save-codes.github.io/my-code/";
       const starterFiles = {
         "index.html": `<!doctype html>
 <html lang="en">
@@ -378,7 +413,24 @@ button.addEventListener("click", () => {
         modalTitle: document.getElementById("modalTitle"),
         modalDescription: document.getElementById("modalDescription"),
         confirmModal: document.getElementById("confirmModal"),
-        importInput: document.getElementById("importInput")
+        importInput: document.getElementById("importInput"),
+        accountButton: document.getElementById("accountButton"),
+        storageCopy: document.getElementById("storageCopy"),
+        authBackdrop: document.getElementById("authBackdrop"),
+        authForm: document.getElementById("authForm"),
+        authTitle: document.getElementById("authTitle"),
+        authDescription: document.getElementById("authDescription"),
+        authUsername: document.getElementById("authUsername"),
+        authUsernameLabel: document.getElementById("authUsernameLabel"),
+        authEmail: document.getElementById("authEmail"),
+        authEmailLabel: document.getElementById("authEmailLabel"),
+        authPassword: document.getElementById("authPassword"),
+        authHint: document.getElementById("authHint"),
+        authMessage: document.getElementById("authMessage"),
+        authModeToggle: document.getElementById("authModeToggle"),
+        forgotPasswordButton: document.getElementById("forgotPasswordButton"),
+        resendConfirmationButton: document.getElementById("resendConfirmationButton"),
+        submitAuth: document.getElementById("submitAuth")
       };
 
       let state = loadState();
@@ -386,6 +438,14 @@ button.addEventListener("click", () => {
       let saveTimer = 0;
       let previewTimer = 0;
       let toastTimer = 0;
+      let authMode = "signin";
+      let supabaseClient = null;
+      let cloudUser = null;
+      let cloudUsername = "";
+      let cloudReady = false;
+      let loadedCloudUserId = "";
+      let cloudProjectIds = new Set();
+      let cloudSaveQueue = Promise.resolve();
 
       function makeStarterProject(name) {
         return {
@@ -436,6 +496,10 @@ button.addEventListener("click", () => {
       }
 
       function saveState() {
+        if (cloudUser) {
+          if (cloudReady) saveCloudProjects();
+          return;
+        }
         elements.saveLabel.textContent = "Saving…";
         elements.saveDot.style.background = "var(--orange)";
         try {
@@ -457,6 +521,190 @@ button.addEventListener("click", () => {
         elements.saveDot.style.background = "var(--orange)";
         window.clearTimeout(saveTimer);
         saveTimer = window.setTimeout(saveState, 220);
+      }
+
+      function makeProjectId(name) {
+        if (cloudUser) return crypto.randomUUID();
+        const base = slugify(name);
+        let id = base;
+        let suffix = 2;
+        while (Object.hasOwn(state.projects, id)) id = `${base}-${suffix++}`;
+        return id;
+      }
+
+      function saveCloudProjects() {
+        const userId = cloudUser && cloudUser.id;
+        if (!userId || !supabaseClient || !cloudReady) return;
+        elements.saveLabel.textContent = "Saving to cloud…";
+        elements.saveDot.style.background = "var(--orange)";
+        cloudSaveQueue = cloudSaveQueue.catch(() => {}).then(async () => {
+          if (!cloudUser || cloudUser.id !== userId) return;
+          const projects = Object.entries(state.projects).map(([id, project]) => ({
+            id,
+            user_id: userId,
+            name: project.name,
+            data: {
+              files: project.files,
+              activeFile: project.activeFile,
+              openFiles: project.openFiles
+            },
+            updated_at: new Date().toISOString()
+          }));
+          const { error } = await supabaseClient.from("projects").upsert(projects);
+          if (error) throw error;
+          const currentIds = new Set(projects.map(project => project.id));
+          const removedIds = [...cloudProjectIds].filter(id => !currentIds.has(id));
+          if (removedIds.length) {
+            const { error: deleteError } = await supabaseClient
+              .from("projects")
+              .delete()
+              .eq("user_id", userId)
+              .in("id", removedIds);
+            if (deleteError) throw deleteError;
+          }
+          cloudProjectIds = currentIds;
+          if (cloudUser && cloudUser.id === userId) {
+            elements.saveLabel.textContent = "Saved to cloud";
+            elements.saveDot.style.background = "var(--green)";
+            elements.saveDot.title = "Your projects are saved to your Orbit account.";
+          }
+        }).catch(error => {
+          console.error("Could not save Orbit projects to the cloud:", error);
+          if (cloudUser && cloudUser.id === userId) {
+            elements.saveLabel.textContent = "Cloud save failed";
+            elements.saveDot.style.background = "var(--red)";
+            elements.saveDot.title = error.message || "Cloud save failed.";
+            showToast("Couldn't save to your account. Check your connection and try again.");
+          }
+        });
+      }
+
+      async function loadCloudWorkspace(session) {
+        if (!session || !session.user) return;
+        if (loadedCloudUserId === session.user.id) return;
+        const localWorkspace = state;
+        cloudUser = session.user;
+        cloudReady = false;
+        loadedCloudUserId = session.user.id;
+        elements.accountButton.textContent = "Loading account…";
+        elements.accountButton.disabled = true;
+        elements.saveLabel.textContent = "Loading cloud projects…";
+        try {
+          const [{ data: profile, error: profileError }, { data: rows, error: projectError }] = await Promise.all([
+            supabaseClient.from("profiles").select("username").eq("id", session.user.id).maybeSingle(),
+            supabaseClient.from("projects").select("id, name, data").order("updated_at", { ascending: false })
+          ]);
+          if (profileError) throw profileError;
+          if (projectError) throw projectError;
+          if (!profile || !Array.isArray(rows)) throw new Error("Account data is unavailable.");
+
+          const projects = {};
+          for (const row of rows) {
+            if (!row || typeof row.id !== "string" || typeof row.name !== "string" || !row.data || typeof row.data !== "object") continue;
+            const files = Object.fromEntries(Object.entries(row.data.files || {}).filter(([file, text]) =>
+              typeof file === "string" && typeof text === "string"
+            ));
+            if (!Object.keys(files).length) continue;
+            const openFiles = Array.isArray(row.data.openFiles)
+              ? row.data.openFiles.filter(file => typeof file === "string" && Object.hasOwn(files, file))
+              : Object.keys(files);
+            projects[row.id] = {
+              name: row.name,
+              files,
+              activeFile: Object.hasOwn(files, row.data.activeFile) ? row.data.activeFile : Object.keys(files)[0],
+              openFiles
+            };
+          }
+          cloudUsername = profile.username;
+          if (!Object.keys(projects).length && rows.length) throw new Error("No usable projects were returned from the cloud.");
+          cloudProjectIds = new Set(rows.map(row => row.id).filter(id => typeof id === "string"));
+          if (!Object.keys(projects).length) {
+            const idMap = Object.fromEntries(Object.keys(localWorkspace.projects).map(id => [id, crypto.randomUUID()]));
+            const importedProjects = Object.fromEntries(
+              Object.entries(localWorkspace.projects).map(([id, project]) => [idMap[id], project])
+            );
+            if (Object.keys(importedProjects).length) {
+              const activeProject = idMap[localWorkspace.activeProject]
+                ? idMap[localWorkspace.activeProject]
+                : Object.keys(importedProjects)[0];
+              state = { activeProject, projects: importedProjects };
+            } else {
+              const project = makeStarterProject("My first project");
+              const id = crypto.randomUUID();
+              state = { activeProject: id, projects: { [id]: project } };
+            }
+          } else {
+            state = { activeProject: Object.keys(projects)[0], projects };
+          }
+          cloudReady = true;
+          elements.accountButton.textContent = `@${cloudUsername}`;
+          elements.accountButton.title = "Sign out";
+          elements.accountButton.disabled = false;
+          elements.storageCopy.textContent = `Signed in as @${cloudUsername}. Your projects sync to your account.`;
+          elements.saveLabel.textContent = "Saved to cloud";
+          elements.saveDot.style.background = "var(--green)";
+          elements.saveDot.title = "Your projects are saved to your Orbit account.";
+          render();
+          if (!rows.length) saveCloudProjects();
+        } catch (error) {
+          console.error("Could not load Orbit projects from the cloud:", error);
+          cloudUser = null;
+          cloudReady = false;
+          loadedCloudUserId = "";
+          cloudProjectIds = new Set();
+          elements.accountButton.disabled = false;
+          elements.accountButton.textContent = "Sign in";
+          elements.storageCopy.textContent = "Sign in to save your projects to your account and open them on another device.";
+          state = loadState();
+          render();
+          const { error: signOutError } = await supabaseClient.auth.signOut();
+          if (signOutError) console.error("Could not clear the incomplete Orbit sign-in:", signOutError);
+          showToast("Cloud account setup is incomplete. Finish the Supabase setup, then sign in again.");
+        }
+      }
+
+      function handleSignedOut() {
+        cloudUser = null;
+        cloudUsername = "";
+        cloudReady = false;
+        loadedCloudUserId = "";
+        cloudProjectIds = new Set();
+        elements.accountButton.textContent = "Sign in";
+        elements.accountButton.title = "Sign in to sync your projects across devices.";
+        elements.storageCopy.textContent = "Sign in to save your projects to your account and open them on another device.";
+        elements.saveLabel.textContent = "Saved locally";
+        elements.saveDot.style.background = "var(--green)";
+        elements.saveDot.title = "Saved in this browser";
+        state = loadState();
+        render();
+      }
+
+      async function initializeCloud() {
+        if (!window.supabase || typeof window.supabase.createClient !== "function") {
+          elements.accountButton.disabled = true;
+          elements.accountButton.title = "The account service could not be loaded.";
+          showToast("Account sign-in couldn't load. Check your internet connection and refresh.");
+          return;
+        }
+        supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
+        const { data, error } = await supabaseClient.auth.getSession();
+        if (error) {
+          console.error("Could not restore the Orbit sign-in:", error);
+          showToast("Couldn't check your sign-in. Please refresh and try again.");
+        } else if (data.session) {
+          await loadCloudWorkspace(data.session);
+        }
+        supabaseClient.auth.onAuthStateChange((event, session) => {
+          if (event === "PASSWORD_RECOVERY") {
+            openAuth("recovery");
+          } else if (session) {
+            if (loadedCloudUserId !== session.user.id || !cloudReady) {
+              queueMicrotask(() => loadCloudWorkspace(session));
+            }
+          } else if (event === "SIGNED_OUT" && cloudUser) {
+            handleSignedOut();
+          }
+        });
       }
 
       function fileKind(file) {
@@ -655,6 +903,166 @@ button.addEventListener("click", () => {
         toastTimer = window.setTimeout(() => { elements.toast.hidden = true; }, 3600);
       }
 
+      function setAuthMode(mode) {
+        authMode = mode;
+        const signingUp = mode === "signup";
+        const recovering = mode === "recovery";
+        elements.authTitle.textContent = recovering ? "Choose a new password" : signingUp ? "Create your Orbit account" : "Sign in to Orbit";
+        elements.authDescription.textContent = recovering
+          ? "Choose a new password for your account."
+          : signingUp
+            ? "Create a username and password to access your projects anywhere."
+            : "Access your cloud projects from any device.";
+        elements.authUsernameLabel.textContent = signingUp ? "Username" : "Username or email";
+        elements.authUsernameLabel.hidden = recovering;
+        elements.authUsername.hidden = recovering;
+        elements.authUsername.required = !recovering;
+        elements.authUsername.autocomplete = signingUp ? "username" : "username";
+        elements.authUsername.placeholder = signingUp ? "3–24 letters, numbers, or underscores" : "Your username or email";
+        elements.authEmailLabel.hidden = !signingUp || recovering;
+        elements.authEmail.hidden = !signingUp || recovering;
+        elements.authEmail.required = signingUp;
+        elements.authPassword.autocomplete = signingUp || recovering ? "new-password" : "current-password";
+        elements.authPassword.required = true;
+        elements.authHint.hidden = recovering;
+        elements.authHint.textContent = signingUp
+          ? "Use a real email for recovery and at least 8 characters for your password."
+          : recovering
+            ? "Use at least 8 characters."
+            : "You can sign in with your username or email.";
+        elements.authModeToggle.hidden = recovering;
+        elements.authModeToggle.textContent = signingUp ? "Already have an account? Sign in" : "Need an account? Sign up";
+        elements.forgotPasswordButton.hidden = signingUp || recovering;
+        elements.resendConfirmationButton.hidden = true;
+        elements.submitAuth.textContent = recovering ? "Update password" : signingUp ? "Create account" : "Sign in";
+        elements.authMessage.hidden = true;
+        elements.authMessage.textContent = "";
+        elements.authMessage.classList.remove("error");
+        elements.authPassword.value = "";
+      }
+
+      function openAuth(mode = "signin") {
+        if (!supabaseClient) {
+          showToast("The account service isn't ready. Refresh the page and try again.");
+          return;
+        }
+        setAuthMode(mode);
+        elements.authBackdrop.hidden = false;
+        window.setTimeout(() => (mode === "recovery" ? elements.authPassword : elements.authUsername).focus(), 0);
+      }
+
+      function closeAuth() {
+        elements.authBackdrop.hidden = true;
+        elements.authForm.reset();
+      }
+
+      function setAuthMessage(message, isError = false) {
+        elements.authMessage.textContent = message;
+        elements.authMessage.hidden = false;
+        elements.authMessage.classList.toggle("error", isError);
+      }
+
+      async function submitAuth(event) {
+        event.preventDefault();
+        elements.submitAuth.disabled = true;
+        elements.authModeToggle.disabled = true;
+        elements.forgotPasswordButton.disabled = true;
+        try {
+          if (authMode === "signup") {
+            const username = elements.authUsername.value.trim();
+            const email = elements.authEmail.value.trim();
+            const password = elements.authPassword.value;
+            if (!/^[A-Za-z0-9_]{3,24}$/.test(username)) {
+              throw new Error("Username must be 3–24 letters, numbers, or underscores.");
+            }
+            const { data, error } = await supabaseClient.auth.signUp({
+              email,
+              password,
+              options: { data: { username }, emailRedirectTo: AUTH_REDIRECT_URL }
+            });
+            if (error) throw error;
+            if (data.session) {
+              closeAuth();
+              await loadCloudWorkspace(data.session);
+              showToast("Your account is ready.");
+            } else {
+              setAuthMessage("Confirmation pending. Check your inbox and spam for the confirmation link. After confirming, return here and sign in.");
+              elements.resendConfirmationButton.hidden = false;
+            }
+          } else if (authMode === "signin") {
+            const identity = elements.authUsername.value.trim();
+            const password = elements.authPassword.value;
+            if (identity.includes("@")) {
+              const { data, error } = await supabaseClient.auth.signInWithPassword({ email: identity, password });
+              if (error) throw error;
+              closeAuth();
+              await loadCloudWorkspace(data.session);
+            } else {
+              const { data, error } = await supabaseClient.functions.invoke("username-login", {
+                body: { username: identity, password }
+              });
+              if (error) throw new Error(data && data.error ? data.error : "Couldn't sign in with that username and password.");
+              if (!data || !data.session) throw new Error("Sign-in didn't return a session. Try again.");
+              const { data: sessionData, error: sessionError } = await supabaseClient.auth.setSession(data.session);
+              if (sessionError) throw sessionError;
+              closeAuth();
+              await loadCloudWorkspace(sessionData.session);
+            }
+          } else {
+            const { error } = await supabaseClient.auth.updateUser({ password: elements.authPassword.value });
+            if (error) throw error;
+            closeAuth();
+            showToast("Password updated.");
+          }
+        } catch (error) {
+          console.error("Orbit account action failed:", error);
+          setAuthMessage(error.message || "Account action failed. Check your details and try again.", true);
+        } finally {
+          elements.submitAuth.disabled = false;
+          elements.authModeToggle.disabled = false;
+          elements.forgotPasswordButton.disabled = false;
+        }
+      }
+
+      async function resendConfirmation() {
+        const email = elements.authEmail.value.trim();
+        if (!email || !elements.authEmail.checkValidity()) {
+          setAuthMessage("Enter the recovery email you used to sign up.", true);
+          elements.authEmail.focus();
+          return;
+        }
+        elements.resendConfirmationButton.disabled = true;
+        try {
+          const { error } = await supabaseClient.auth.resend({
+            type: "signup",
+            email,
+            options: { emailRedirectTo: AUTH_REDIRECT_URL }
+          });
+          if (error) throw error;
+          setAuthMessage("If that signup can receive email, a confirmation link has been sent. Check your inbox and spam.");
+        } catch (error) {
+          console.error("Could not resend the Orbit confirmation email:", error);
+          setAuthMessage(error.message || "Couldn't resend the confirmation email. Wait a little and try again.", true);
+        } finally {
+          elements.resendConfirmationButton.disabled = false;
+        }
+      }
+
+      async function sendPasswordReset() {
+        const email = window.prompt("Enter the recovery email for your Orbit account:");
+        if (!email) return;
+        try {
+          const { error } = await supabaseClient.auth.resetPasswordForEmail(email.trim(), {
+            redirectTo: AUTH_REDIRECT_URL
+          });
+          if (error) throw error;
+          setAuthMessage("If an account exists for that email, a password reset link is on its way.");
+        } catch (error) {
+          console.error("Could not request an Orbit password reset:", error);
+          setAuthMessage(error.message || "Couldn't request a password reset. Try again.", true);
+        }
+      }
+
       function openNameModal({ title, description, button, placeholder, action }) {
         modalAction = action;
         elements.modalTitle.textContent = title;
@@ -698,10 +1106,7 @@ button.addEventListener("click", () => {
       function createProject(name) {
         const projectName = name.trim();
         if (!projectName) return false;
-        const base = slugify(projectName);
-        let id = base;
-        let suffix = 2;
-        while (Object.hasOwn(state.projects, id)) id = `${base}-${suffix++}`;
+        const id = makeProjectId(projectName);
         state.projects[id] = makeStarterProject(projectName);
         state.activeProject = id;
         elements.editor.dataset.file = "";
@@ -755,10 +1160,7 @@ button.addEventListener("click", () => {
           ));
           if (!Object.keys(files).length) throw new Error("The project backup doesn't contain any text files.");
           const projectName = typeof payload.name === "string" && payload.name.trim() ? payload.name.trim() : "Imported project";
-          const idBase = slugify(projectName);
-          let id = idBase;
-          let suffix = 2;
-          while (Object.hasOwn(state.projects, id)) id = `${idBase}-${suffix++}`;
+          const id = makeProjectId(projectName);
           state.projects[id] = { name: projectName, files, activeFile: Object.keys(files)[0], openFiles: [Object.keys(files)[0]] };
           state.activeProject = id;
           elements.editor.dataset.file = "";
@@ -794,6 +1196,29 @@ button.addEventListener("click", () => {
       document.getElementById("importActivity").addEventListener("click", () => elements.importInput.click());
       elements.importInput.addEventListener("change", () => {
         if (elements.importInput.files && elements.importInput.files[0]) importProject(elements.importInput.files[0]);
+      });
+      elements.accountButton.addEventListener("click", async () => {
+        if (!cloudUser) {
+          openAuth("signin");
+          return;
+        }
+        try {
+          const { error } = await supabaseClient.auth.signOut();
+          if (error) throw error;
+          handleSignedOut();
+          showToast("Signed out. Your cloud projects are safe in your account.");
+        } catch (error) {
+          console.error("Could not sign out of Orbit:", error);
+          showToast("Couldn't sign out. Please try again.");
+        }
+      });
+      elements.authForm.addEventListener("submit", submitAuth);
+      elements.authModeToggle.addEventListener("click", () => setAuthMode(authMode === "signup" ? "signin" : "signup"));
+      elements.forgotPasswordButton.addEventListener("click", sendPasswordReset);
+      elements.resendConfirmationButton.addEventListener("click", resendConfirmation);
+      document.getElementById("cancelAuth").addEventListener("click", closeAuth);
+      elements.authBackdrop.addEventListener("click", event => {
+        if (event.target === elements.authBackdrop) closeAuth();
       });
       document.getElementById("cancelModal").addEventListener("click", closeNameModal);
       elements.modalBackdrop.addEventListener("click", event => {
@@ -841,17 +1266,21 @@ button.addEventListener("click", () => {
           buildPreview();
         }
         if (event.key === "Escape" && !elements.modalBackdrop.hidden) closeNameModal();
+        if (event.key === "Escape" && !elements.authBackdrop.hidden) closeAuth();
       });
       window.addEventListener("beforeunload", () => {
         const project = currentProject();
         if (project && project.activeFile && project.activeFile === elements.editor.dataset.file) {
           project.files[project.activeFile] = elements.editor.value;
         }
-        try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
-        catch (error) { console.error("Could not save workspace before closing:", error); }
+        if (!cloudUser) {
+          try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
+          catch (error) { console.error("Could not save workspace before closing:", error); }
+        }
       });
 
       render();
+      void initializeCloud();
     })();
   </script>
 </body>

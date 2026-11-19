@@ -967,7 +967,7 @@ button.addEventListener("click", () => {
         return "Orbit couldn't complete that request. Please check your details and try again.";
       }
 
-      const htmlTagNames = ["a","abbr","acronym","address","animate","animateMotion","animateTransform","area","article","aside","audio","b","base","blockquote","body","br","button","canvas","caption","circle","cite","clipPath","code","col","colgroup","data","datalist","dd","defs","del","desc","details","dfn","dialog","div","dl","dt","ellipse","em","embed","feBlend","feColorMatrix","feGaussianBlur","feOffset","fieldset","figcaption","figure","filter","footer","foreignObject","form","g","h1","h2","h3","h4","h5","h6","hatch","hatchpath","head","header","hgroup","hr","html","i","iframe","image","img","input","ins","kbd","label","legend","li","line","linearGradient","link","main","map","mark","mask","meta","meter","nav","noscript","object","ol","optgroup","option","output","p","param","path","pattern","picture","polygon","polyline","pre","progress","q","radialGradient","rect","rp","rt","ruby","s","samp","script","search","section","select","small","source","span","stop","strong","style","sub","summary","sup","svg","switch","symbol","table","tbody","td","template","text","textarea","tfoot","th","thead","time","title","tr","track","tspan","u","ul","use","var","video","view","wbr"]
+      const htmlTagNames = ["a","abbr","acronym","address","animate","animateMotion","animateTransform","applet","area","article","aside","audio","b","base","basefont","bdi","bdo","bgsound","big","blockquote","body","br","button","canvas","caption","center","circle","cite","clipPath","code","col","colgroup","content","data","datalist","dd","defs","del","desc","details","dfn","dialog","dir","div","dl","dt","ellipse","em","embed","feBlend","feColorMatrix","feComponentTransfer","feComposite","feConvolveMatrix","feDiffuseLighting","feDisplacementMap","feDistantLight","feDropShadow","feFlood","feFuncA","feFuncB","feFuncG","feFuncR","feGaussianBlur","feImage","feMerge","feMergeNode","feMorphology","fencedframe","feOffset","fePointLight","feSpecularLighting","feSpotLight","feTile","feTurbulence","fieldset","figcaption","figure","filter","font","footer","foreignObject","form","frame","frameset","g","h1","h2","h3","h4","h5","h6","head","header","hgroup","hr","html","i","iframe","image","img","input","ins","isindex","kbd","label","legend","li","line","linearGradient","link","listing","main","map","mark","marker","marquee","mask","menu","menuitem","meta","metadata","meter","mpath","nav","nobr","noembed","noframes","noscript","object","ol","optgroup","option","output","p","param","path","pattern","picture","plaintext","polygon","polyline","pre","progress","q","radialGradient","rb","rect","rp","rt","rtc","ruby","s","samp","script","search","section","select","set","slot","small","source","spacer","span","stop","strike","strong","style","sub","summary","sup","svg","switch","symbol","table","tbody","td","template","text","textarea","textPath","tfoot","th","thead","time","title","tr","track","tspan","tt","u","ul","use","var","video","view","wbr","xmp"];
       let htmlSuggestionMatches = [];
       let htmlSuggestionIndex = 0;
 
@@ -1012,6 +1012,17 @@ button.addEventListener("click", () => {
           const restText = document.createElement("span");
           restText.textContent = tag.slice(prefix.length);
           item.append(prefixText, restText);
+          item.setAttribute("aria-selected", String(index === 0));
+          item.addEventListener("mousedown", event => event.preventDefault());
+          item.addEventListener("click", () => {
+            htmlSuggestionIndex = index;
+            [...elements.htmlSuggestionItems.children].forEach((row, rowIndex) => {
+              row.classList.toggle("active", rowIndex === index);
+              row.setAttribute("aria-selected", String(rowIndex === index));
+            });
+            acceptHtmlSuggestion();
+            elements.editor.focus();
+          });
           elements.htmlSuggestionItems.append(item);
         });
         elements.htmlSuggestions.classList.add("visible");
@@ -1401,7 +1412,10 @@ button.addEventListener("click", () => {
           if (event.key === "ArrowDown" || event.key === "ArrowUp") {
             event.preventDefault();
             htmlSuggestionIndex = (htmlSuggestionIndex + (event.key === "ArrowDown" ? 1 : -1) + htmlSuggestionMatches.length) % htmlSuggestionMatches.length;
-            [...elements.htmlSuggestionItems.children].forEach((item, index) => item.classList.toggle("active", index === htmlSuggestionIndex));
+            [...elements.htmlSuggestionItems.children].forEach((item, index) => {
+              item.classList.toggle("active", index === htmlSuggestionIndex);
+              item.setAttribute("aria-selected", String(index === htmlSuggestionIndex));
+            });
             return;
           }
           if (event.key === "Tab") {

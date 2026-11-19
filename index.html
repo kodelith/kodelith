@@ -154,6 +154,7 @@
     .modal label { display: block; margin: 0 0 6px; color: #424242; font-size: 11px; font-weight: 600; }
     .modal input + label { margin-top: 13px; }
     .auth-hint { margin: 8px 0 0 !important; font-size: 10px !important; }
+    .password-visibility { display: block; margin: 7px 0 0 auto; padding: 0; border: 0; background: transparent; color: #0969a8; cursor: pointer; font-size: 11px; }
     .auth-message { margin: 12px 0 0 !important; padding: 9px 10px; border-radius: 6px; background: #edf6fc; color: #075985 !important; }
     .auth-message.error { background: #fdf0ef; color: #a12622 !important; }
     .auth-links { display: flex; justify-content: space-between; gap: 8px; margin-top: 12px; }
@@ -298,6 +299,7 @@
       <input id="authEmail" type="text" maxlength="24" minlength="3" pattern="[A-Za-z0-9_]{3,24}" autocomplete="username" autocapitalize="none" spellcheck="false" required>
       <label for="authPassword">Password</label>
       <input id="authPassword" type="password" minlength="8" autocomplete="current-password" required>
+      <button id="togglePasswordVisibility" class="password-visibility" type="button" aria-pressed="false">Show password</button>
       <p class="auth-hint" id="authHint">Enter the username you were given and your password.</p>
       <p class="auth-message" id="authMessage" role="status" aria-live="polite" hidden></p>
       <div class="auth-links">
@@ -924,6 +926,9 @@ button.addEventListener("click", () => {
         elements.authMessage.textContent = "";
         elements.authMessage.classList.remove("error");
         elements.authPassword.value = "";
+        elements.authPassword.type = "password";
+        elements.togglePasswordVisibility.textContent = "Show password";
+        elements.togglePasswordVisibility.setAttribute("aria-pressed", "false");
       }
 
       function openAuth(mode = "signin") {
@@ -1168,6 +1173,12 @@ button.addEventListener("click", () => {
           console.error("Could not sign out of Orbit:", error);
           showToast("Couldn't sign out. Please try again.");
         }
+      });
+      elements.togglePasswordVisibility.addEventListener("click", () => {
+        const showing = elements.authPassword.type === "password";
+        elements.authPassword.type = showing ? "text" : "password";
+        elements.togglePasswordVisibility.textContent = showing ? "Hide password" : "Show password";
+        elements.togglePasswordVisibility.setAttribute("aria-pressed", String(showing));
       });
       elements.authForm.addEventListener("submit", submitAuth);
       elements.authModeToggle.addEventListener("click", () => setAuthMode(authMode === "activate" ? "signin" : "activate"));

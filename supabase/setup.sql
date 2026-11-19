@@ -77,3 +77,5 @@ drop trigger if exists create_profile_after_signup on auth.users;
 create trigger create_profile_after_signup
   after insert on auth.users
   for each row execute function public.create_profile_for_new_user();
+
+grant select on table public.profiles to service_role;

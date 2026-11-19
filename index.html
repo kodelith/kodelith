@@ -294,13 +294,11 @@
     <form class="modal" id="authForm">
       <h2 id="authTitle">Sign in to Orbit</h2>
       <p id="authDescription">Access your cloud projects from any device.</p>
-      <label id="authUsernameLabel" for="authUsername">Username</label>
-      <input id="authUsername" maxlength="24" autocomplete="username" required>
-      <label id="authEmailLabel" for="authEmail">Recovery email</label>
-      <input id="authEmail" type="email" autocomplete="email" required>
+      <label id="authEmailLabel" for="authEmail">Email</label>
+      <input id="authEmail" type="email" maxlength="254" autocomplete="email" required>
       <label for="authPassword">Password</label>
       <input id="authPassword" type="password" minlength="8" autocomplete="current-password" required>
-      <p class="auth-hint" id="authHint">Use at least 8 characters. Your email is for account recovery.</p>
+      <p class="auth-hint" id="authHint">Use your email and a password with at least 8 characters.</p>
       <p class="auth-message" id="authMessage" role="status" aria-live="polite" hidden></p>
       <div class="auth-links">
         <button id="authModeToggle" type="button">Need an account? Sign up</button>
@@ -420,8 +418,6 @@ button.addEventListener("click", () => {
         authForm: document.getElementById("authForm"),
         authTitle: document.getElementById("authTitle"),
         authDescription: document.getElementById("authDescription"),
-        authUsername: document.getElementById("authUsername"),
-        authUsernameLabel: document.getElementById("authUsernameLabel"),
         authEmail: document.getElementById("authEmail"),
         authEmailLabel: document.getElementById("authEmailLabel"),
         authPassword: document.getElementById("authPassword"),
@@ -441,7 +437,6 @@ button.addEventListener("click", () => {
       let authMode = "signin";
       let supabaseClient = null;
       let cloudUser = null;
-      let cloudUsername = "";
       let cloudReady = false;
       let loadedCloudUserId = "";
       let cloudProjectIds = new Set();
@@ -590,13 +585,12 @@ button.addEventListener("click", () => {
         elements.accountButton.disabled = true;
         elements.saveLabel.textContent = "Loading cloud projects…";
         try {
-          const [{ data: profile, error: profileError }, { data: rows, error: projectError }] = await Promise.all([
-            supabaseClient.from("profiles").select("username").eq("id", session.user.id).maybeSingle(),
-            supabaseClient.from("projects").select("id, name, data").order("updated_at", { ascending: false })
-          ]);
-          if (profileError) throw profileError;
+          const { data: rows, error: projectError } = await supabaseClient
+            .from("projects")
+            .select("id, name, data")
+            .order("updated_at", { ascending: false });
           if (projectError) throw projectError;
-          if (!profile || !Array.isArray(rows)) throw new Error("Account data is unavailable.");
+          if (!Array.isArray(rows)) throw new Error("Project data is unavailable.");
 
           const projects = {};
           for (const row of rows) {
@@ -615,7 +609,6 @@ button.addEventListener("click", () => {
               openFiles
             };
           }
-          cloudUsername = profile.username;
           if (!Object.keys(projects).length && rows.length) throw new Error("No usable projects were returned from the cloud.");
           cloudProjectIds = new Set(rows.map(row => row.id).filter(id => typeof id === "string"));
           if (!Object.keys(projects).length) {
@@ -637,10 +630,10 @@ button.addEventListener("click", () => {
             state = { activeProject: Object.keys(projects)[0], projects };
           }
           cloudReady = true;
-          elements.accountButton.textContent = `@${cloudUsername}`;
-          elements.accountButton.title = "Sign out";
+          elements.accountButton.textContent = "Sign out";
+          elements.accountButton.title = `Signed in as ${session.user.email || "your account"}. Click to sign out.`;
           elements.accountButton.disabled = false;
-          elements.storageCopy.textContent = `Signed in as @${cloudUsername}. Your projects sync to your account.`;
+          elements.storageCopy.textContent = "Signed in. Your projects sync to your account.";
           elements.saveLabel.textContent = "Saved to cloud";
           elements.saveDot.style.background = "var(--green)";
           elements.saveDot.title = "Your projects are saved to your Orbit account.";
@@ -665,7 +658,6 @@ button.addEventListener("click", () => {
 
       function handleSignedOut() {
         cloudUser = null;
-        cloudUsername = "";
         cloudReady = false;
         loadedCloudUserId = "";
         cloudProjectIds = new Set();
@@ -911,25 +903,21 @@ button.addEventListener("click", () => {
         elements.authDescription.textContent = recovering
           ? "Choose a new password for your account."
           : signingUp
-            ? "Create a username and password to access your projects anywhere."
+            ? "Create an account with your email and password to access your projects anywhere."
             : "Access your cloud projects from any device.";
-        elements.authUsernameLabel.textContent = signingUp ? "Username" : "Username or email";
-        elements.authUsernameLabel.hidden = recovering;
-        elements.authUsername.hidden = recovering;
-        elements.authUsername.required = !recovering;
-        elements.authUsername.autocomplete = signingUp ? "username" : "username";         elements.authUsername.maxLength = 254;
-        elements.authUsername.placeholder = signingUp ? "3–24 letters, numbers, or underscores" : "Your username or email";
-        elements.authEmailLabel.hidden = !signingUp || recovering;
-        elements.authEmail.hidden = !signingUp || recovering;
-        elements.authEmail.required = signingUp;
+        elements.authEmailLabel.hidden = recovering;
+        elements.authEmail.hidden = recovering;
+        elements.authEmail.required = !recovering;
+        elements.authEmail.maxLength = 254;
+        elements.authEmail.placeholder = "you@example.com";
         elements.authPassword.autocomplete = signingUp || recovering ? "new-password" : "current-password";
         elements.authPassword.required = true;
         elements.authHint.hidden = recovering;
         elements.authHint.textContent = signingUp
-          ? "No confirmation email is sent. Use an email you can access for password recovery."
+          ? "No confirmation email is sent. Use at least 8 characters for your password."
           : recovering
             ? "Use at least 8 characters."
-            : "You can sign in with your username or email.";
+            : "Sign in with your email and password.";
         elements.authModeToggle.hidden = recovering;
         elements.authModeToggle.textContent = signingUp ? "Already have an account? Sign in" : "Need an account? Sign up";
         elements.forgotPasswordButton.hidden = signingUp || recovering;
@@ -948,7 +936,7 @@ button.addEventListener("click", () => {
         }
         setAuthMode(mode);
         elements.authBackdrop.hidden = false;
-        window.setTimeout(() => (mode === "recovery" ? elements.authPassword : elements.authUsername).focus(), 0);
+        window.setTimeout(() => (mode === "recovery" ? elements.authPassword : elements.authEmail).focus(), 0);
       }
 
       function closeAuth() {
@@ -969,16 +957,11 @@ button.addEventListener("click", () => {
         elements.forgotPasswordButton.disabled = true;
         try {
           if (authMode === "signup") {
-            const username = elements.authUsername.value.trim();
             const email = elements.authEmail.value.trim();
             const password = elements.authPassword.value;
-            if (!/^[A-Za-z0-9_]{3,24}$/.test(username)) {
-              throw new Error("Username must be 3–24 letters, numbers, or underscores.");
-            }
             const { data, error } = await supabaseClient.auth.signUp({
               email,
-              password,
-              options: { data: { username } }
+              password
             });
             if (error) throw error;
             if (data.session) {
@@ -986,28 +969,16 @@ button.addEventListener("click", () => {
               await loadCloudWorkspace(data.session);
               showToast("Your account is ready.");
             } else {
-              setAuthMessage("Your account was created, but sign-in did not complete. Sign in with your username or email and password.");
+              setAuthMessage("Your account was created, but sign-in didn't complete. Try signing in with your email and password.");
               elements.resendConfirmationButton.hidden = true;
             }
           } else if (authMode === "signin") {
-            const identity = elements.authUsername.value.trim();
+            const email = elements.authEmail.value.trim();
             const password = elements.authPassword.value;
-            if (identity.includes("@")) {
-              const { data, error } = await supabaseClient.auth.signInWithPassword({ email: identity, password });
-              if (error) throw error;
-              closeAuth();
-              await loadCloudWorkspace(data.session);
-            } else {
-              const { data, error } = await supabaseClient.functions.invoke("username-login", {
-                body: { username: identity, password }
-              });
-              if (error) throw new Error(data && data.error ? data.error : "Couldn't sign in with that username and password.");
-              if (!data || !data.session) throw new Error("Sign-in didn't return a session. Try again.");
-              const { data: sessionData, error: sessionError } = await supabaseClient.auth.setSession(data.session);
-              if (sessionError) throw sessionError;
-              closeAuth();
-              await loadCloudWorkspace(sessionData.session);
-            }
+            const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
+            if (error) throw error;
+            closeAuth();
+            await loadCloudWorkspace(data.session);
           } else {
             const { error } = await supabaseClient.auth.updateUser({ password: elements.authPassword.value });
             if (error) throw error;
@@ -1049,7 +1020,7 @@ button.addEventListener("click", () => {
       }
 
       async function sendPasswordReset() {
-        const email = window.prompt("Enter the recovery email for your Orbit account:");
+        const email = window.prompt("Enter the email address for your Orbit account:");
         if (!email) return;
         try {
           const { error } = await supabaseClient.auth.resetPasswordForEmail(email.trim(), {

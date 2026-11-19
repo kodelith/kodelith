@@ -984,9 +984,9 @@ button.addEventListener("click", () => {
         if (angleMatch && !before.endsWith("</")) {
           return { prefix: (angleMatch[1] || "").toLowerCase(), start: cursor - angleMatch[0].length, mode: "angle" };
         }
-        const lineStart = before.lastIndexOf("\\n") + 1;
+        const lineStart = before.lastIndexOf("\n") + 1;
         const linePrefix = before.slice(lineStart);
-        const bareMatch = linePrefix.match(/^(\\s*)([a-z][a-z0-9-]*)$/i);
+        const bareMatch = linePrefix.match(/^(\s*)([a-z][a-z0-9-]*)$/i);
         if (bareMatch) {
           return { prefix: bareMatch[2].toLowerCase(), start: cursor - bareMatch[2].length, mode: "bare" };
         }
@@ -1016,7 +1016,7 @@ button.addEventListener("click", () => {
         });
         elements.htmlSuggestions.classList.add("visible");
         const before = elements.editor.value.slice(0, elements.editor.selectionStart);
-        const beforeLines = before.split("\\n");
+        const beforeLines = before.split("\n");
         const lineHeight = 21;
         const caretLineTop = 16 + (beforeLines.length - 1) * lineHeight - elements.editor.scrollTop;
         const popupHeight = Math.min(520, elements.editor.clientHeight - 28, htmlSuggestionMatches.length * 48 + 2);

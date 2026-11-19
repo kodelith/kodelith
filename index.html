@@ -194,6 +194,15 @@
     .modal-actions button { padding: 8px 12px; border: 1px solid var(--line); border-radius: 7px; background: #f3f3f3; cursor: pointer; font-size: 11px; }
     .modal-actions .confirm { border-color: var(--accent); background: var(--accent); color: white; }
     .toast { position: fixed; right: 20px; bottom: 40px; z-index: 8; max-width: min(380px, calc(100vw - 40px)); padding: 11px 14px; border: 1px solid #c9dff0; border-radius: 8px; background: #ffffff; color: #1f1f1f; box-shadow: 0 12px 32px #0002; font-size: 11px; }
+    .confirm-dialog-backdrop { position:fixed; inset:0; z-index:30; display:grid; place-items:center; padding:20px; background:#10182899; backdrop-filter:blur(4px); }
+    .confirm-dialog { width:min(420px,100%); padding:24px; border:1px solid var(--border,#ddd); border-radius:16px; background:var(--panel,#fff); color:var(--text,#222); box-shadow:0 24px 70px #0003; }
+    .confirm-dialog h2 { margin:0 0 9px; font-size:19px; }
+    .confirm-dialog p { margin:0; color:var(--muted,#666); font-size:13px; line-height:1.6; }
+    .confirm-dialog .dialog-note { margin-top:13px; padding:10px 12px; border-radius:9px; background:#eef7ff; color:#24577a; font-size:12px; }
+    .confirm-dialog-actions { display:flex; justify-content:flex-end; gap:9px; margin-top:22px; }
+    .confirm-dialog-actions button { min-width:92px; padding:9px 15px; border:1px solid var(--border,#ddd); border-radius:8px; background:transparent; color:inherit; cursor:pointer; font:inherit; }
+    .confirm-dialog-actions .danger { border-color:#c43d3d; background:#c43d3d; color:#fff; }
+    .confirm-dialog-actions .danger:hover { background:#a92e2e; }
     [hidden] { display: none !important; }
 
     @media (max-width: 900px) {
@@ -358,6 +367,17 @@
         <button class="confirm" id="confirmModal" type="submit">Create project</button>
       </div>
     </form>
+  </div>
+  <div class="confirm-dialog-backdrop" id="confirmDialogBackdrop" hidden>
+    <section class="confirm-dialog" role="alertdialog" aria-modal="true" aria-labelledby="confirmDialogTitle" aria-describedby="confirmDialogDescription">
+      <h2 id="confirmDialogTitle">Sign out of Orbit?</h2>
+      <p id="confirmDialogDescription">You can sign back in whenever you need to access your cloud workspace.</p>
+      <p class="dialog-note">Your cloud projects stay saved to your account. Signing out won't delete your projects or files.</p>
+      <div class="confirm-dialog-actions">
+        <button type="button" id="cancelConfirmDialog">Stay signed in</button>
+        <button type="button" class="danger" id="acceptConfirmDialog">Sign out</button>
+      </div>
+    </section>
   </div>
   <div class="modal-backdrop" id="authBackdrop" hidden>
     <form class="modal" id="authForm">
@@ -588,6 +608,7 @@ button.addEventListener("click", () => {
 
       let state = loadState();
       let modalAction = null;
+      let confirmDialogResolver = null;
       let saveTimer = 0;
       let previewTimer = 0;
       let toastTimer = 0;
@@ -1404,6 +1425,27 @@ button.addEventListener("click", () => {
         }
       }
 
+      function askForConfirmation({ title, description, note, confirmText = "Confirm" }) {
+        const backdrop = document.getElementById("confirmDialogBackdrop");
+        document.getElementById("confirmDialogTitle").textContent = title;
+        document.getElementById("confirmDialogDescription").textContent = description;
+        backdrop.querySelector(".dialog-note").textContent = note || "";
+        document.getElementById("acceptConfirmDialog").textContent = confirmText;
+        backdrop.hidden = false;
+        document.getElementById("cancelConfirmDialog").focus();
+        return new Promise(resolve => { confirmDialogResolver = resolve; });
+      }
+
+      function finishConfirmation(accepted) {
+        const backdrop = document.getElementById("confirmDialogBackdrop");
+        backdrop.hidden = true;
+        if (confirmDialogResolver) {
+          const resolve = confirmDialogResolver;
+          confirmDialogResolver = null;
+          resolve(accepted);
+        }
+      }
+
       function openNameModal({ title, description, button, placeholder, action }) {
         modalAction = action;
         elements.modalTitle.textContent = title;
@@ -1544,7 +1586,13 @@ button.addEventListener("click", () => {
           return;
         }
         try {
-          if (!window.confirm("Sign out of Orbit? Your cloud projects will remain saved to your account.")) return;
+          const confirmed = await askForConfirmation({
+            title: "Sign out of Orbit?",
+            description: "You can sign back in whenever you need to access your cloud workspace.",
+            note: "Your cloud projects stay saved to your account. Signing out won't delete your projects or files.",
+            confirmText: "Sign out"
+          });
+          if (!confirmed) return;
           const { error } = await supabaseClient.auth.signOut();
           if (error) throw error;
           handleSignedOut();
@@ -1569,6 +1617,14 @@ button.addEventListener("click", () => {
         if (event.target === elements.authBackdrop) closeAuth();
       });
       document.getElementById("cancelModal").addEventListener("click", closeNameModal);
+      document.getElementById("cancelConfirmDialog").addEventListener("click", () => finishConfirmation(false));
+      document.getElementById("acceptConfirmDialog").addEventListener("click", () => finishConfirmation(true));
+      document.getElementById("confirmDialogBackdrop").addEventListener("click", event => {
+        if (event.target === event.currentTarget) finishConfirmation(false);
+      });
+      document.addEventListener("keydown", event => {
+        if (event.key === "Escape" && !document.getElementById("confirmDialogBackdrop").hidden) finishConfirmation(false);
+      });
       elements.modalBackdrop.addEventListener("click", event => {
         if (event.target === elements.modalBackdrop) closeNameModal();
       });

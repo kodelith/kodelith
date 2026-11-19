@@ -140,18 +140,17 @@
     .code-editor::selection { background:#add6ff99; -webkit-text-fill-color:transparent; }
     .code-editor:focus { outline:none; }
     /* HTML editing uses native textarea text so browser caret hit-testing stays exact. */
-    .editor-surface.html-editing .highlight-layer { display:block; z-index:3; }
+    /* Keep HTML text native: the syntax overlay shifts browser caret hit-testing. */
+    .editor-surface.html-editing .highlight-layer { display:none; }
     .editor-surface.html-editing .code-editor {
-      color:transparent;
-      -webkit-text-fill-color:transparent;
-      background:transparent;
-      caret-color:#007acc;
+      color:#1f1f1f;
+      -webkit-text-fill-color:#1f1f1f;
+      background:#fff;
     }
-    .editor-surface.html-editing .code-editor::selection { background:#add6ff99; -webkit-text-fill-color:transparent; }
-    .editor-surface.html-editing .tok-tag { color:#0451a5; font-weight:650; }
-    .editor-surface.html-editing .tok-attr { color:#e50000; }
-    .editor-surface.html-editing .tok-string { color:#a31515; }
-    .editor-surface.html-editing .tok-comment { color:#008000; font-style:italic; }
+    .editor-surface.html-editing .code-editor::selection {
+      background:#add6ff;
+      -webkit-text-fill-color:#1f1f1f;
+    }
     .html-suggestions { position:absolute; z-index:4; top:12px; right:14px; display:none; min-width:150px; max-width:220px; padding:7px; border:1px solid #b8c7d8; border-radius:8px; background:#fff; color:#243247; box-shadow:0 8px 24px #0002; font:11px/1.6 ui-monospace,monospace; }
     .html-suggestions.visible { display:block; }
     .html-suggestions-title { padding:2px 6px 5px; color:#64748b; font:10px/1.4 system-ui,sans-serif; }

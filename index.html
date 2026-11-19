@@ -294,14 +294,14 @@
     <form class="modal" id="authForm">
       <h2 id="authTitle">Sign in to Orbit</h2>
       <p id="authDescription">Access your cloud projects from any device.</p>
-      <label id="authEmailLabel" for="authEmail">Email</label>
-      <input id="authEmail" type="email" maxlength="254" autocomplete="email" required>
+      <label id="authEmailLabel" for="authEmail">Username</label>
+      <input id="authEmail" type="text" maxlength="24" minlength="3" pattern="[A-Za-z0-9_]{3,24}" autocomplete="username" autocapitalize="none" spellcheck="false" required>
       <label for="authPassword">Password</label>
       <input id="authPassword" type="password" minlength="8" autocomplete="current-password" required>
-      <p class="auth-hint" id="authHint">Use your email and a password with at least 8 characters.</p>
+      <p class="auth-hint" id="authHint">Enter the username you were given and your password.</p>
       <p class="auth-message" id="authMessage" role="status" aria-live="polite" hidden></p>
       <div class="auth-links">
-        <button id="authModeToggle" type="button">Need an account? Sign up</button>
+        <button id="authModeToggle" type="button">First time? Activate assigned username</button>
         <button id="forgotPasswordButton" type="button">Forgot password?</button>
         <button id="resendConfirmationButton" type="button" hidden>Resend confirmation email</button>
       </div>
@@ -321,8 +321,7 @@
       const STORAGE_KEY = "orbit-studio-v1";
       const SUPABASE_URL = "https://xxielgvlkjrkdnhiddrh.supabase.co";
       const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_FIo9gJJ1rGSQGhxhHIy09w_HDI0LeLn";
-      const AUTH_REDIRECT_URL = "https://save-codes.github.io/my-code/";
-      const starterFiles = {
+            const starterFiles = {
         "index.html": `<!doctype html>
 <html lang="en">
 <head>
@@ -687,9 +686,7 @@ button.addEventListener("click", () => {
           await loadCloudWorkspace(data.session);
         }
         supabaseClient.auth.onAuthStateChange((event, session) => {
-          if (event === "PASSWORD_RECOVERY") {
-            openAuth("recovery");
-          } else if (session) {
+          if (session) {
             if (loadedCloudUserId !== session.user.id || !cloudReady) {
               queueMicrotask(() => loadCloudWorkspace(session));
             }
@@ -897,32 +894,32 @@ button.addEventListener("click", () => {
 
       function setAuthMode(mode) {
         authMode = mode;
-        const signingUp = mode === "signup";
-        const recovering = mode === "recovery";
-        elements.authTitle.textContent = recovering ? "Choose a new password" : signingUp ? "Create your Orbit account" : "Sign in to Orbit";
-        elements.authDescription.textContent = recovering
-          ? "Choose a new password for your account."
-          : signingUp
-            ? "Create an account with your email and password to access your projects anywhere."
-            : "Access your cloud projects from any device.";
-        elements.authEmailLabel.hidden = recovering;
-        elements.authEmail.hidden = recovering;
-        elements.authEmail.required = !recovering;
-        elements.authEmail.maxLength = 254;
-        elements.authEmail.placeholder = "you@example.com";
-        elements.authPassword.autocomplete = signingUp || recovering ? "new-password" : "current-password";
+        const activating = mode === "activate";
+        elements.authTitle.textContent = activating ? "Activate your Orbit account" : "Sign in to Orbit";
+        elements.authDescription.textContent = activating
+          ? "Enter the username provided by Orbit and choose your password."
+          : "Sign in with the username provided to you.";
+        elements.authEmailLabel.textContent = "Username";
+        elements.authEmailLabel.hidden = false;
+        elements.authEmail.hidden = false;
+        elements.authEmail.required = true;
+        elements.authEmail.maxLength = 24;
+        elements.authEmail.minLength = 3;
+        elements.authEmail.pattern = "[A-Za-z0-9_]{3,24}";
+        elements.authEmail.placeholder = "Your assigned username";
+        elements.authEmail.autocomplete = "username";
+        elements.authPassword.autocomplete = activating ? "new-password" : "current-password";
         elements.authPassword.required = true;
-        elements.authHint.hidden = recovering;
-        elements.authHint.textContent = signingUp
-          ? "No confirmation email is sent. Use at least 8 characters for your password."
-          : recovering
-            ? "Use at least 8 characters."
-            : "Sign in with your email and password.";
-        elements.authModeToggle.hidden = recovering;
-        elements.authModeToggle.textContent = signingUp ? "Already have an account? Sign in" : "Need an account? Sign up";
-        elements.forgotPasswordButton.hidden = signingUp || recovering;
+        elements.authPassword.minLength = 8;
+        elements.authHint.hidden = false;
+        elements.authHint.textContent = activating
+          ? "Choose a password with at least 8 characters. Your username must have been issued by Orbit."
+          : "Enter your username and password.";
+        elements.authModeToggle.hidden = false;
+        elements.authModeToggle.textContent = activating ? "Already activated? Sign in" : "First time? Activate assigned username";
+        elements.forgotPasswordButton.hidden = true;
         elements.resendConfirmationButton.hidden = true;
-        elements.submitAuth.textContent = recovering ? "Update password" : signingUp ? "Create account" : "Sign in";
+        elements.submitAuth.textContent = activating ? "Activate account" : "Sign in";
         elements.authMessage.hidden = true;
         elements.authMessage.textContent = "";
         elements.authMessage.classList.remove("error");
@@ -954,44 +951,33 @@ button.addEventListener("click", () => {
         event.preventDefault();
         elements.submitAuth.disabled = true;
         elements.authModeToggle.disabled = true;
-        elements.forgotPasswordButton.disabled = true;
+        const username = elements.authEmail.value.trim();
+        const password = elements.authPassword.value;
         try {
-          if (authMode === "signup") {
-            const email = elements.authEmail.value.trim();
-            const password = elements.authPassword.value;
-            const { data, error } = await supabaseClient.auth.signUp({
-              email,
+          const { data, error } = await supabaseClient.functions.invoke("username-login", {
+            body: {
+              action: authMode === "activate" ? "activate" : "login",
+              username,
               password
-            });
-            if (error) throw error;
-            if (data.session) {
-              closeAuth();
-              await loadCloudWorkspace(data.session);
-              showToast("Your account is ready.");
-            } else {
-              setAuthMessage("Your account was created, but sign-in didn't complete. Try signing in with your email and password.");
-              elements.resendConfirmationButton.hidden = true;
             }
-          } else if (authMode === "signin") {
-            const email = elements.authEmail.value.trim();
-            const password = elements.authPassword.value;
-            const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
-            if (error) throw error;
-            closeAuth();
-            await loadCloudWorkspace(data.session);
-          } else {
-            const { error } = await supabaseClient.auth.updateUser({ password: elements.authPassword.value });
-            if (error) throw error;
-            closeAuth();
-            showToast("Password updated.");
-          }
+          });
+          if (error) throw error;
+          if (!data || !data.session) throw new Error(data?.error || "Account sign-in failed.");
+          const { error: sessionError } = await supabaseClient.auth.setSession({
+            access_token: data.session.access_token,
+            refresh_token: data.session.refresh_token
+          });
+          if (sessionError) throw sessionError;
+          closeAuth();
+          await loadCloudWorkspace(data.session);
+          showToast(authMode === "activate" ? "Your Orbit account is ready." : "Signed in successfully.");
         } catch (error) {
           console.error("Orbit account action failed:", error);
-          setAuthMessage(error.message || "Account action failed. Check your details and try again.", true);
+          const message = error?.context?.error || error.message || "Account action failed. Check your details and try again.";
+          setAuthMessage(message, true);
         } finally {
           elements.submitAuth.disabled = false;
           elements.authModeToggle.disabled = false;
-          elements.forgotPasswordButton.disabled = false;
         }
       }
 
@@ -1184,7 +1170,7 @@ button.addEventListener("click", () => {
         }
       });
       elements.authForm.addEventListener("submit", submitAuth);
-      elements.authModeToggle.addEventListener("click", () => setAuthMode(authMode === "signup" ? "signin" : "signup"));
+      elements.authModeToggle.addEventListener("click", () => setAuthMode(authMode === "activate" ? "signin" : "activate"));
       elements.forgotPasswordButton.addEventListener("click", sendPasswordReset);
       elements.resendConfirmationButton.addEventListener("click", resendConfirmation);
       document.getElementById("cancelAuth").addEventListener("click", closeAuth);

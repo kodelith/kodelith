@@ -1012,17 +1012,17 @@ button.addEventListener("click", () => {
       function getHtmlCompletionContext() {
         const cursor = elements.editor.selectionStart;
         const before = elements.editor.value.slice(0, cursor);
-        const openTag = before.match(/<([a-z][a-z0-9:-]*)\\b([^<>]*)$/i);
+        const openTag = before.match(/<([a-z][a-z0-9:-]*)\b([^<>]*)$/i);
         if (openTag && !before.endsWith("</")) {
           const tail = openTag[2];
           const quoteCount = (tail.match(/["']/g) || []).length;
           if (quoteCount % 2 === 0) {
-            const attrMatch = tail.match(/(?:^|\\s)([a-z_:][-a-z0-9_:.]*)$/i);
+            const attrMatch = tail.match(/(?:^|\s)([a-z_:][-a-z0-9_:.]*)$/i);
             if (attrMatch) {
               const partial = attrMatch[1];
               return { prefix: partial.toLowerCase(), start: cursor - partial.length, mode: "attribute", tag: openTag[1].toLowerCase() };
             }
-            if (/\\s$/.test(tail)) {
+            if (/\s$/.test(tail)) {
               return { prefix: "", start: cursor, mode: "attribute", tag: openTag[1].toLowerCase() };
             }
           }
@@ -1031,9 +1031,9 @@ button.addEventListener("click", () => {
         if (angleMatch && !before.endsWith("</")) {
           return { prefix: (angleMatch[1] || "").toLowerCase(), start: cursor - angleMatch[0].length, mode: "angle" };
         }
-        const lineStart = before.lastIndexOf("\\n") + 1;
+        const lineStart = before.lastIndexOf("\n") + 1;
         const linePrefix = before.slice(lineStart);
-        const bareMatch = linePrefix.match(/^(\\s*)([a-z][a-z0-9-]*)$/i);
+        const bareMatch = linePrefix.match(/^(\s*)([a-z][a-z0-9-]*)$/i);
         if (bareMatch) return { prefix:bareMatch[2].toLowerCase(), start:cursor-bareMatch[2].length, mode:"bare" };
         return null;
       }

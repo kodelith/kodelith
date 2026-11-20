@@ -1544,25 +1544,30 @@ button.addEventListener("click", () => {
         schedulePreview();
       }
 
-      function buildPreview() {
+      let currentPreviewFile = "index.html";
+
+      function buildPreview(fileName = currentPreviewFile || "index.html") {
         const project = currentProject();
-        let html = project.files["index.html"];
-        if (!html) {
-          elements.preview.srcdoc = "<!doctype html><html><body style='font:14px system-ui;padding:24px;color:#444'>Add an <code>index.html</code> file to see your project preview.</body></html>";
+        currentPreviewFile = fileName;
+        let html = project.files[fileName];
+        elements.previewUrl.textContent = "orbit://preview/" + fileName;
+        if (typeof html !== "string") {
+          const safeName = String(fileName).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+          elements.preview.srcdoc = "<!doctype html><html><body style='font:14px system-ui;padding:24px;color:#a12622'><h2>404 — Page not found</h2><p>The file <code>" + safeName + "</code> does not exist in this project.</p><p>Create the file in Explorer or correct the link in your HTML.</p></body></html>";
           return;
         }
         const css = project.files["style.css"] || "";
         const js = project.files["script.js"] || "";
-        const styleTag = css ? `<style>${css.replace(/<\/style/gi, "<\\/style")}</style>` : "";
-        const scriptTag = js ? `<script>${js.replace(/<\/script/gi, "<\\/script")}\n<\/script>` : "";
+        const styleTag = css ? "<style>" + css.replace(/<\/style/gi, "<\\/style") + "</style>" : "";
+        const scriptTag = js ? "<script>" + js.replace(/<\/script/gi, "<\\/script") + "\n<\\/script>" : "";
         html = html.replace(/<link\b(?=[^>]*\bhref\s*=\s*["']style\.css["'])[^>]*>/gi, "");
         html = html.replace(/<script\b(?=[^>]*\bsrc\s*=\s*["']script\.js["'])[^>]*>\s*<\/script\s*>/gi, "");
-        if (/<\/head\s*>/i.test(html)) html = html.replace(/<\/head\s*>/i, `${styleTag}</head>`);
-        else html = `${styleTag}${html}`;
-        if (scriptTag) {
-          if (/<\/body\s*>/i.test(html)) html = html.replace(/<\/body\s*>/i, `${scriptTag}</body>`);
-          else html += scriptTag;
-        }
+        if (/<\/head\s*>/i.test(html)) html = html.replace(/<\/head\s*>/i, styleTag + "</head>");
+        else html = styleTag + html;
+        const navCode = "(function(){function resolve(raw){if(!raw||raw.charAt(0)==='#'||raw.indexOf('//')===0||/^[a-z][a-z0-9+.-]*:/i.test(raw))return null;var clean=raw.split('#')[0].split('?')[0];if(!clean)return null;var base=" + JSON.stringify(fileName) + ".split('/');base.pop();var parts=(clean.charAt(0)==='/'?clean.slice(1):base.join('/')+(base.length?'/':'')+clean).split('/');var out=[];for(var i=0;i<parts.length;i++){var p=decodeURIComponent(parts[i]);if(!p||p==='.')continue;if(p==='..'){if(!out.length)return null;out.pop();}else out.push(p);}return out.join('/');}document.addEventListener('click',function(e){var a=e.target.closest&&e.target.closest('a[href]');if(!a||a.target==='_blank'||a.hasAttribute('download'))return;var file=resolve(a.getAttribute('href').trim());if(!file)return;e.preventDefault();parent.postMessage({type:'orbit-preview-navigate',file:file},'*');});})();";
+        const navigationTag = "<script>" + navCode + "\n<\\/script>";
+        if (/<\/body\s*>/i.test(html)) html = html.replace(/<\/body\s*>/i, scriptTag + navigationTag + "</body>");
+        else html += scriptTag + navigationTag;
         elements.preview.srcdoc = html;
       }
 
@@ -2004,6 +2009,13 @@ button.addEventListener("click", () => {
         showToast("Preview refreshed.");
       });
       document.getElementById("refreshButton").addEventListener("click", buildPreview);
+      window.addEventListener("message", event => {
+        if (event.source !== elements.preview.contentWindow) return;
+        const data = event.data;
+        if (!data || data.type !== "orbit-preview-navigate" || typeof data.file !== "string") return;
+        buildPreview(data.file);
+        if (!Object.hasOwn(currentProject().files, data.file)) showToast("404: " + data.file + " was not found. Check the file name and capitalization.");
+      });
       const previewSplitter = document.getElementById("previewSplitter");
       const mainArea = previewSplitter.closest(".main-area");
       let previewDrag = null;

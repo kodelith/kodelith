@@ -311,7 +311,7 @@
     .ai-send,.ai-apply{border:0;border-radius:7px;background:var(--accent);color:white;padding:8px 14px;font-weight:600;cursor:pointer}
     .ai-send:disabled{opacity:.55;cursor:wait}
     .ai-update-card{border:1px solid #9fc8ed;border-radius:9px;padding:11px;background:#f2f8ff;color:#1f3952;font-size:12px}
-    .ai-update-card strong{display:block;margin-bottom:7px}.ai-update-files{margin:0 0 10px;padding-left:18px}.ai-update-card button{border:0;border-radius:6px;padding:7px 11px;background:#0874c9;color:#fff;font-weight:600;cursor:pointer}
+    .ai-update-card strong{display:block;margin-bottom:7px}.ai-review-note{margin:0 0 9px;color:#4b5563;font-size:11px;line-height:1.45}.ai-update-files{margin:0 0 10px;padding-left:18px}.ai-update-actions{display:flex;gap:7px;flex-wrap:wrap}.ai-update-card button{border:0;border-radius:6px;padding:7px 11px;background:#0874c9;color:#fff;font-weight:600;cursor:pointer}.ai-update-card button.ai-discard{background:transparent;border:1px solid #b8c6d4;color:#34495e}
     @media(max-width:650px){.ai-panel{top:50px;bottom:24px;width:min(100vw,420px)}}
   </style>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/codemirror@5.65.21/lib/codemirror.css">
@@ -464,7 +464,7 @@
     </div>
     <form class="ai-composer" id="aiForm">
       <textarea id="aiPrompt" maxlength="6000" placeholder="Ask Orbit AI to explain, fix, or build something…" aria-label="Message Orbit AI"></textarea>
-      <div class="ai-compose-row"><span class="ai-hint">Enter to send · Shift+Enter for newline</span><button class="ai-send" id="aiSend" type="submit">Send ↑</button></div>
+      <div class="ai-compose-row"><span class="ai-hint">Project-aware · multi-file edits · review before apply</span><button class="ai-send" id="aiSend" type="submit">Send ↑</button></div>
     </form>
   </aside>
 
@@ -757,6 +757,8 @@ button.addEventListener("click", () => {
       let confirmDialogResolver = null;
       const fileDeletionUndo = [];
       const fileDeletionRedo = [];
+      const aiChangeUndo = [];
+      const aiChangeRedo = [];
       let saveTimer = 0;
       let previewTimer = 0;
       let toastTimer = 0;
@@ -1248,10 +1250,34 @@ button.addEventListener("click", () => {
       }
       function undoOrbit() {
         const entry=fileDeletionUndo.pop();if(entry){if(restoreDeletedFile(entry)){fileDeletionRedo.push(entry);showToast("File restored.");}return;}
+        const change=aiChangeUndo.pop();
+        if(change){
+          const project=state.projects[change.projectId];
+          if(!project){aiChangeUndo.push(change);showToast("The project for this AI change no longer exists.");return;}
+          const conflict=Object.entries(change.after).some(([file,value]) => Object.hasOwn(project.files,file) ? project.files[file]!==value : value!==null);
+          if(conflict){aiChangeUndo.push(change);showToast("Undo paused: an AI-edited file changed again. Review it before undoing.");return;}
+          for(const [file,value] of Object.entries(change.before)){if(value===null){delete project.files[file];project.openFiles=project.openFiles.filter(item=>item!==file);}else project.files[file]=value;}
+          project.activeFile=Object.hasOwn(project.files,change.previousActiveFile)?change.previousActiveFile:Object.keys(project.files)[0];
+          aiChangeRedo.push(change);
+          if(state.activeProject===change.projectId){render();buildPreview();}
+          scheduleSave();showToast("Undid the last AI change.");return;
+        }
         if(codeMirror)codeMirror.undo();else document.execCommand("undo");
       }
       function redoOrbit() {
         const entry=fileDeletionRedo.pop();if(entry){const p=state.projects[entry.projectId];if(p&&!Object.hasOwn(p.files,entry.file)){delete p.files[entry.file];p.openFiles=p.openFiles.filter(f=>f!==entry.file);if(p.activeFile===entry.file)p.activeFile=Object.keys(p.files)[0];if(state.activeProject===entry.projectId)elements.editor.dataset.file="";fileDeletionUndo.push(entry);render();scheduleSave();showToast("File deletion redone.");}return;}
+        const change=aiChangeRedo.pop();
+        if(change){
+          const project=state.projects[change.projectId];
+          if(!project){aiChangeRedo.push(change);showToast("The project for this AI change no longer exists.");return;}
+          const conflict=Object.entries(change.before).some(([file,value]) => value===null ? Object.hasOwn(project.files,file) : project.files[file]!==value);
+          if(conflict){aiChangeRedo.push(change);showToast("Redo paused: an affected file changed again.");return;}
+          for(const [file,value] of Object.entries(change.after)){project.files[file]=value;if(!project.openFiles.includes(file))project.openFiles.push(file);}
+          project.activeFile=Object.hasOwn(project.files,change.nextActiveFile)?change.nextActiveFile:Object.keys(project.files)[0];
+          aiChangeUndo.push(change);
+          if(state.activeProject===change.projectId){render();buildPreview();}
+          scheduleSave();showToast("Redid the AI change.");return;
+        }
         if(codeMirror)codeMirror.redo();else document.execCommand("redo");
       }
 
@@ -1279,9 +1305,25 @@ button.addEventListener("click", () => {
           return;
         }
         saveEditorValue();
+        const projectId = state.activeProject;
         const project = currentProject();
         const activeFile = project.activeFile || "";
-        const files = Object.fromEntries(Object.entries(project.files).slice(0, 12).map(([name, content]) => [name, String(content).slice(0, 14000)]));
+        const baseFiles = { ...project.files };
+        const fileManifest = Object.keys(project.files).slice(0, 80);
+        const priority = name => name === activeFile ? 0 : /\.html?$/i.test(name) ? 1 : /\.css$/i.test(name) ? 2 : /\.m?js$/i.test(name) ? 3 : 4;
+        const orderedEntries = Object.entries(project.files).sort((a,b) => priority(a[0])-priority(b[0]));
+        const files = {};
+        let contextChars = 0;
+        for (const [name, content] of orderedEntries) {
+          if (Object.keys(files).length >= 12 || contextChars >= 24000) break;
+          const snippet = String(content).slice(0, Math.min(8000,24000-contextChars));
+          files[name] = snippet;
+          contextChars += snippet.length;
+        }
+        const omittedFiles = fileManifest.filter(name => !Object.hasOwn(files,name));
+        const contextNote = omittedFiles.length
+          ? `Project has ${fileManifest.length} files. Context includes ${Object.keys(files).length}; omitted: ${omittedFiles.join(", ")}.`
+          : `Project has ${fileManifest.length} files; all filenames are included.`;
         addAiMessage("user", prompt);
         elements.aiPrompt.value = "";
         aiBusy = true;
@@ -1290,7 +1332,7 @@ button.addEventListener("click", () => {
         const waiting = addAiMessage("assistant", "Working on your project…");
         try {
           const { data, error } = await supabaseClient.functions.invoke("orbit-ai", {
-            body: { prompt, projectName: project.name, activeFile, files }
+            body: { prompt, projectName: project.name, activeFile, files, fileManifest, contextNote }
           });
           waiting.remove();
           if (error) {
@@ -1319,24 +1361,54 @@ button.addEventListener("click", () => {
               li.textContent = update.file + (Object.hasOwn(project.files, update.file) ? " · update" : " · new file");
               list.append(li);
             });
+            const reviewNote = document.createElement("p");
+            reviewNote.className = "ai-review-note";
+            reviewNote.textContent = "Review these files before applying. Orbit protects edits made while the AI was working.";
+            const actions = document.createElement("div");
+            actions.className = "ai-update-actions";
             const apply = document.createElement("button");
             apply.type = "button";
             apply.textContent = "Apply changes";
             apply.addEventListener("click", () => {
               saveEditorValue();
-              const current = currentProject();
+              if (state.activeProject !== projectId || state.projects[projectId] !== project) {
+                showToast("Your active project changed. Switch back to the original project to apply this result.");
+                return;
+              }
+              const conflicts = updates.filter(update => project.files[update.file] !== baseFiles[update.file]);
+              if (conflicts.length) {
+                addAiMessage("error", "Nothing was applied because these files changed while Orbit AI was working: " + conflicts.map(item=>item.file).join(", ") + ". Ask Orbit again using the latest code.");
+                card.remove();
+                return;
+              }
+              const before = {};
+              const after = {};
               updates.forEach(update => {
-                current.files[update.file] = update.content;
-                if (!current.openFiles.includes(update.file)) current.openFiles.push(update.file);
+                before[update.file] = Object.hasOwn(project.files,update.file) ? project.files[update.file] : null;
+                after[update.file] = update.content;
               });
-              current.activeFile = updates[0].file;
+              const previousActiveFile = project.activeFile;
+              updates.forEach(update => {
+                project.files[update.file] = update.content;
+                if (!project.openFiles.includes(update.file)) project.openFiles.push(update.file);
+              });
+              project.activeFile = updates[0].file;
+              aiChangeUndo.push({projectId,before,after,previousActiveFile,nextActiveFile:updates[0].file});
+              if (aiChangeUndo.length > 30) aiChangeUndo.shift();
+              aiChangeRedo.length = 0;
               render();
               saveState();
               buildPreview();
               card.remove();
-              showToast("AI changes applied to your project.");
+              showToast("AI changes applied. Use Undo to reverse the complete AI update.");
             });
-            card.append(heading, list, apply);
+            const discard = document.createElement("button");
+            discard.type = "button";
+            discard.className = "ai-discard";
+            discard.textContent = "Discard";
+            discard.addEventListener("click", () => card.remove());
+            actions.append(apply,discard);
+            card.append(heading,reviewNote,list,actions);
             elements.aiMessages.append(card);
             elements.aiMessages.scrollTop = elements.aiMessages.scrollHeight;
           }

@@ -311,7 +311,7 @@
     .ai-send,.ai-apply{border:0;border-radius:7px;background:var(--accent);color:white;padding:8px 14px;font-weight:600;cursor:pointer}
     .ai-send:disabled{opacity:.55;cursor:wait}
     .ai-update-card{border:1px solid #9fc8ed;border-radius:9px;padding:11px;background:#f2f8ff;color:#1f3952;font-size:12px}
-    .ai-update-card strong{display:block;margin-bottom:7px}.ai-review-note{margin:0 0 9px;color:#4b5563;font-size:11px;line-height:1.45}.ai-update-files{margin:0 0 10px;padding-left:18px}.ai-update-actions{display:flex;gap:7px;flex-wrap:wrap}.ai-update-card button{border:0;border-radius:6px;padding:7px 11px;background:#0874c9;color:#fff;font-weight:600;cursor:pointer}.ai-update-card button.ai-discard{background:transparent;border:1px solid #b8c6d4;color:#34495e}
+    .ai-update-card strong{display:block;margin-bottom:7px}.ai-review-note{margin:0 0 9px;color:#4b5563;font-size:11px;line-height:1.45}.ai-update-files{margin:0 0 10px;padding-left:18px}.ai-update-actions{display:flex;gap:7px;flex-wrap:wrap}.ai-update-card button{border:0;border-radius:6px;padding:7px 11px;background:#0874c9;color:#fff;font-weight:600;cursor:pointer}.ai-update-card button.ai-discard{background:transparent;border:1px solid #b8c6d4;color:#34495e}.ai-file-preview{margin:7px 0;border-top:1px solid #d6e4f0;padding-top:7px}.ai-file-preview summary{cursor:pointer;font-weight:600}.ai-file-preview pre{max-height:220px;overflow:auto;margin:7px 0 0;padding:9px;border-radius:6px;background:#fff;color:#263445;font:11px/1.5 ui-monospace,monospace;white-space:pre;tab-size:2}
     @media(max-width:650px){.ai-panel{top:50px;bottom:24px;width:min(100vw,420px)}}
   </style>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/codemirror@5.65.21/lib/codemirror.css">
@@ -1356,10 +1356,22 @@ button.addEventListener("click", () => {
             heading.textContent = "Code changes ready to review";
             const list = document.createElement("ul");
             list.className = "ai-update-files";
+            const previews = document.createElement("div");
+            previews.className = "ai-file-previews";
             updates.forEach(update => {
               const li = document.createElement("li");
               li.textContent = update.file + (Object.hasOwn(project.files, update.file) ? " · update" : " · new file");
               list.append(li);
+              const details = document.createElement("details");
+              details.className = "ai-file-preview";
+              const summary = document.createElement("summary");
+              summary.textContent = "Preview " + update.file;
+              const code = document.createElement("pre");
+              code.textContent = update.content.length > 5000
+                ? update.content.slice(0,5000) + "\n… preview shortened; the full file will be applied."
+                : update.content;
+              details.append(summary,code);
+              previews.append(details);
             });
             const reviewNote = document.createElement("p");
             reviewNote.className = "ai-review-note";
@@ -1408,7 +1420,7 @@ button.addEventListener("click", () => {
             discard.textContent = "Discard";
             discard.addEventListener("click", () => card.remove());
             actions.append(apply,discard);
-            card.append(heading,reviewNote,list,actions);
+            card.append(heading,reviewNote,list,previews,actions);
             elements.aiMessages.append(card);
             elements.aiMessages.scrollTop = elements.aiMessages.scrollHeight;
           }

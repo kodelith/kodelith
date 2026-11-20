@@ -1999,11 +1999,23 @@ button.addEventListener("click", () => {
           if (fileKind(currentProject().activeFile) === "html" && elements.editor.selectionStart === elements.editor.selectionEnd && elements.editor.value.slice(0, elements.editor.selectionStart).trimEnd().endsWith("!")) {
             event.preventDefault();
             const cursor = elements.editor.selectionStart;
-            const before = elements.editor.value.slice(0, cursor).replace(/!\\s*$/, "");
+            const before = elements.editor.value.slice(0, cursor).replace(/!\s*$/, "");
             const after = elements.editor.value.slice(cursor);
-            const boilerplate = "<!doctype html>\\n<html lang=\"en\">\\n<head>\\n  <meta charset=\"utf-8\">\\n  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\\n  <title>Document</title>\\n</head>\\n<body>\\n\\n</body>\\n</html>";
+            const boilerplate = [
+              "<!doctype html>",
+              '<html lang="en">',
+              "<head>",
+              '  <meta charset="utf-8">',
+              '  <meta name="viewport" content="width=device-width, initial-scale=1">',
+              "  <title>Document</title>",
+              "</head>",
+              "<body>",
+              "",
+              "</body>",
+              "</html>"
+            ].join("\n");
             elements.editor.value = before + boilerplate + after;
-            const nextCursor = before.length + boilerplate.indexOf("\\n\\n") + 2;
+            const nextCursor = before.length + boilerplate.indexOf("<body>") + "<body>".length + 1;
             elements.editor.setSelectionRange(nextCursor, nextCursor);
             hideHtmlSuggestions();
             saveEditorValue();

@@ -214,6 +214,21 @@
     .command-result:hover,.command-result:focus-visible { outline:none; background:color-mix(in srgb,var(--accent) 12%,transparent); }
     .command-result small { color:var(--muted); font-size:10px; }
     .command-empty { padding:18px 12px; color:var(--muted); font-size:12px; text-align:center; }
+    .diagnostics-backdrop { position:fixed; inset:0; z-index:90; display:grid; place-items:center; padding:18px; background:#10182880; backdrop-filter:blur(3px); }
+    .diagnostics-panel { width:min(650px,100%); max-height:min(620px,80vh); display:flex; flex-direction:column; overflow:hidden; border:1px solid var(--line); border-radius:12px; background:var(--panel-raised); color:var(--text); box-shadow:0 24px 80px #0005; }
+    .diagnostics-head { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:14px 16px; border-bottom:1px solid var(--line); }
+    .diagnostics-head strong { font-size:13px; }
+    .diagnostics-head button { border:0; background:transparent; color:var(--muted); cursor:pointer; font-size:20px; }
+    .diagnostics-summary { padding:9px 16px; border-bottom:1px solid var(--line); color:var(--muted); font-size:11px; }
+    .diagnostics-list { overflow:auto; padding:7px; }
+    .diagnostic-item { width:100%; display:flex; align-items:flex-start; gap:10px; padding:10px; border:0; border-radius:7px; background:transparent; color:var(--text); text-align:left; cursor:pointer; }
+    .diagnostic-item:hover { background:var(--panel); }
+    .diagnostic-icon { flex:0 0 auto; color:var(--red); font-weight:800; }
+    .diagnostic-item.warning .diagnostic-icon { color:var(--orange); }
+    .diagnostic-copy { min-width:0; display:flex; flex-direction:column; gap:3px; }
+    .diagnostic-copy strong { font-size:11px; font-weight:600; overflow-wrap:anywhere; }
+    .diagnostic-copy small { color:var(--muted); font-size:10px; }
+    .diagnostics-empty { padding:28px 16px; color:var(--green); text-align:center; font-size:12px; }
     .statusbar { height: 24px; flex: 0 0 24px; display: flex; align-items: center; gap: 15px; padding: 0 12px; background: #007acc; color: #ffffff; font-size: 9px; }
     .status-spacer { flex: 1; }
     .status-muted { color: #e8f4fc; }
@@ -399,6 +414,7 @@
             <button class="toolbar-button" id="undoButton" type="button" title="Undo">↶ Undo</button>
             <button class="toolbar-button" id="redoButton" type="button" title="Redo">↷ Redo</button>
             <button class="toolbar-button" id="formatButton" type="button" title="Format code"><span aria-hidden="true">⌘</span><span>Format</span></button>
+            <button class="toolbar-button" id="checkProjectButton" type="button" title="Check project for common problems">✓ Check</button>
           <button class="toolbar-button" id="runButton" type="button" title="Run preview (Ctrl+Enter)"><span aria-hidden="true">▶</span><span>Run</span></button>
           </div>
         </div>
@@ -452,6 +468,13 @@
     </form>
   </aside>
 
+  <div class="diagnostics-backdrop" id="diagnosticsBackdrop" hidden>
+    <section class="diagnostics-panel" role="dialog" aria-modal="true" aria-label="Project diagnostics">
+      <div class="diagnostics-head"><strong>Project diagnostics</strong><button type="button" id="closeDiagnostics" aria-label="Close diagnostics">×</button></div>
+      <div class="diagnostics-summary" id="diagnosticsSummary">Checking project…</div>
+      <div class="diagnostics-list" id="diagnosticsList"></div>
+    </section>
+  </div>
   <div class="command-backdrop" id="commandPaletteBackdrop" hidden>
     <section class="command-palette" role="dialog" aria-modal="true" aria-label="Command palette">
       <input class="command-search" id="commandSearch" type="search" placeholder="Type a command…" autocomplete="off" aria-label="Search commands">
@@ -614,6 +637,9 @@ button.addEventListener("click", () => {
         commandPaletteBackdrop: document.getElementById("commandPaletteBackdrop"),
         commandSearch: document.getElementById("commandSearch"),
         commandResults: document.getElementById("commandResults"),
+        diagnosticsBackdrop: document.getElementById("diagnosticsBackdrop"),
+        diagnosticsSummary: document.getElementById("diagnosticsSummary"),
+        diagnosticsList: document.getElementById("diagnosticsList"),
         saveLabel: document.getElementById("saveLabel"),
         saveDot: document.getElementById("saveDot"),
         statusFile: document.getElementById("statusFile"),
@@ -1609,7 +1635,105 @@ button.addEventListener("click", () => {
         previewTimer = window.setTimeout(buildPreview, 300);
       }
 
+      let latestDiagnostics = [];
+
+      function runProjectChecks() {
+        saveEditorValue();
+        const project = currentProject();
+        const issues = [];
+        const addIssue = (file, message, index = 0, severity = "error") => {
+          const source = project.files[file] || "";
+          const safeIndex = Math.max(0, Math.min(index, source.length));
+          const line = source.slice(0, safeIndex).split("\n").length;
+          issues.push({ file, message, index:safeIndex, line, severity });
+        };
+        const resolveLocal = (from, raw) => {
+          const clean = raw.split("#")[0].split("?")[0].trim();
+          if (!clean || clean.startsWith("#") || clean.startsWith("//") || /^(?:[a-z][a-z0-9+.-]*:|\/)/i.test(clean)) return null;
+          const parts = from.includes("/") ? from.split("/").slice(0,-1) : [];
+          for (const part of clean.split("/")) {
+            if (!part || part === ".") continue;
+            if (part === "..") { if (parts.length) parts.pop(); else return null; }
+            else parts.push(part);
+          }
+          return parts.join("/");
+        };
+
+        for (const [file, source] of Object.entries(project.files)) {
+          const lower = file.toLowerCase();
+          if (/\.html?$/.test(lower)) {
+            const doc = new DOMParser().parseFromString(source, "text/html");
+            const seen = new Set();
+            for (const node of doc.querySelectorAll("[id]")) {
+              const id = node.getAttribute("id");
+              if (seen.has(id)) addIssue(file, "Duplicate id: " + id, source.indexOf('id="' + id + '"'));
+              seen.add(id);
+            }
+            for (const node of doc.querySelectorAll("[href],[src]")) {
+              const raw = node.getAttribute("src") || node.getAttribute("href") || "";
+              const target = resolveLocal(file, raw);
+              if (target && /\.(?:html?|css|js|png|jpe?g|gif|svg|webp|ico|woff2?)$/i.test(target) && !Object.hasOwn(project.files, target)) {
+                const attr = node.hasAttribute("src") ? "src" : "href";
+                addIssue(file, "Missing local file: " + target, Math.max(0, source.indexOf(raw)));
+              }
+            }
+          } else if (/\.m?js$/.test(lower) && !/^\s*(?:import|export)\s/m.test(source)) {
+            try { new Function(source); }
+            catch (error) {
+              const match = String(error.message || "").match(/line\s+(\d+)/i);
+              const line = match ? Math.max(1, Number(match[1])) : 1;
+              const index = source.split("\n").slice(0,line-1).join("\n").length;
+              addIssue(file, "JavaScript syntax: " + (error.message || "Unable to parse file"), index);
+            }
+          }
+        }
+
+        latestDiagnostics = issues;
+        elements.diagnosticsSummary.textContent = issues.length
+          ? issues.length + " issue" + (issues.length === 1 ? "" : "s") + " found across this project. Select an issue to jump to its file."
+          : "No common HTML or JavaScript problems found.";
+        elements.diagnosticsList.replaceChildren();
+        if (!issues.length) {
+          const empty = document.createElement("div");
+          empty.className = "diagnostics-empty";
+          empty.textContent = "✓ No common problems detected.";
+          elements.diagnosticsList.append(empty);
+        } else {
+          for (const issue of issues) {
+            const button = document.createElement("button");
+            button.type = "button";
+            button.className = "diagnostic-item" + (issue.severity === "warning" ? " warning" : "");
+            const icon = document.createElement("span");
+            icon.className = "diagnostic-icon";
+            icon.textContent = issue.severity === "warning" ? "!" : "×";
+            const copy = document.createElement("span");
+            copy.className = "diagnostic-copy";
+            const message = document.createElement("strong");
+            message.textContent = issue.message;
+            const location = document.createElement("small");
+            location.textContent = issue.file + " · line " + issue.line;
+            copy.append(message, location);
+            button.append(icon, copy);
+            button.addEventListener("click", () => {
+              activateFile(issue.file);
+              elements.editor.focus();
+              elements.editor.setSelectionRange(issue.index, issue.index);
+              updateCursorPosition();
+              closeDiagnostics();
+            });
+            elements.diagnosticsList.append(button);
+          }
+        }
+        elements.diagnosticsBackdrop.hidden = false;
+        return issues;
+      }
+
+      function closeDiagnostics() {
+        elements.diagnosticsBackdrop.hidden = true;
+      }
+
       const orbitCommands = [
+        { name:"Check project for problems", group:"Diagnostics", shortcut:"", run:() => runProjectChecks() },
         { name:"New project", group:"Projects", shortcut:"", run:() => document.getElementById("newProjectButton").click() },
         { name:"Create file", group:"Files", shortcut:"", run:() => document.getElementById("newFileButton").click() },
         { name:"Save current file", group:"Editor", shortcut:"⌘ S", run:() => { saveEditorValue(); saveState(); showToast("Saved."); } },
@@ -2201,6 +2325,11 @@ button.addEventListener("click", () => {
         elements.preview.style.maxWidth = "100%";
         showToast(width === "100%" ? "Desktop preview enabled." : width + " responsive preview enabled.");
       });
+      document.getElementById("checkProjectButton").addEventListener("click", runProjectChecks);
+      document.getElementById("closeDiagnostics").addEventListener("click", closeDiagnostics);
+      elements.diagnosticsBackdrop.addEventListener("click", event => {
+        if (event.target === elements.diagnosticsBackdrop) closeDiagnostics();
+      });
       elements.commandSearch.addEventListener("input", renderCommandResults);
       elements.commandPaletteBackdrop.addEventListener("click", event => {
         if (event.target === elements.commandPaletteBackdrop) closeCommandPalette();
@@ -2270,6 +2399,10 @@ button.addEventListener("click", () => {
           event.preventDefault();
           if (elements.commandPaletteBackdrop.hidden) openCommandPalette();
           else closeCommandPalette();
+          return;
+        }
+        if (event.key === "Escape" && !elements.diagnosticsBackdrop.hidden) {
+          closeDiagnostics();
           return;
         }
         if (event.key === "Escape" && !elements.commandPaletteBackdrop.hidden) {

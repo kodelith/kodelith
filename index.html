@@ -1254,6 +1254,9 @@ button.addEventListener("click", () => {
             update && typeof update.file === "string" && /^[A-Za-z0-9._-]{1,80}$/.test(update.file) &&
             typeof update.content === "string" && update.content.length <= 50000
           ).slice(0, 8) : [];
+          if (!updates.length && /\\b(write|create|build|add|fix|change|implement|code|website|page|component)\\b/i.test(prompt)) {
+            addAiMessage("error", "Orbit AI replied without sending any code files. Nothing was changed. Please send the request again; the AI is now configured to return the actual file contents.");
+          }
           if (updates.length) {
             const card = document.createElement("div");
             card.className = "ai-update-card";

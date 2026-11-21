@@ -1253,7 +1253,7 @@ button.addEventListener("click", () => {
           cloudReady = true;
           cloudLoading = false;
           elements.accountButton.textContent = "Accounts";
-          elements.accountButton.title = `Signed in as ${session.user.email || "your account"}. Click to switch accounts or add another.`;
+          elements.accountButton.title = `Signed in as ${String(session.user.email||"your account").split("@")[0]}. Click to switch accounts or add another.`;
           elements.accountButton.disabled = false;
           elements.profileButton.hidden = false;
           elements.storageCopy.textContent = "Signed in. Your projects sync to your account.";
@@ -1311,7 +1311,7 @@ button.addEventListener("click", () => {
         } else if (data.session) {
           saveAccountSession(data.session);
           await loadCloudWorkspace(data.session);
-        }
+        } else { elements.accountButton.textContent = readSavedAccounts().length ? "Accounts" : "Sign in"; }
         supabaseClient.auth.onAuthStateChange((event, session) => {
           if (session) {
             saveAccountSession(session);
@@ -2391,7 +2391,7 @@ button.addEventListener("click", () => {
       function saveAccountSession(session) {
         if(!session||!session.user)return;
         const accounts=readSavedAccounts().filter(item=>item.user_id!==session.user.id);
-        accounts.unshift({user_id:session.user.id,email:session.user.email||"Orbit account",access_token:session.access_token,refresh_token:session.refresh_token,updated_at:new Date().toISOString()});
+        accounts.unshift({user_id:session.user.id,email:session.user.email||"Orbit account",label:String(session.user.email||"Orbit account").split("@")[0],access_token:session.access_token,refresh_token:session.refresh_token,updated_at:new Date().toISOString()});
         try { localStorage.setItem(ACCOUNT_SESSIONS_KEY,JSON.stringify(accounts.slice(0,8))); } catch(error) { console.warn("Could not save account switcher session:",error); }
       }
       function renderAccountManager() {
@@ -2401,7 +2401,7 @@ button.addEventListener("click", () => {
         for(const account of accounts){
           const row=document.createElement("div");row.className="account-item";
           const info=document.createElement("div");info.style.minWidth="0";
-          const title=document.createElement("div");title.className="account-item-title";title.textContent=account.email;
+          const title=document.createElement("div");title.className="account-item-title";title.textContent=account.label||account.email;
           const meta=document.createElement("div");meta.className="account-item-meta";meta.textContent=cloudUser&&cloudUser.id===account.user_id?"Currently active":"Saved on this device";info.append(title,meta);
           const actions=document.createElement("div");actions.className="bin-item-actions";
           if(cloudUser&&cloudUser.id===account.user_id){const signout=document.createElement("button");signout.type="button";signout.textContent="Sign out";signout.addEventListener("click",()=>signOutActiveAccount());actions.append(signout);}
@@ -2422,7 +2422,7 @@ button.addEventListener("click", () => {
           if(error)throw error;
           if(!data.session)throw new Error("The saved session has expired. Sign in to this account again.");
           saveAccountSession(data.session);document.getElementById("accountBackdrop").hidden=true;
-          showToast("Switching to "+(data.session.user.email||"your account")+".");
+          showToast("Switching to "+String(data.session.user.email||"your account").split("@")[0]+".");
         } catch(error) { showToast(error.message||"Could not switch accounts. Please sign in again."); }
       }
       async function addAnotherAccount() {

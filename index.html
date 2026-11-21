@@ -1819,81 +1819,100 @@ button.addEventListener("click", () => {
         if (bareMatch) return { prefix:bareMatch[2].toLowerCase(), start:cursor-bareMatch[2].length, mode:"bare" };
         return null;
       }
+      const htmlExtraAttributes = ["accept","action","async","autoplay","charset","checked","cols","colspan","controls","defer","disabled","download","for","height","href","hreflang","http-equiv","integrity","label","loop","max","maxlength","media","method","min","multiple","muted","name","open","pattern","placeholder","poster","preload","readonly","rel","required","rows","rowspan","selected","src","srcset","step","target","type","value","width","onclick","onchange","onsubmit","oninput","onload","onerror","onkeydown","onkeyup","onmouseover","onfocus","onblur","aria-label","aria-hidden","aria-expanded","aria-controls","aria-describedby","data-testid"];
+      const cssProperties = ("accent-color align-content align-items align-self all animation animation-delay animation-direction animation-duration animation-fill-mode animation-iteration-count animation-name animation-play-state animation-timing-function appearance aspect-ratio backdrop-filter backface-visibility background background-attachment background-blend-mode background-clip background-color background-image background-position background-repeat background-size block-size border border-block border-bottom border-collapse border-color border-image border-left border-radius border-right border-spacing border-style border-top border-width bottom box-shadow box-sizing break-inside caption-side caret-color clear clip-path color column-count column-gap columns contain content cursor direction display empty-cells filter flex flex-basis flex-direction flex-flow flex-grow flex-shrink flex-wrap float font font-family font-feature-settings font-size font-style font-variant font-weight gap grid grid-area grid-auto-columns grid-auto-flow grid-auto-rows grid-column grid-column-gap grid-row grid-row-gap grid-template grid-template-areas grid-template-columns grid-template-rows height hyphens inset isolation justify-content justify-items justify-self left letter-spacing line-break line-height list-style margin margin-block margin-bottom margin-inline margin-left margin-right margin-top max-height max-width min-height min-width object-fit object-position opacity order outline overflow overflow-x overflow-y padding padding-block padding-bottom padding-inline padding-left padding-right padding-top perspective place-content place-items pointer-events position resize right rotate row-gap scroll-behavior scroll-margin scroll-padding scroll-snap-align scroll-snap-type shape-outside tab-size table-layout text-align text-decoration text-overflow text-shadow text-transform top transform transform-origin transform-style transition transition-delay transition-duration transition-property transition-timing-function translate user-select vertical-align visibility white-space width word-break word-spacing writing-mode z-index").split(" ");
+      const cssValues = ["auto","none","normal","inherit","initial","unset","revert","block","inline","inline-block","flex","inline-flex","grid","inline-grid","contents","hidden","visible","relative","absolute","fixed","sticky","static","center","start","end","space-between","space-around","space-evenly","stretch","baseline","solid","dashed","dotted","transparent","currentColor","cover","contain","repeat","no-repeat","pointer","default","not-allowed","wrap","nowrap","column","row","bold","italic","uppercase","lowercase","capitalize","border-box","content-box"];
+      const jsSuggestions = ("addEventListener alert Array async await Boolean break कै case catch class clearInterval clearTimeout console const continue Date debugger decodeURIComponent document DOMException else Error eval export false fetch File FileReader finally for forEach function history if import Infinity innerHeight innerWidth isNaN JSON let location Map Math NaN navigator new null Number Object parseFloat parseInt Promise querySelector querySelectorAll requestAnimationFrame return Set setInterval setTimeout sessionStorage String switch this throw true try typeof undefined URL URLSearchParams window while documentElement createElement getElementById getAttribute setAttribute append appendChild classList contains add remove toggle dataset innerHTML innerText textContent value style preventDefault stopPropagation target currentTarget closest matches map filter reduce find findIndex includes indexOf join split slice substring trim toLowerCase toUpperCase replace replaceAll test match exec push pop shift unshift sort reverse entries keys values from assign stringify parse log info warn error").split(" ");
+      const jsKeywords = new Set(["addEventListener","alert","Array","async","await","Boolean","break","case","catch","class","clearInterval","clearTimeout","console","const","continue","Date","debugger","document","else","Error","export","false","fetch","finally","for","function","if","import","let","new","null","Number","Object","Promise","return","Set","String","switch","this","throw","true","try","typeof","undefined","while","window"]);
       function updateHtmlSuggestions() {
-        if (fileKind(currentProject().activeFile) !== "html") { hideHtmlSuggestions(); return; }
-        const context = getHtmlCompletionContext();
-        if (!context) { hideHtmlSuggestions(); return; }
-        const { prefix } = context;
-        const candidates = context.mode === "attribute"
-          ? [...new Set([...(htmlGlobalAttributes), ...(htmlTagAttributes[context.tag] || [])])]
-          : htmlTagNames;
-        htmlSuggestionMatches = candidates.filter(item => item.toLowerCase().startsWith(prefix)).slice(0, 60);
+        const kind = fileKind(currentProject().activeFile);
+        const cursor = elements.editor.selectionStart;
+        const before = elements.editor.value.slice(0,cursor);
+        let context = null, candidates = [], mode = "word";
+        if (kind === "html") {
+          context = getHtmlCompletionContext();
+          if (!context) { hideHtmlSuggestions(); return; }
+          mode = context.mode;
+          candidates = context.mode === "attribute" ? [...new Set([...htmlGlobalAttributes,...htmlExtraAttributes,...(htmlTagAttributes[context.tag] || [])])] : htmlTagNames;
+        } else if (kind === "css") {
+          const token = before.match(/[A-Za-z_-][A-Za-z0-9_-]*$/);
+          if (!token) { hideHtmlSuggestions(); return; }
+          const prefix = token[0].toLowerCase();
+          const inBlock = (before.match(/\{/g)||[]).length > (before.match(/\}/g)||[]).length;
+          const colon = before.match(/([A-Za-z-]+)\s*:\s*([A-Za-z-]*)$/);
+          if (colon) {
+            const values = cssValues.concat(colon[1].toLowerCase()==="display" ? ["flow-root","list-item","table","subgrid"] : [], colon[1].toLowerCase()==="position" ? ["sticky","absolute","fixed"] : []);
+            context = {prefix:colon[2].toLowerCase(),start:cursor-colon[2].length,mode:"value"};
+            candidates = values;
+          } else if (inBlock) {
+            context = {prefix,start:cursor-token[0].length,mode:"css-property"};
+            candidates = cssProperties;
+          } else {
+            context = {prefix,start:cursor-token[0].length,mode:"css-selector"};
+            candidates = ["*","html","body",":root",":hover",":focus",":active",":before",":after",":first-child",":last-child",":nth-child","@media","@keyframes","@supports","@import","@font-face","div","section","main","header","footer","nav","button","input","a","img","ul","li"];
+          }
+        } else if (kind === "js") {
+          const dot = before.match(/\.([A-Za-z_$][\w$]*)?$/);
+          const token = before.match(/[A-Za-z_$][\w$]*$/);
+          if (!dot && !token) { hideHtmlSuggestions(); return; }
+          const partial = dot ? (dot[1]||"") : token[0];
+          context = {prefix:partial.toLowerCase(),start:cursor-partial.length,mode:dot?"js-member":"js-word"};
+          candidates = dot ? jsSuggestions.filter(item => !jsKeywords.has(item)) : jsSuggestions;
+        } else { hideHtmlSuggestions(); return; }
+        const prefix = context.prefix || "";
+        htmlSuggestionMatches = [...new Set(candidates)].filter(item => item.toLowerCase().startsWith(prefix)).sort((a,b) => {
+          const aExact = a.toLowerCase()===prefix, bExact=b.toLowerCase()===prefix;
+          return aExact===bExact ? a.localeCompare(b) : aExact ? -1 : 1;
+        }).slice(0,35);
         if (!htmlSuggestionMatches.length) { hideHtmlSuggestions(); return; }
         htmlSuggestionIndex = 0;
         elements.htmlSuggestionItems.replaceChildren();
-        htmlSuggestionMatches.forEach((tag, index) => {
-          const item = document.createElement("div");
-          item.className = "html-suggestion" + (index === 0 ? " active" : "");
-          item.setAttribute("role", "option");
-          const prefixText = document.createElement("span");
-          prefixText.className = "html-suggestion-prefix";
-          prefixText.textContent = tag.slice(0, prefix.length);
-          const restText = document.createElement("span");
-          restText.textContent = tag.slice(prefix.length);
-          item.append(prefixText, restText);
-          item.setAttribute("aria-selected", String(index === 0));
-          item.addEventListener("mousedown", event => event.preventDefault());
-          item.addEventListener("click", () => {
-            htmlSuggestionIndex = index;
-            [...elements.htmlSuggestionItems.children].forEach((row, rowIndex) => {
-              row.classList.toggle("active", rowIndex === index);
-              row.setAttribute("aria-selected", String(rowIndex === index));
-            });
-            acceptHtmlSuggestion();
-            elements.editor.focus();
-          });
-          elements.htmlSuggestionItems.append(item);
+        htmlSuggestionMatches.forEach((item,index) => {
+          const row=document.createElement("div"); row.className="html-suggestion"+(index===0?" active":""); row.setAttribute("role","option"); row.setAttribute("aria-selected",String(index===0));
+          const strong=document.createElement("span"); strong.className="html-suggestion-prefix"; strong.textContent=item.slice(0,prefix.length);
+          const rest=document.createElement("span"); rest.textContent=item.slice(prefix.length);
+          const type=document.createElement("small"); type.className="suggestion-kind"; type.textContent=kind==="html"?(mode==="attribute"?"attribute":"HTML tag"):kind==="css"?(context.mode==="value"?"value":"CSS"):context.mode==="js-member"?"member":"JavaScript";
+          row.append(strong,rest,type);
+          row.addEventListener("mousedown",event=>event.preventDefault());
+          row.addEventListener("click",()=>{htmlSuggestionIndex=index;acceptHtmlSuggestion();elements.editor.focus();});
+          elements.htmlSuggestionItems.append(row);
         });
         elements.htmlSuggestions.classList.add("visible");
-        const before = elements.editor.value.slice(0, elements.editor.selectionStart);
-        const beforeLines = before.split("\n");
-        const lineHeight = 21;
-        const caretLineTop = 16 + (beforeLines.length - 1) * lineHeight - elements.editor.scrollTop;
-        const popupHeight = Math.min(250, elements.editor.clientHeight - 28, htmlSuggestionMatches.length * 33 + 8);
-        const placeAbove = caretLineTop + 22 + popupHeight > elements.editor.clientHeight;
-        const popupTop = placeAbove
-          ? Math.max(8, caretLineTop - popupHeight - 5)
-          : Math.min(elements.editor.clientHeight - popupHeight - 8, caretLineTop + 25);
-        elements.htmlSuggestions.style.top = popupTop + "px";
+        const lineTop=16+(before.split("\n").length-1)*21-elements.editor.scrollTop;
+        const popupHeight=Math.min(250,elements.editor.clientHeight-28,htmlSuggestionMatches.length*33+8);
+        elements.htmlSuggestions.style.top=(lineTop+22+popupHeight>elements.editor.clientHeight?Math.max(8,lineTop-popupHeight-5):Math.min(elements.editor.clientHeight-popupHeight-8,lineTop+25))+"px";
       }
 
-      function acceptHtmlSuggestion() {
+            function acceptHtmlSuggestion() {
         if (!htmlSuggestionMatches.length) return false;
         const context = getHtmlCompletionContext();
-        if (!context) { hideHtmlSuggestions(); return false; }
-        const selected = htmlSuggestionMatches[htmlSuggestionIndex];
-        if (context.mode === "attribute") {
-          const insertion = selected + '=""';
-          const cursor = context.start + selected.length + 2;
-          elements.editor.setRangeText(insertion, context.start, elements.editor.selectionStart, "end");
-          elements.editor.setSelectionRange(cursor, cursor);
-          hideHtmlSuggestions();
-          saveEditorValue();
-          return true;
+        const kind = fileKind(currentProject().activeFile);
+        const cursor = elements.editor.selectionStart;
+        const before = elements.editor.value.slice(0,cursor);
+        let mode = context?.mode || "word", start = context?.start ?? cursor;
+        if (kind === "css" || kind === "js") {
+          const token = before.match(/[A-Za-z_$-][A-Za-z0-9_$-]*$/);
+          if (token) start=cursor-token[0].length;
+          const cssColon=kind==="css" && before.match(/([A-Za-z-]+)\s*:\s*([A-Za-z-]*)$/);
+          if (cssColon) { start=cursor-cssColon[2].length; mode="value"; }
+          else if (kind==="css") mode=(before.match(/\{/g)||[]).length>(before.match(/\}/g)||[]).length?"css-property":"css-selector";
+          else mode=(before.match(/\.([A-Za-z_$][\w$]*)?$/)?"js-member":"js-word");
         }
-        const voidTags = new Set(["area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "param", "source", "track", "wbr"]);
-        const openingTag = "<" + selected + ">";
-        const insertion = voidTags.has(selected.toLowerCase()) ? openingTag : openingTag + "</" + selected + ">";
-        const cursorBeforeCompletion = elements.editor.selectionStart;
-        const cursor = context.start + openingTag.length;
-        elements.editor.setRangeText(insertion, context.start, cursorBeforeCompletion, "end");
-        elements.editor.setSelectionRange(cursor, cursor);
-        hideHtmlSuggestions();
-        saveEditorValue();
-        return true;
+        const selected=htmlSuggestionMatches[htmlSuggestionIndex];
+        let insertion=selected, nextCursor=start+selected.length;
+        if(kind==="html" && mode==="attribute"){insertion=selected+'=""';nextCursor=start+selected.length+2;}
+        else if(kind==="html" && mode!=="attribute"){
+          const voidTags=new Set(["area","base","br","col","embed","hr","img","input","link","meta","param","source","track","wbr"]);
+          insertion="<"+selected+">"+(voidTags.has(selected.toLowerCase())?"":"</"+selected+">");
+          nextCursor=start+selected.length+2;
+        } else if(kind==="css" && mode==="css-property"){insertion=selected+": ";nextCursor=start+insertion.length;}
+        else if(kind==="css" && mode==="css-selector" && selected.startsWith("@")){insertion=selected+" ";nextCursor=start+insertion.length;}
+        elements.editor.setRangeText(insertion,start,cursor,"end");
+        elements.editor.setSelectionRange(nextCursor,nextCursor);
+        hideHtmlSuggestions(); saveEditorValue(); return true;
       }
 
-      function saveEditorValue() {
+            function saveEditorValue() {
         const project = currentProject();
         const file = project.activeFile;
         if (!file || !Object.hasOwn(project.files, file)) return;

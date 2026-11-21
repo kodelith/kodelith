@@ -2428,8 +2428,7 @@ button.addEventListener("click", () => {
       async function addAnotherAccount() {
         const {data}=await supabaseClient.auth.getSession();if(data&&data.session)saveAccountSession(data.session);
         document.getElementById("accountBackdrop").hidden=true;
-        if(cloudUser) await supabaseClient.auth.signOut();
-        openAuth("signin");
+        // Keep the existing account session alive; signing into the next account replaces only the active browser session.\n        openAuth("signin");
       }
       async function removeSavedAccount(userId) {
         const ok=await askForConfirmation({title:"Remove saved account?",description:"This only removes the saved sign-in from this device. It does not delete the Orbit account or its projects.",confirmText:"Remove"});
@@ -2442,7 +2441,7 @@ button.addEventListener("click", () => {
         if(!ok)return;
         const userId=cloudUser&&cloudUser.id;
         document.getElementById("accountBackdrop").hidden=true;
-        const {error}=await supabaseClient.auth.signOut();if(error){showToast("Could not sign out.");return;}
+        const {error}=await supabaseClient.auth.signOut({scope:"local"});if(error){showToast("Could not sign out.");return;}
         localStorage.setItem(ACCOUNT_SESSIONS_KEY,JSON.stringify(readSavedAccounts().filter(item=>item.user_id!==userId)));handleSignedOut();showToast("Signed out.");
       }
       function getSelectedProfileProjectIds() {

@@ -146,6 +146,10 @@
     .tab-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .tab-close { margin-left: auto; border: 0; background: none; color: var(--muted); cursor: pointer; }
     .editor-toolbar { display: flex; align-items: center; gap: 6px; padding: 0 12px; margin-left: auto; }
+    .editor-top { flex-wrap: wrap; align-items: center; }
+    .editor-toolbar { flex-wrap: wrap; min-width: 0; max-width: 100%; margin-left: 0; padding: 6px 12px; row-gap: 5px; }
+    .toolbar-button { flex: 0 0 auto; white-space: nowrap; }
+    @media (max-width: 900px) { .editor-toolbar { width: 100%; } .tabs { flex: 1 1 100%; } }
     .toolbar-button { height: 28px; display: inline-flex; align-items: center; gap: 6px; padding: 0 9px; border: 1px solid transparent; border-radius: 6px; background: transparent; color: #424242; cursor: pointer; font-size: 10px; }
     .toolbar-button.active { border-color: #b3d8f1; background: #e6f3fb; color: #005a9e; }
     .main-area { display:grid; grid-template-columns:minmax(320px,58%) 6px minmax(280px,42%); grid-template-rows:44px minmax(0,1fr); min-height:0; }
@@ -1943,12 +1947,13 @@ button.addEventListener("click", () => {
         const scriptTag = js ? "<script>" + js.replace(/<\/script/gi, "<" + "/script") + "\n<" + "/script>" : "";
         html = html.replace(/<link\b(?=[^>]*\bhref\s*=\s*["']style\.css["'])[^>]*>/gi, "");
         html = html.replace(/<script\b(?=[^>]*\bsrc\s*=\s*["']script\.js["'])[^>]*>\s*<\/script\s*>/gi, "");
+        const consoleCode = "(function(){['log','info','warn','error'].forEach(function(level){var original=console[level];console[level]=function(){var text=Array.prototype.map.call(arguments,function(value){try{return typeof value==='string'?value:JSON.stringify(value)}catch(e){return String(value)}}).join(' ').slice(0,1800);parent.postMessage({type:'orbit-preview-console',level:level,text:text},'*');return original.apply(console,arguments);};});window.addEventListener('error',function(e){parent.postMessage({type:'orbit-preview-console',level:'error',text:String(e.message||'Preview error')},'*');});window.addEventListener('unhandledrejection',function(e){parent.postMessage({type:'orbit-preview-console',level:'error',text:'Unhandled promise: '+String(e.reason)},'*');});})();";
+        const consoleTag = "<script>" + consoleCode + "\n<" + "/script>";
         if (/<\/head\s*>/i.test(html)) html = html.replace(/<\/head\s*>/i, styleTag + consoleTag + "</head>");
         else html = styleTag + consoleTag + html;
         const navCode = "(function(){function resolve(raw){if(!raw||raw.charAt(0)==='#'||raw.indexOf('//')===0||/^[a-z][a-z0-9+.-]*:/i.test(raw))return null;var clean=raw.split('#')[0].split('?')[0];if(!clean)return null;var base=" + JSON.stringify(fileName) + ".split('/');base.pop();var parts=(clean.charAt(0)==='/'?clean.slice(1):base.join('/')+(base.length?'/':'')+clean).split('/');var out=[];for(var i=0;i<parts.length;i++){var p=decodeURIComponent(parts[i]);if(!p||p==='.')continue;if(p==='..'){if(!out.length)return null;out.pop();}else out.push(p);}return out.join('/');}document.addEventListener('click',function(e){var a=e.target.closest&&e.target.closest('a[href]');if(!a||a.target==='_blank'||a.hasAttribute('download'))return;var file=resolve(a.getAttribute('href').trim());if(!file)return;e.preventDefault();parent.postMessage({type:'orbit-preview-navigate',file:file,hash:window.location.hash},'*');});})();";
         const navigationTag = "<script>" + navCode + "\n<" + "/script>";
-        const consoleCode = "(function(){['log','info','warn','error'].forEach(function(level){var original=console[level];console[level]=function(){var text=Array.prototype.map.call(arguments,function(value){try{return typeof value==='string'?value:JSON.stringify(value)}catch(e){return String(value)}}).join(' ').slice(0,1800);parent.postMessage({type:'orbit-preview-console',level:level,text:text},'*');return original.apply(console,arguments);};});window.addEventListener('error',function(e){parent.postMessage({type:'orbit-preview-console',level:'error',text:String(e.message||'Preview error')},'*');});window.addEventListener('unhandledrejection',function(e){parent.postMessage({type:'orbit-preview-console',level:'error',text:'Unhandled promise: '+String(e.reason)},'*');});})();";
-        const consoleTag = "<script>" + consoleCode + "\n<" + "/script>";
+
         if (/<\/body\s*>/i.test(html)) html = html.replace(/<\/body\s*>/i, scriptTag + navigationTag + "</body>");
         else html += scriptTag + navigationTag;
         elements.preview.onload = () => {

@@ -3330,6 +3330,7 @@ button.addEventListener("click", () => {
         }
         if ((event.metaKey || event.ctrlKey) && event.key === "`") {event.preventDefault();elements.terminalPanel.hidden ? openTerminal() : closeTerminal();}
         if (event.key === "Escape" && !elements.profileEditBackdrop.hidden) elements.profileEditBackdrop.hidden = true;
+        if (event.key === "Escape" && !document.getElementById("profileBackdrop").hidden) document.getElementById("profileBackdrop").hidden = true;
         if (event.key === "Escape" && !elements.modalBackdrop.hidden) closeNameModal();
         if (event.key === "Escape" && !elements.authBackdrop.hidden) closeAuth();
       });

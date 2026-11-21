@@ -468,6 +468,41 @@
     body.dark-theme .terminal-panel{border-color:#3c3c3c}
     @media(max-width:850px){.editor-toolbar{gap:2px;padding:0 5px}.editor-toolbar .toolbar-button{padding:0 6px;font-size:9px}}
     @media(max-width:650px){.main-area.terminal-open{grid-template-rows:44px minmax(140px,1fr) 210px}.terminal-mode{display:none}}
+
+    .profile-view-modal{position:relative;width:min(440px,100%);max-height:min(86vh,760px);overflow:auto;padding:0!important;border:1px solid var(--line);border-radius:20px;background:var(--panel);box-shadow:0 24px 80px #0004}
+    .profile-view-cover{height:112px;background:linear-gradient(125deg,#2563eb 0%,#6366f1 52%,#a855f7 100%);border-radius:19px 19px 0 0}
+    .profile-view-close{position:absolute;right:14px;top:14px;z-index:2;width:32px;height:32px;border:0;border-radius:50%;background:#ffffffdd;color:#202536;font-size:23px;line-height:1;cursor:pointer}
+    .profile-view-content{padding:0 24px 24px;text-align:center}
+    .profile-view-avatar{width:104px;height:104px;margin:-52px auto 12px;position:relative;display:grid;place-items:center;border:5px solid var(--panel);border-radius:50%;background:var(--panel-raised);color:var(--text);font-size:36px;font-weight:750;overflow:hidden;box-shadow:0 5px 18px #0002}
+    .profile-view-avatar img{width:100%;height:100%;object-fit:cover}
+    .profile-view-name{display:flex;align-items:center;justify-content:center;gap:7px;margin:0;font-size:23px;letter-spacing:-.6px;color:var(--text)}
+    .profile-view-verified{width:19px;height:19px;display:inline-grid;place-items:center;border-radius:50%;background:#1d9bf0;color:white;font-size:13px;font-weight:900;box-shadow:0 1px 4px #0003}
+    .profile-view-bio{margin:8px auto 22px!important;max-width:340px;color:var(--muted);font-size:13px;line-height:1.6;white-space:pre-wrap;overflow-wrap:anywhere}
+    .profile-view-projects{text-align:left;border-top:1px solid var(--line);padding-top:18px}
+    .profile-view-projects-title{font-size:10px;font-weight:800;letter-spacing:1.1px;color:var(--muted);margin-bottom:11px}
+    .profile-view-project-list{display:grid;gap:8px}
+    .profile-view-project{display:flex;align-items:center;gap:12px;padding:12px;border:1px solid var(--line);border-radius:12px;background:var(--panel-soft)}
+    .profile-view-project-icon{width:38px;height:38px;display:grid;place-items:center;border-radius:10px;background:linear-gradient(135deg,#2563eb22,#8b5cf622);color:#5488f5;font:700 13px ui-monospace,monospace}
+    .profile-view-project-info{min-width:0;display:grid;gap:3px}
+    .profile-view-project-info strong{font-size:13px;color:var(--text);overflow-wrap:anywhere}
+    .profile-view-project-info small{font-size:10px;color:var(--muted)}
+    .profile-view-empty{padding:18px;border:1px dashed var(--line);border-radius:12px;color:var(--muted);font-size:12px;text-align:center}
+    .settings-modal{border-radius:16px!important;padding:24px!important}
+    .settings-modal h2{font-size:22px;letter-spacing:-.5px}
+    .settings-modal>p{color:var(--muted);font-size:12px}
+    .settings-tabs{gap:8px;margin:18px 0;padding:0;border:0}
+    .settings-tab{border-radius:9px;padding:9px 13px;font-weight:650;transition:background .15s,border-color .15s,transform .15s}
+    .settings-tab:hover{transform:translateY(-1px);border-color:var(--accent)}
+    .settings-tab.active{background:var(--accent);color:#fff;border-color:var(--accent)}
+    .settings-row{padding:15px 0;border-bottom:1px solid var(--line);align-items:center;gap:14px}
+    .settings-row strong{font-size:13px}
+    .settings-row small{font-size:11px;line-height:1.5;color:var(--muted)}
+    .profile-modal{border-radius:16px!important;padding:24px!important}
+    .profile-modal h2{font-size:21px;letter-spacing:-.5px}
+    .profile-modal input,.profile-modal textarea{border-radius:9px!important;padding:10px 11px!important}
+    .profile-modal label{font-size:11px;font-weight:700;color:var(--muted)}
+    .profile-status{font-size:11px}
+    @media(max-width:520px){.profile-view-modal{width:100%;border-radius:18px}.profile-view-cover{height:94px}.profile-view-content{padding:0 18px 20px}.profile-view-avatar{width:92px;height:92px;margin-top:-46px}.settings-modal{padding:18px!important}}
 </style>
 </head>
 <body>
@@ -658,9 +693,24 @@
     </section>
   </div>
   <div class="modal-backdrop" id="profileBackdrop" hidden>
+    <section class="modal profile-view-modal" role="dialog" aria-modal="true" aria-labelledby="profileViewName">
+      <button class="profile-view-close" id="profileViewClose" type="button" aria-label="Close profile">×</button>
+      <div class="profile-view-cover"></div>
+      <div class="profile-view-content">
+        <div class="profile-view-avatar" id="profileViewAvatar"></div>
+        <h2 class="profile-view-name" id="profileViewName">Orbit creator</h2>
+        <p class="profile-view-bio" id="profileViewBio"></p>
+        <section class="profile-view-projects">
+          <div class="profile-view-projects-title">FEATURED PROJECTS</div>
+          <div class="profile-view-project-list" id="profileViewProjects"></div>
+        </section>
+      </div>
+    </section>
+  </div>
+  <div class="modal-backdrop" id="profileEditBackdrop" hidden>
     <form class="modal profile-modal" id="profileForm">
       <h2>Your Orbit profile</h2>
-      <p>Set up your creator identity. These fields will power public profiles and project sharing when Orbit's community launches.</p>
+      <p>Edit the details people see when they open your Orbit profile.</p>
       <label for="profileUsername">Username</label>
       <input id="profileUsername" readonly aria-readonly="true">
       <label for="profileDisplayName">Display name</label>
@@ -689,7 +739,7 @@
         <button class="settings-tab" id="settingsBinTab" type="button" role="tab" aria-selected="false">Bin</button>
       </div>
       <section class="settings-section" id="settingsGeneralSection">
-        <div class="settings-row"><div><strong>Display name</strong><small>First change is free. The next changes require 1 hour, then 1 day, then 7 days between changes. Your username never changes.</small></div></div>
+        <div class="settings-row profile-settings-row"><div><strong>Edit profile</strong><small>Update your photo, display name, bio and featured projects. You can change your display name whenever you like.</small></div><button class="settings-tab" id="settingsEditProfile" type="button">Edit profile</button></div>
         <div class="settings-row"><div><strong>Deleted work</strong><small>Projects and files stay in the Bin for 7 days before they expire. Restore them any time before expiry.</small></div><button class="settings-tab" id="settingsOpenBin" type="button">Open Bin</button></div>
         <div class="settings-row"><div><strong>Accounts</strong><small>Add another Orbit account and switch between saved accounts from the account menu.</small></div><button class="settings-tab" id="settingsManageAccounts" type="button">Manage accounts</button></div>
       </section>
@@ -855,7 +905,7 @@ button.addEventListener("click", () => {
         importInput: document.getElementById("importInput"),
         accountButton: document.getElementById("accountButton"),
         profileButton: document.getElementById("profileButton"),
-        profileBackdrop: document.getElementById("profileBackdrop"),
+        profileEditBackdrop: document.getElementById("profileEditBackdrop"),
         profileForm: document.getElementById("profileForm"),
         profileUsername: document.getElementById("profileUsername"),
         profileDisplayName: document.getElementById("profileDisplayName"),
@@ -2379,14 +2429,6 @@ button.addEventListener("click", () => {
         if(bin) void renderBin();
       }
       function openSettings(tab="general") { document.getElementById("settingsBackdrop").hidden=false;setSettingsTab(tab); }
-      function getDisplayNameWait(count) { return count<=1?3600000:count===2?86400000:7*86400000; }
-      function updateDisplayNameCooldown() {
-        const input=elements.profileDisplayName, record=profileRecord||{}, count=Number(record.display_name_change_count||0), changed=record.display_name_changed_at?new Date(record.display_name_changed_at).getTime():0;
-        const remaining=count>0&&changed?Math.max(0,changed+getDisplayNameWait(count)-Date.now()):0;
-        input.disabled=remaining>0;
-        if(remaining>0){const hours=Math.floor(remaining/3600000),minutes=Math.ceil((remaining%3600000)/60000);input.title="You can change your display name in "+(hours?hours+"h ":"")+minutes+"m.";elements.profileStatus.textContent="Display name locked for "+(hours?hours+" hour(s) ":"")+minutes+" minute(s). You can still update your bio, avatar and projects.";}
-        else {input.title="";if(count===0)elements.profileStatus.textContent="Your first display-name change is available now.";else elements.profileStatus.textContent="Your display name can be changed now.";}
-      }
       function readSavedAccounts() {
         try { const data=JSON.parse(localStorage.getItem(ACCOUNT_SESSIONS_KEY)||"[]");return Array.isArray(data)?data.filter(item=>item&&item.user_id&&item.access_token&&item.refresh_token):[]; } catch { return []; }
       }
@@ -2505,9 +2547,48 @@ button.addEventListener("click", () => {
         } catch(error) { console.warn("Could not load profile avatar:",error); }
       }
 
+      function renderProfileView() {
+        const record=profileRecord||{};
+        const username=String(record.username||String(cloudUser&&cloudUser.email||"").split("@")[0]||"creator");
+        const displayName=String(record.display_name||username);
+        const avatar=document.getElementById("profileViewAvatar");
+        avatar.replaceChildren();
+        const avatarUrl=String(record.avatar_url||"").trim();
+        if(avatarUrl&&/^https?:\/\//i.test(avatarUrl)){
+          const img=document.createElement("img");img.src=avatarUrl;img.alt=displayName+" profile photo";img.referrerPolicy="no-referrer";
+          img.addEventListener("error",()=>{img.remove();const fallback=document.createElement("span");fallback.textContent=(displayName.trim()[0]||"O").toUpperCase();avatar.append(fallback);},{once:true});avatar.append(img);
+        } else {const fallback=document.createElement("span");fallback.textContent=(displayName.trim()[0]||"O").toUpperCase();avatar.append(fallback);}
+        const name=document.getElementById("profileViewName");name.replaceChildren(document.createTextNode(displayName));
+        if(username.toLowerCase()==="sagar"){const tick=document.createElement("span");tick.className="profile-view-verified";tick.textContent="✓";tick.title="Verified Orbit account";tick.setAttribute("aria-label","Verified account");name.append(tick);}
+        document.getElementById("profileViewBio").textContent=String(record.bio||"");
+        const projects=document.getElementById("profileViewProjects");projects.replaceChildren();
+        const ids=Array.isArray(record.featured_project_ids)?record.featured_project_ids:[];
+        const selected=ids.map(id=>({id,project:state.projects[id]})).filter(item=>item.project);
+        if(!selected.length){const empty=document.createElement("div");empty.className="profile-view-empty";empty.textContent="No featured projects yet.";projects.append(empty);}
+        for(const item of selected){
+          const card=document.createElement("div");card.className="profile-view-project";
+          const glyph=document.createElement("span");glyph.className="profile-view-project-icon";glyph.textContent="</>";
+          const info=document.createElement("div");info.className="profile-view-project-info";
+          const title=document.createElement("strong");title.textContent=item.project.name;
+          const detail=document.createElement("small");const count=Object.keys(item.project.files||{}).length;detail.textContent=count+" "+(count===1?"file":"files")+" · Orbit project";
+          info.append(title,detail);card.append(glyph,info);projects.append(card);
+        }
+      }
       async function openProfile() {
+        if(!cloudUser||!supabaseClient){showToast("Sign in to view your Orbit profile.");return;}
+        const backdrop=document.getElementById("profileBackdrop");backdrop.hidden=false;
+        const fallback=String(cloudUser.email||"").split("@")[0].slice(0,24);
+        try{
+          const {data,error}=await supabaseClient.from("profiles").select("username,display_name,bio,avatar_url,featured_project_ids").eq("id",cloudUser.id).maybeSingle();
+          if(error)throw error;
+          profileRecord=data||{username:fallback};
+        }catch(error){console.error("Could not load profile:",error);showToast("Couldn't load your profile. Please try again.");}
+        renderProfileView();
+      }
+
+      async function openEditProfile() {
         if (!cloudUser || !supabaseClient) { showToast("Sign in to set up your Orbit profile."); return; }
-        elements.profileBackdrop.hidden = false;
+        elements.profileEditBackdrop.hidden = false;
         elements.profileStatus.textContent = "Loading profile…";
         elements.profileSave.disabled = true;
         const fallbackUsername = String(cloudUser.email || "").split("@")[0].slice(0,24);
@@ -2521,8 +2602,7 @@ button.addEventListener("click", () => {
           renderProfileProjects(Array.isArray(profileRecord.featured_project_ids) ? profileRecord.featured_project_ids : []);
           elements.profileAvatar.value = profileRecord.avatar_url || "";
           renderProfileAvatar(profileRecord.avatar_url, profileRecord.display_name || profileRecord.username || fallbackUsername);
-          updateDisplayNameCooldown();
-          elements.profileStatus.textContent += " Your username is fixed."; 
+          elements.profileStatus.textContent = "Edit your profile details below.";
         } catch (error) {
           console.error("Could not load Orbit profile:",error);
           elements.profileStatus.textContent = "Could not load your profile. Please try again."; 
@@ -2545,14 +2625,14 @@ button.addEventListener("click", () => {
         elements.profileStatus.textContent = "Saving profile…";
         try {
           const payload = {id:cloudUser.id,username,username_key:username.toLowerCase(),display_name:displayName || null,bio:bio || null,avatar_url:avatar || null,featured_project_ids:featuredProjectIds,updated_at:new Date().toISOString()};
-          const result = await supabaseClient.from("profiles").upsert(payload,{onConflict:"id"}).select("username,display_name,bio,avatar_url,featured_project_ids,display_name_change_count,display_name_changed_at").single();
+          const result = await supabaseClient.from("profiles").upsert(payload,{onConflict:"id"}).select("username,display_name,bio,avatar_url,featured_project_ids").single();
           if (result.error) throw result.error;
           profileRecord = result.data || payload;
           renderProfileAvatar(profileRecord.avatar_url, profileRecord.display_name || profileRecord.username);
-          updateDisplayNameCooldown();
           elements.profileStatus.textContent = "Profile saved.";
+          renderProfileView();
           showToast("Your Orbit profile was saved.");
-          window.setTimeout(() => {elements.profileBackdrop.hidden = true;},450);
+          window.setTimeout(() => {elements.profileEditBackdrop.hidden = true;},450);
         } catch (error) {
           console.error("Could not save Orbit profile:",error);
           elements.profileStatus.textContent = error.message || "Could not save your profile. Please try again."; 
@@ -3002,7 +3082,7 @@ button.addEventListener("click", () => {
       elements.importInput.addEventListener("change", async () => {
         if (elements.importInput.files && elements.importInput.files[0]) {
           await importProject(elements.importInput.files[0]);
-          if (!elements.profileBackdrop.hidden) renderProfileProjects([...getSelectedProfileProjectIds(),state.activeProject]);
+          if (!elements.profileEditBackdrop.hidden) renderProfileProjects([...getSelectedProfileProjectIds(),state.activeProject]);
         }
       });
       elements.profileButton.addEventListener("click",openProfile);
@@ -3013,14 +3093,17 @@ button.addEventListener("click", () => {
       document.getElementById("settingsOpenBin").addEventListener("click",()=>setSettingsTab("bin"));
       document.getElementById("settingsRefreshBin").addEventListener("click",()=>void renderBin());
       document.getElementById("settingsManageAccounts").addEventListener("click",()=>{document.getElementById("settingsBackdrop").hidden=true;void openAccountManager();});
+      document.getElementById("settingsEditProfile").addEventListener("click",()=>{document.getElementById("settingsBackdrop").hidden=true;void openEditProfile();});
       document.getElementById("accountAddButton").addEventListener("click",()=>void addAnotherAccount());
       document.getElementById("accountCloseButton").addEventListener("click",()=>{document.getElementById("accountBackdrop").hidden=true;});
       document.getElementById("accountBackdrop").addEventListener("click",event=>{if(event.target===event.currentTarget)event.currentTarget.hidden=true;});
       document.getElementById("settingsBackdrop").addEventListener("click",event=>{if(event.target===event.currentTarget)event.currentTarget.hidden=true;});
       elements.profileAddProjectButton.addEventListener("click",() => { const id=elements.profileProjectPicker.value; if(!id)return; const selected=getSelectedProfileProjectIds(); if(selected.length>=6){showToast("You can connect up to 6 projects.");return;} renderProfileProjects([...selected,id]); });
       elements.profileForm.addEventListener("submit",saveProfile);
-      document.getElementById("profileCancel").addEventListener("click",() => {elements.profileBackdrop.hidden=true;});
-      elements.profileBackdrop.addEventListener("click",event => {if(event.target===elements.profileBackdrop)elements.profileBackdrop.hidden=true;});
+      document.getElementById("profileCancel").addEventListener("click",() => {elements.profileEditBackdrop.hidden=true;});
+      elements.profileEditBackdrop.addEventListener("click",event => {if(event.target===elements.profileEditBackdrop)elements.profileEditBackdrop.hidden=true;});
+      document.getElementById("profileViewClose").addEventListener("click",()=>{document.getElementById("profileBackdrop").hidden=true;});
+      document.getElementById("profileBackdrop").addEventListener("click",event=>{if(event.target===event.currentTarget)event.currentTarget.hidden=true;});
       elements.accountButton.addEventListener("click", () => { if(readSavedAccounts().length || cloudUser) void openAccountManager(); else openAuth("signin"); });
       elements.togglePasswordVisibility.addEventListener("click", () => {
         const showing = elements.authPassword.type === "password";
@@ -3246,7 +3329,7 @@ button.addEventListener("click", () => {
           buildPreview();
         }
         if ((event.metaKey || event.ctrlKey) && event.key === "`") {event.preventDefault();elements.terminalPanel.hidden ? openTerminal() : closeTerminal();}
-        if (event.key === "Escape" && !elements.profileBackdrop.hidden) elements.profileBackdrop.hidden = true;
+        if (event.key === "Escape" && !elements.profileEditBackdrop.hidden) elements.profileEditBackdrop.hidden = true;
         if (event.key === "Escape" && !elements.modalBackdrop.hidden) closeNameModal();
         if (event.key === "Escape" && !elements.authBackdrop.hidden) closeAuth();
       });

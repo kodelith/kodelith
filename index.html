@@ -2351,6 +2351,12 @@ button.addEventListener("click", () => {
             if(Object.hasOwn(project.files,item.file_name)) throw new Error("A file with that name already exists. Rename the current file first.");
             project.files[item.file_name]=item.content;project.openFiles.push(item.file_name);project.activeFile=item.file_name;state.activeProject=String(item.project_id);
           }
+          const restoredId=state.activeProject,restoredProject=state.projects[restoredId];
+          if(cloudUser&&cloudReady){
+            const {error}=await supabaseClient.from("projects").upsert({id:restoredId,user_id:cloudUser.id,name:restoredProject.name,data:{files:restoredProject.files,activeFile:restoredProject.activeFile,openFiles:restoredProject.openFiles},updated_at:new Date().toISOString()});
+            if(error) throw error;
+            cloudProjectIds.add(restoredId);writeCloudCache(cloudUser.id);
+          } else { localStorage.setItem(STORAGE_KEY,JSON.stringify(state)); }
           await removeTrashRecord(item);elements.editor.dataset.file="";render();scheduleSave();await renderBin();showToast("Restored to your Orbit workspace.");
         } catch(error) { showToast(error.message||"Could not restore this item."); }
       }

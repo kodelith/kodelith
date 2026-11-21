@@ -2638,6 +2638,131 @@ button.addEventListener("click", () => {
         } finally { elements.profileSave.disabled = false; }
       }
 
+      function buildShareablePreview(project) {
+        const files=project&&project.files||{};
+        const htmlName=Object.keys(files).find(name=>name.toLowerCase()==="index.html")||Object.keys(files).find(name=>/\.html?$/i.test(name));
+        if(!htmlName||typeof files[htmlName]!=="string")return "";
+        let html=files[htmlName];
+        const css=typeof files["style.css"]==="string"?files["style.css"]:"";
+        const js=typeof files["script.js"]==="string"?files["script.js"]:"";
+        html=html.replace(/<link\b(?=[^>]*\bhref\s*=\s*["']style\.css["'])[^>]*>/gi,"");
+        html=html.replace(/<script\b(?=[^>]*\bsrc\s*=\s*["']script\.js["'])[^>]*>\s*<\/script\s*>/gi,"");
+        const styleTag=css?"<style>"+css.replace(/<\/style/gi,"<\\/style")+"</style>":"";
+        const scriptTag=js?"<script>"+js.replace(/<\/script/gi,"<\\/script")+"</script>":"";
+        if(/<\/head\s*>/i.test(html))html=html.replace(/<\/head\s*>/i,styleTag+"</head>");
+        else html=styleTag+html;
+        if(scriptTag){if(/<\/body\s*>/i.test(html))html=html.replace(/<\/body\s*>/i,scriptTag+"</body>");else html+=scriptTag;}
+        return html.slice(0,180000);
+      }
+      async function syncProfileWebsitePreviews(projectIds) {
+        if(!cloudUser||!supabaseClient)return;
+        const rows=projectIds.map(id=>{
+          const project=state.projects[id];if(!project)return null;
+          const preview=buildShareablePreview(project);if(!preview)return null;
+          return {user_id:cloudUser.id,project_id:String(id),project_name:String(project.name||"Website").slice(0,60),preview_html:preview,updated_at:new Date().toISOString()};
+        }).filter(Boolean);
+        if(rows.length){const {error}=await supabaseClient.from("profile_project_previews").upsert(rows,{onConflict:"user_id,project_id"});if(error)throw error;}
+        const keep=rows.map(row=>row.project_id);
+        let del=supabaseClient.from("profile_project_previews").delete().eq("user_id",cloudUser.id);
+        if(keep.length)del=del.not("project_id","in","("+keep.map(id=>'"'+id.replace(/"/g,"")+'"').join(",")+")");
+        const {error:deleteError}=await del;if(deleteError)throw deleteError;
+      }
+      function openFriendWebsitePreview(item) {
+        document.getElementById("friendPreviewTitle").textContent=item.project_name||"Website preview";
+        document.getElementById("friendPreviewFrame").srcdoc=item.preview_html||"<!doctype html><html><body></body></html>";
+        document.getElementById("friendPreviewBackdrop").hidden=false;
+      }
+      function friendDisplayName(profile){return String(profile.display_name||profile.username||"Orbit creator");}
+      function makeFriendPersonCard(profile,relation,kind="person") {
+        const row=document.createElement("article");row.className="friend-person";
+        const avatar=document.createElement("button");avatar.type="button";avatar.className="friend-person-avatar";
+        const url=String(profile.avatar_url||"");
+        if(url&&/^https?:\/\//i.test(url)){const img=document.createElement("img");img.src=url;img.alt="";avatar.append(img);}else avatar.textContent=(friendDisplayName(profile)[0]||"O").toUpperCase();
+        avatar.addEventListener("click",()=>{document.getElementById("friendsBackdrop").hidden=true;void openProfile(profile.id);});
+        const info=document.createElement("button");info.type="button";info.className="friend-person-info";
+        const title=document.createElement("strong");title.textContent=friendDisplayName(profile)+(profile.username?.toLowerCase()==="sagar"?"  ✓":"");
+        const handle=document.createElement("small");handle.textContent="@"+String(profile.username||"creator");
+        info.append(title,handle);info.addEventListener("click",()=>{document.getElementById("friendsBackdrop").hidden=true;void openProfile(profile.id);});
+        const action=document.createElement("button");action.type="button";action.className="friend-person-action";
+        if(relation?.status==="accepted"){
+          action.textContent="Friends";action.addEventListener("click",()=>void removeFriend(relation.id));
+        }else if(relation?.status==="pending"&&relation.recipient_id===cloudUser.id){
+          action.textContent="Accept";action.classList.add("primary");action.addEventListener("click",()=>void acceptFriendRequest(relation.id));
+        }else if(relation?.status==="pending"){
+          action.textContent="Requested";action.disabled=true;
+        }else{
+          action.textContent="＋ Add";action.classList.add("primary");action.addEventListener("click",()=>void sendFriendRequest(profile.id));
+        }
+        row.append(avatar,info,action);return row;
+      }
+      function relationForFriend(userId){return friendRequestRows.find(row=>(row.sender_id===userId&&row.recipient_id===cloudUser.id)||(row.recipient_id===userId&&row.sender_id===cloudUser.id))||null;}
+      async function fetchFriendProfiles(ids) {
+        if(!ids.length)return [];
+        const {data,error}=await supabaseClient.from("profiles").select("id,username,display_name,bio,avatar_url,created_at").in("id",ids);
+        if(error)throw error;
+        for(const profile of data||[])friendProfilesById.set(profile.id,profile);
+        return data||[];
+      }
+      function fillFriendList(id,profiles,kind) {
+        const list=document.getElementById(id);list.replaceChildren();
+        if(!profiles.length){const empty=document.createElement("div");empty.className="friends-empty";empty.textContent=id==="friendSearchResults"?"No matching people found.":id==="friendRequestsList"?"No new friend requests.":"Your friends will appear here.";list.append(empty);return;}
+        for(const profile of profiles)list.append(makeFriendPersonCard(profile,relationForFriend(profile.id),kind));
+      }
+      async function loadFriendsHub(searchTerm="") {
+        if(!cloudUser||!supabaseClient){showToast("Sign in to use Friends.");return;}
+        const searchList=document.getElementById("friendSearchResults");searchList.replaceChildren();
+        const loading=document.createElement("div");loading.className="friends-empty";loading.textContent="Finding creators…";searchList.append(loading);
+        try{
+          const {data:relations,error}=await supabaseClient.from("friend_requests").select("id,sender_id,recipient_id,status,created_at").or("sender_id.eq."+cloudUser.id+",recipient_id.eq."+cloudUser.id).order("created_at",{ascending:false});
+          if(error)throw error;friendRequestRows=relations||[];
+          const relatedIds=[...new Set(friendRequestRows.map(row=>row.sender_id===cloudUser.id?row.recipient_id:row.sender_id))];
+          const incoming=friendRequestRows.filter(row=>row.status==="pending"&&row.recipient_id===cloudUser.id);
+          const accepted=friendRequestRows.filter(row=>row.status==="accepted");
+          const otherProfiles=await fetchFriendProfiles(relatedIds);
+          const byId=new Map(otherProfiles.map(profile=>[profile.id,profile]));
+          fillFriendList("friendRequestsList",incoming.map(row=>byId.get(row.sender_id)).filter(Boolean),"request");
+          fillFriendList("friendsList",accepted.map(row=>byId.get(row.sender_id===cloudUser.id?row.recipient_id:row.sender_id)).filter(Boolean),"friend");
+          document.getElementById("friendRequestCount").textContent=String(incoming.length);
+          document.getElementById("friendCount").textContent=String(accepted.length);
+          if(searchTerm){
+            document.getElementById("friendSearchTitle").textContent="SEARCH RESULTS";
+            const term=searchTerm.replace(/[^a-zA-Z0-9_]/g,"").slice(0,24);
+            if(!term){fillFriendList("friendSearchResults",[]);return;}
+            const {data,error:searchError}=await supabaseClient.from("profiles").select("id,username,display_name,avatar_url,created_at").ilike("username","%"+term+"%").neq("id",cloudUser.id).order("username").limit(15);
+            if(searchError)throw searchError;
+            fillFriendList("friendSearchResults",data||[]);
+          }else{
+            document.getElementById("friendSearchTitle").textContent="PEOPLE YOU MAY KNOW";
+            const {data,error:suggestError}=await supabaseClient.from("profiles").select("id,username,display_name,avatar_url,created_at").neq("id",cloudUser.id).order("created_at",{ascending:false}).limit(20);
+            if(suggestError)throw suggestError;
+            fillFriendList("friendSearchResults",(data||[]).filter(profile=>!relationForFriend(profile.id)).slice(0,8));
+          }
+        }catch(error){console.error("Friends could not load:",error);searchList.replaceChildren();const message=document.createElement("div");message.className="friends-empty";message.textContent=error.message||"Could not load Friends.";searchList.append(message);}
+      }
+      async function sendFriendRequest(userId) {
+        if(!userId||userId===cloudUser?.id)return;
+        try{
+          const {error}=await supabaseClient.from("friend_requests").insert({sender_id:cloudUser.id,recipient_id:userId,status:"pending"});
+          if(error)throw error;showToast("Friend request sent.");await loadFriendsHub(document.getElementById("friendSearchInput").value.trim());
+        }catch(error){console.error("Friend request failed:",error);showToast(error.code==="23505"?"A request or friendship already exists.":"Could not send friend request.");await loadFriendsHub(document.getElementById("friendSearchInput").value.trim());}
+      }
+      async function acceptFriendRequest(id) {
+        try{const {error}=await supabaseClient.from("friend_requests").update({status:"accepted",updated_at:new Date().toISOString()}).eq("id",id);if(error)throw error;showToast("You're now friends.");await loadFriendsHub(document.getElementById("friendSearchInput").value.trim());}
+        catch(error){console.error(error);showToast("Could not accept this request.");}
+      }
+      async function removeFriend(id) {
+        const ok=await askForConfirmation({title:"Remove friend?",description:"This person will no longer be able to view your shared website previews.",confirmText:"Remove friend"});
+        if(!ok)return;
+        try{const {error}=await supabaseClient.from("friend_requests").delete().eq("id",id);if(error)throw error;showToast("Friend removed.");await loadFriendsHub(document.getElementById("friendSearchInput").value.trim());}
+        catch(error){console.error(error);showToast("Could not remove this friend.");}
+      }
+      function openFriends() {
+        if(!cloudUser||!supabaseClient){showToast("Sign in to find friends.");openAuth("signin");return;}
+        document.getElementById("friendSearchInput").value="";
+        document.getElementById("friendsBackdrop").hidden=false;
+        void loadFriendsHub("");
+      }
+
       async function saveProfile(event) {
         event.preventDefault();
         if (!cloudUser || !supabaseClient) return;

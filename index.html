@@ -3295,6 +3295,11 @@ button.addEventListener("click", () => {
         if(published){node.href=activeDeployment.public_url;node.textContent=activeDeployment.public_url;node.title="Open published website in a new tab";node.dataset.published="true";}
         else{node.href="#";node.textContent="orbit://preview/"+(currentPreviewFile||"index.html");node.title="Click to open Deploy and publish this website";node.dataset.published="false";}
       }
+      async function getDeployErrorMessage(error){
+        const context=error&&error.context;
+        if(context&&typeof context.json==="function"){try{const payload=await context.json();if(payload&&payload.error)return payload.error;}catch{}}
+        return error&&error.message?error.message:"Deployment failed.";
+      }
       function setDeployStatus(message,isError=false){const node=document.getElementById("deployStatus");node.textContent=message;node.style.color=isError?"var(--red)":"var(--muted)";}
       function setDeployUrl(url){const panel=document.getElementById("deployUrlPanel"),link=document.getElementById("deployPublicUrl");panel.hidden=!url;if(url){link.href=url;link.textContent=url;}}
       let activeDeployment=null;
@@ -3346,7 +3351,7 @@ button.addEventListener("click", () => {
           showToast("Website published. Your unique link is ready.");
         }catch(error){
           console.error("Orbit GitHub Pages deploy failed:",error);
-          const message=error?.context?.json?.error||error.message||"Deployment failed. Your project files were not changed.";
+          const message=await getDeployErrorMessage(error);
           setDeployStatus(message,true);
         }finally{button.disabled=false;document.getElementById("deployUnpublish").disabled=false;}
       }
@@ -3361,7 +3366,7 @@ button.addEventListener("click", () => {
           if(error)throw error;if(data?.error)throw new Error(data.error);
           activeDeployment=null;setDeployUrl("");button.hidden=true;document.getElementById("deploySubmit").textContent="Deploy website";
           setDeployStatus("Website unpublished. Your Orbit project is safe.");updatePreviewAddress();showToast("Website unpublished.");
-        }catch(error){setDeployStatus(error?.context?.json?.error||error.message||"Could not unpublish this website.",true);}
+        }catch(error){setDeployStatus(await getDeployErrorMessage(error),true);}
         finally{button.disabled=false;}
       }
 

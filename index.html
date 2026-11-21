@@ -943,7 +943,9 @@ button.addEventListener("click", () => {
             let files = Object.fromEntries(Object.entries(project.files).filter(([file, content]) => typeof file === "string" && typeof content === "string"));
             if (isLegacyStarterFiles(files)) files = {};
             const openFiles = Array.isArray(project.openFiles) ? project.openFiles.filter(file => Object.hasOwn(files,file)) : Object.keys(files);
-            projects[id] = {name:project.name,files,activeFile:Object.hasOwn(files,project.activeFile)?project.activeFile:Object.keys(files)[0]||"",openFiles};
+            const activeFile = Object.hasOwn(files,project.activeFile) ? project.activeFile : Object.keys(files)[0] || "";
+            if (activeFile && !openFiles.includes(activeFile)) openFiles.push(activeFile);
+            projects[id] = {name:project.name,files,activeFile,openFiles};
           }
           if (!Object.keys(projects).length) return null;
           return {activeProject:Object.hasOwn(projects,parsed.activeProject)?parsed.activeProject:Object.keys(projects)[0],projects};
@@ -1173,7 +1175,7 @@ button.addEventListener("click", () => {
           }
           const workingWorkspace = state;
           const pendingLocalChanges = JSON.stringify(workingWorkspace) !== JSON.stringify(baselineWorkspace);
-          state = mergePendingWorkspaceEdits(baselineWorkspace,workingWorkspace,remoteWorkspace);
+          state = (!rows.length && !cachedWorkspace) ? remoteWorkspace : mergePendingWorkspaceEdits(baselineWorkspace,workingWorkspace,remoteWorkspace);
           cloudReady = true;
           cloudLoading = false;
           elements.accountButton.textContent = "Sign out";

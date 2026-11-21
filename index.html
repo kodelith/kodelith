@@ -80,7 +80,12 @@
     .activity-button:hover, .activity-button.active { color: var(--text); }
     .activity-button.active { border-left-color: var(--accent); }
     .activity-bottom { flex: 1; }
-    .profile-activity { margin-top: 4px; border-top: 1px solid var(--line); padding-top: 7px; }
+    .profile-activity { margin-top: 4px; border-top: 1px solid var(--line); padding-top: 7px; width:36px; height:36px; border-radius:50%; overflow:hidden; border:2px solid var(--line-strong); padding:0; }
+    .profile-activity img { width:100%; height:100%; display:block; object-fit:cover; border-radius:50%; }
+    .profile-avatar-fallback { width:100%; height:100%; display:grid; place-items:center; border-radius:50%; background:var(--panel-raised); color:var(--text); font-size:13px; font-weight:750; }
+    .profile-project-picker-row { display:flex; gap:7px; margin:8px 0; }
+    .profile-project-picker { min-width:0; flex:1; padding:8px; border:1px solid var(--line); border-radius:7px; background:var(--panel-raised); color:var(--text); font:inherit; font-size:12px; }
+    .profile-add-project { padding:8px 10px; border:1px solid var(--line); border-radius:7px; background:var(--panel-soft); color:var(--text); cursor:pointer; font:inherit; font-size:12px; }
     .profile-projects-heading { margin: 14px 0 4px; color: var(--muted); font-size: 10px; font-weight: 750; letter-spacing: .1em; }
     .profile-projects-help { margin: 0 0 9px; color: var(--muted); font-size: 11px; line-height: 1.5; }
     .profile-project-list { display: grid; gap: 6px; max-height: 170px; overflow: auto; padding: 2px 0; }
@@ -646,8 +651,8 @@
       <textarea id="profileBio" maxlength="240" rows="3" placeholder="A little about what you build…"></textarea>
       <div class="profile-projects-heading">PROJECTS ON YOUR PROFILE</div>
       <p class="profile-projects-help">Connect a project already in Orbit, or upload an Orbit ZIP export / JSON backup.</p>
+      <div class="profile-project-picker-row"><select class="profile-project-picker" id="profileProjectPicker" aria-label="Choose an Orbit project"><option value="">Choose an Orbit project…</option></select><button type="button" class="profile-add-project" id="profileAddProjectButton">＋ Add</button></div>
       <div class="profile-project-list" id="profileProjects"></div>
-      <button type="button" class="profile-upload-button" id="profileUploadButton">＋ Upload project ZIP / backup</button>
       <label for="profileAvatar">Avatar image URL (optional)</label>
       <input id="profileAvatar" type="url" maxlength="300" placeholder="https://…">
       <p class="profile-status" id="profileStatus" role="status" aria-live="polite"></p>
@@ -809,7 +814,8 @@ button.addEventListener("click", () => {
         profileDisplayName: document.getElementById("profileDisplayName"),
         profileBio: document.getElementById("profileBio"),
         profileProjects: document.getElementById("profileProjects"),
-        profileUploadButton: document.getElementById("profileUploadButton"),
+        profileProjectPicker: document.getElementById("profileProjectPicker"),
+        profileAddProjectButton: document.getElementById("profileAddProjectButton"),
         profileAvatar: document.getElementById("profileAvatar"),
         profileStatus: document.getElementById("profileStatus"),
         profileSave: document.getElementById("profileSave"),
@@ -2218,20 +2224,36 @@ button.addEventListener("click", () => {
 
       let profileRecord = null;
       function getSelectedProfileProjectIds() {
-        return [...elements.profileProjects.querySelectorAll("input[data-project-id]:checked")].map(input => input.dataset.projectId).filter(id => Object.hasOwn(state.projects,id)).slice(0,6);
+        return [...elements.profileProjects.querySelectorAll("[data-project-id]")].map(item => item.dataset.projectId).filter(id => Object.hasOwn(state.projects,id)).slice(0,6);
       }
       function renderProfileProjects(selectedIds = []) {
         if (!elements.profileProjects) return;
-        const selected = new Set(selectedIds.filter(id => Object.hasOwn(state.projects,id)).slice(0,6));
+        const selected = [...new Set(selectedIds.filter(id => Object.hasOwn(state.projects,id)))].slice(0,6);
         elements.profileProjects.replaceChildren();
-        const projects = Object.entries(state.projects);
-        if (!projects.length) { const empty=document.createElement("div"); empty.className="profile-project-empty"; empty.textContent="No projects yet. Upload a backup or create a project first."; elements.profileProjects.append(empty); return; }
-        for (const [id,project] of projects) {
-          const label=document.createElement("label"); label.className="profile-project-option";
-          const checkbox=document.createElement("input"); checkbox.type="checkbox"; checkbox.dataset.projectId=id; checkbox.checked=selected.has(id);
-          checkbox.addEventListener("change",()=>{if(getSelectedProfileProjectIds().length>6){checkbox.checked=false;showToast("You can connect up to 6 projects.");}});
-          const name=document.createElement("span"); name.textContent=project.name;
-          label.append(checkbox,name); elements.profileProjects.append(label);
+        elements.profileProjectPicker.replaceChildren();
+        const placeholder=document.createElement("option"); placeholder.value=""; placeholder.textContent="Choose an Orbit project…"; elements.profileProjectPicker.append(placeholder);
+        for (const [id,project] of Object.entries(state.projects)) {
+          if (!selected.includes(id)) { const option=document.createElement("option"); option.value=id; option.textContent=project.name; elements.profileProjectPicker.append(option); }
+        }
+        if (!selected.length) { const empty=document.createElement("div"); empty.className="profile-project-empty"; empty.textContent="No projects connected yet. Choose one of your Orbit projects above."; elements.profileProjects.append(empty); return; }
+        for (const id of selected) {
+          const project=state.projects[id]; if(!project) continue;
+          const row=document.createElement("div"); row.className="profile-project-option"; row.dataset.projectId=id;
+          const name=document.createElement("span"); name.textContent=project.name; name.style.flex="1";
+          const remove=document.createElement("button"); remove.type="button"; remove.textContent="Remove"; remove.setAttribute("aria-label","Remove "+project.name+" from profile"); remove.addEventListener("click",()=>renderProfileProjects(getSelectedProfileProjectIds().filter(projectId=>projectId!==id)));
+          row.append(name,remove); elements.profileProjects.append(row);
+        }
+      }
+      function renderProfileAvatar(url, username) {
+        if (!elements.profileButton) return;
+        elements.profileButton.replaceChildren();
+        const safeUrl=String(url||"").trim();
+        if (safeUrl && /^https?:\/\//i.test(safeUrl)) {
+          const img=document.createElement("img"); img.src=safeUrl; img.alt=""; img.referrerPolicy="no-referrer";
+          img.addEventListener("error",()=>{img.remove(); const fallback=document.createElement("span"); fallback.className="profile-avatar-fallback"; fallback.textContent=(String(username||"O").trim().charAt(0)||"O").toUpperCase(); elements.profileButton.append(fallback);},{once:true});
+          elements.profileButton.append(img);
+        } else {
+          const fallback=document.createElement("span"); fallback.className="profile-avatar-fallback"; fallback.textContent=(String(username||"O").trim().charAt(0)||"O").toUpperCase(); elements.profileButton.append(fallback);
         }
       }
       async function openProfile() {
@@ -2249,6 +2271,7 @@ button.addEventListener("click", () => {
           elements.profileBio.value = profileRecord.bio || "";
           renderProfileProjects(Array.isArray(profileRecord.featured_project_ids) ? profileRecord.featured_project_ids : []);
           elements.profileAvatar.value = profileRecord.avatar_url || "";
+          renderProfileAvatar(profileRecord.avatar_url, profileRecord.display_name || profileRecord.username || fallbackUsername);
           elements.profileStatus.textContent = "Your username is fixed. You can update your creator details."; 
         } catch (error) {
           console.error("Could not load Orbit profile:",error);
@@ -2275,6 +2298,7 @@ button.addEventListener("click", () => {
           const result = await supabaseClient.from("profiles").upsert(payload,{onConflict:"id"});
           if (result.error) throw result.error;
           profileRecord = payload;
+          renderProfileAvatar(payload.avatar_url, payload.display_name || payload.username);
           elements.profileStatus.textContent = "Profile saved.";
           showToast("Your Orbit profile was saved.");
           window.setTimeout(() => {elements.profileBackdrop.hidden = true;},450);
@@ -2728,7 +2752,7 @@ button.addEventListener("click", () => {
         }
       });
       elements.profileButton.addEventListener("click",openProfile);
-      elements.profileUploadButton.addEventListener("click",() => elements.importInput.click());
+      elements.profileAddProjectButton.addEventListener("click",() => { const id=elements.profileProjectPicker.value; if(!id)return; const selected=getSelectedProfileProjectIds(); if(selected.length>=6){showToast("You can connect up to 6 projects.");return;} renderProfileProjects([...selected,id]); });
       elements.profileForm.addEventListener("submit",saveProfile);
       document.getElementById("profileCancel").addEventListener("click",() => {elements.profileBackdrop.hidden=true;});
       elements.profileBackdrop.addEventListener("click",event => {if(event.target===elements.profileBackdrop)elements.profileBackdrop.hidden=true;});

@@ -2188,12 +2188,10 @@ button.addEventListener("click", () => {
         if (!Object.keys(project.files).length) { currentPreviewFile = ""; elements.previewUrl.textContent = "orbit://preview/empty"; elements.preview.srcdoc = "<!doctype html><html><head><meta charset=utf-8></head><body></body></html>"; return; }
         currentPreviewFile = fileName;
         let html = project.files[fileName];
+        // Ignore links to project files that do not exist yet. Keep the current
+        // preview visible instead of replacing it with an Orbit-generated 404 page.
+        if (typeof html !== "string") return;
         elements.previewUrl.textContent = "orbit://preview/" + fileName;
-        if (typeof html !== "string") {
-          const safeName = String(fileName).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
-          elements.preview.srcdoc = "<!doctype html><html><body style='font:14px system-ui;padding:24px;color:#a12622'><h2>404 — Page not found</h2><p>The file <code>" + safeName + "</code> does not exist in this project.</p><p>Create the file in Explorer or correct the link in your HTML.</p></body></html>";
-          return;
-        }
         const css = project.files["style.css"] || "";
         const js = project.files["script.js"] || "";
         const styleTag = css ? "<style>" + css.replace(/<\/style/gi, "</style") + "</style>" : "";
@@ -3612,7 +3610,7 @@ button.addEventListener("click", () => {
         if (data.type === "orbit-preview-console" && typeof data.text === "string") { terminalLog("[preview " + String(data.level || "log") + "] " + data.text.slice(0,1800)); return; }
         if (data.type !== "orbit-preview-navigate" || typeof data.file !== "string") return;
         buildPreview(data.file, typeof data.hash === "string" ? data.hash : "");
-        if (!Object.hasOwn(currentProject().files, data.file)) showToast("404: " + data.file + " was not found. Check the file name and capitalization.");
+        // Missing project links are silently ignored by buildPreview.
       });
       const previewSplitter = document.getElementById("previewSplitter");
       const mainArea = previewSplitter.closest(".main-area");

@@ -425,6 +425,7 @@
       </button>
       <div class="topbar-spacer"></div>
       <button class="top-action" id="themeToggle" type="button" title="Switch color theme" aria-label="Switch color theme" aria-pressed="false">◐</button>
+      <button class="top-action" id="profileButton" type="button" hidden>Profile</button>
       <div class="save-state" title="Saved in this browser">
         <span class="save-dot" id="saveDot"></span><span id="saveLabel">Saved locally</span>
       </div>
@@ -480,6 +481,7 @@
             <button class="toolbar-button" id="redoButton" type="button" title="Redo">↷ Redo</button>
             <button class="toolbar-button" id="formatButton" type="button" title="Format code"><span aria-hidden="true">⌘</span><span>Format</span></button>
             <button class="toolbar-button" id="checkProjectButton" type="button" title="Check project for common problems">✓ Check</button>
+          <button class="toolbar-button" id="terminalToggle" type="button" title="Toggle terminal (Control/Command + backtick)">⌘ Terminal</button>
           <button class="toolbar-button" id="runButton" type="button" title="Run preview (Ctrl+Enter)"><span aria-hidden="true">▶</span><span>Run</span></button>
           </div>
         </div>
@@ -505,6 +507,25 @@
           </div>
           <div class="preview-frame-wrap">
             <iframe class="preview-frame" id="previewFrame" title="Live project preview" sandbox="allow-scripts"></iframe>
+          </div>
+        </section>
+        <section class="terminal-panel" id="terminalPanel" hidden aria-label="Terminal panel">
+          <div class="terminal-header">
+            <div class="terminal-tabs" role="tablist" aria-label="Bottom panel">
+              <button type="button" class="terminal-tab active" data-terminal-tab="terminal" role="tab" aria-selected="true">TERMINAL</button>
+              <button type="button" class="terminal-tab" data-terminal-tab="output" role="tab" aria-selected="false">OUTPUT</button>
+              <button type="button" class="terminal-tab" data-terminal-tab="problems" role="tab" aria-selected="false">PROBLEMS</button>
+            </div>
+            <span class="terminal-mode">Browser workspace</span>
+            <button type="button" class="terminal-close" id="terminalClose" aria-label="Close terminal">×</button>
+          </div>
+          <div class="terminal-content">
+            <pre class="terminal-output" id="terminalOutput" aria-live="polite">Orbit browser terminal · type help to see available commands.</pre>
+            <div class="terminal-problems" id="terminalProblems" hidden></div>
+            <form class="terminal-command-form" id="terminalForm">
+              <label for="terminalInput">orbit $</label>
+              <input id="terminalInput" autocomplete="off" spellcheck="false" placeholder="help" aria-label="Terminal command">
+            </form>
           </div>
         </section>
       </main>
@@ -573,6 +594,27 @@
         <button type="button" class="danger" id="acceptConfirmDialog">Sign out</button>
       </div>
     </section>
+  </div>
+  <div class="modal-backdrop" id="profileBackdrop" hidden>
+    <form class="modal profile-modal" id="profileForm">
+      <h2>Your Orbit profile</h2>
+      <p>Set up your creator identity. These fields will power public profiles and project sharing when Orbit's community launches.</p>
+      <label for="profileUsername">Username</label>
+      <input id="profileUsername" readonly aria-readonly="true">
+      <label for="profileDisplayName">Display name</label>
+      <input id="profileDisplayName" maxlength="40" placeholder="How people should see you">
+      <label for="profileBio">Bio</label>
+      <textarea id="profileBio" maxlength="240" rows="3" placeholder="A little about what you build…"></textarea>
+      <label for="profileWebsite">Website</label>
+      <input id="profileWebsite" type="url" maxlength="300" placeholder="https://example.com">
+      <label for="profileAvatar">Avatar image URL (optional)</label>
+      <input id="profileAvatar" type="url" maxlength="300" placeholder="https://…">
+      <p class="profile-status" id="profileStatus" role="status" aria-live="polite"></p>
+      <div class="modal-actions">
+        <button type="button" id="profileCancel">Cancel</button>
+        <button class="confirm" type="submit" id="profileSave">Save profile</button>
+      </div>
+    </form>
   </div>
   <div class="modal-backdrop" id="authBackdrop" hidden>
     <form class="modal" id="authForm">
@@ -1798,7 +1840,33 @@ button.addEventListener("click", () => {
         }
         const css = project.files["style.css"] || "";
         const js = project.files["script.js"] || "";
-        const styleTag = css ? "<style>" + css.replace(/<\/style/gi, "</style") + "</style>" : "";
+        const styleTag = css ? "<style>" + css.replace(/<\/style/gi, "</style") + "    .terminal-panel{grid-column:1/-1;grid-row:3;min-height:0;display:flex;flex-direction:column;border-top:1px solid var(--line);background:#1e1e1e;color:#d4d4d4;font:12px/1.5 ui-monospace,SFMono-Regular,Consolas,monospace}
+    .main-area{grid-template-rows:44px minmax(0,1fr) 0}
+    .main-area.terminal-open{grid-template-rows:44px minmax(160px,1fr) 230px}
+    .terminal-header{height:34px;flex:0 0 34px;display:flex;align-items:center;gap:14px;padding:0 12px;border-bottom:1px solid #3c3c3c;background:#252526}
+    .terminal-tabs{display:flex;align-items:stretch;height:100%;gap:15px}
+    .terminal-tab{padding:0 2px;border:0;border-bottom:1px solid transparent;background:transparent;color:#a0a0a0;font:10px system-ui,sans-serif;letter-spacing:.08em;cursor:pointer}
+    .terminal-tab.active{border-bottom-color:#3794ff;color:#fff}
+    .terminal-mode{margin-left:auto;color:#858585;font:10px system-ui,sans-serif}
+    .terminal-close{width:25px;height:25px;border:0;border-radius:4px;background:transparent;color:#aaa;font-size:18px;cursor:pointer}
+    .terminal-close:hover{background:#3a3a3a;color:white}
+    .terminal-content{flex:1;min-height:0;display:flex;flex-direction:column;padding:10px 14px}
+    .terminal-output{flex:1;min-height:0;overflow:auto;margin:0;white-space:pre-wrap;overflow-wrap:anywhere;color:#d4d4d4;font:12px/1.55 ui-monospace,SFMono-Regular,Consolas,monospace}
+    .terminal-command-form{display:flex;align-items:center;gap:9px;margin-top:8px;color:#4ec9b0}
+    .terminal-command-form label{white-space:nowrap}
+    .terminal-command-form input{flex:1;min-width:0;border:0;outline:none;background:transparent;color:#fff;font:12px ui-monospace,SFMono-Regular,Consolas,monospace}
+    .terminal-problems{flex:1;overflow:auto}
+    .terminal-problem{display:block;width:100%;padding:7px 8px;border:0;border-radius:4px;background:transparent;color:#e2e2e2;text-align:left;font:11px/1.5 ui-monospace,monospace;cursor:pointer}
+    .terminal-problem:hover{background:#333}
+    .terminal-problem-empty{padding:12px;color:#a0a0a0}
+    .profile-modal textarea{width:100%;min-height:76px;resize:vertical;padding:9px 10px;border:1px solid #bdbdbd;border-radius:7px;background:var(--bg);color:var(--text);font:12px/1.5 system-ui,sans-serif}
+    .profile-modal label:not(:first-child){margin-top:12px}
+    .profile-status{min-height:16px;margin:10px 0 0!important;font-size:10px}
+    body.dark-theme .profile-modal textarea{border-color:#555;background:#1e1e1e;color:var(--text)}
+    body.dark-theme .terminal-panel{border-color:#3c3c3c}
+    @media(max-width:850px){.editor-toolbar{gap:2px;padding:0 5px}.editor-toolbar .toolbar-button{padding:0 6px;font-size:9px}}
+    @media(max-width:650px){.main-area.terminal-open{grid-template-rows:44px minmax(140px,1fr) 210px}.terminal-mode{display:none}}
+</style>" : "";
         const scriptTag = js ? "<script>" + js.replace(/<\/script/gi, "<" + "/script") + "\n<" + "/script>" : "";
         html = html.replace(/<link\b(?=[^>]*\bhref\s*=\s*["']style\.css["'])[^>]*>/gi, "");
         html = html.replace(/<script\b(?=[^>]*\bsrc\s*=\s*["']script\.js["'])[^>]*>\s*<\/script\s*>/gi, "");

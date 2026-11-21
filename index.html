@@ -1130,11 +1130,14 @@ button.addEventListener("click", () => {
           const currentIds = new Set(projects.map(project => project.id));
           const removedIds = [...cloudProjectIds].filter(id => !currentIds.has(id));
           if (removedIds.length) {
-            const { error: deleteError } = await supabaseClient
-              .from("projects")
-              .delete()
-              .eq("user_id", userId)
-              .in("id", removedIds);
+            const {data:removedRows,error:readRemovedError}=await supabaseClient.from("projects").select("id,name,data").eq("user_id",userId).in("id",removedIds);
+            if(readRemovedError) throw readRemovedError;
+            if(removedRows&&removedRows.length){
+              const backups=removedRows.map(row=>({user_id:userId,kind:"project",project_id:String(row.id),project_name:row.name,project_data:row.data,deleted_at:new Date().toISOString(),expires_at:new Date(Date.now()+7*86400000).toISOString()}));
+              const {error:trashError}=await supabaseClient.from("trash_items").insert(backups);
+              if(trashError) throw trashError;
+            }
+            const { error: deleteError } = await supabaseClient.from("projects").delete().eq("user_id", userId).in("id", removedIds);
             if (deleteError) throw deleteError;
           }
           cloudProjectIds = currentIds;
@@ -1305,10 +1308,12 @@ button.addEventListener("click", () => {
           console.error("Could not restore the Orbit sign-in:", error);
           showToast("Couldn't check your sign-in. Please refresh and try again.");
         } else if (data.session) {
+          saveAccountSession(data.session);
           await loadCloudWorkspace(data.session);
         }
         supabaseClient.auth.onAuthStateChange((event, session) => {
           if (session) {
+            saveAccountSession(session);
             if (loadedCloudUserId !== session.user.id || !cloudReady) {
               queueMicrotask(() => loadCloudWorkspace(session));
             }
@@ -1529,13 +1534,23 @@ button.addEventListener("click", () => {
         if(Object.keys(project.files).length===1){showToast("Keep at least one file in your project.");return;}
         const ok=await askForConfirmation({title:"Delete this file?",description:`Delete "${file}" from this project?`,note:"You can restore it with Undo.",confirmText:"Delete file"});
         if(!ok||!Object.hasOwn(project.files,file))return;
+        try { await addTrashItem({kind:"file",project_id:state.activeProject,project_name:project.name,file_name:file,content:project.files[file]}); } catch(error) { showToast("The file was not deleted because its Bin backup could not be saved."); return; }
         fileDeletionUndo.push({projectId:state.activeProject,file,content:project.files[file],openFiles:[...project.openFiles],activeFile:project.activeFile});fileDeletionRedo.length=0;
         delete project.files[file];project.openFiles=project.openFiles.filter(x=>x!==file);
         if(project.activeFile===file){project.activeFile=project.openFiles.at(-1)||Object.keys(project.files)[0];elements.editor.dataset.file="";}
         render();scheduleSave();showToastWithUndo(`Deleted ${file}`);
       }
 
+      async function removeFileTrashAfterUndo(entry) {
+        if(cloudUser&&supabaseClient&&cloudReady) {
+          const {data}=await supabaseClient.from("trash_items").select("id,deleted_at").eq("user_id",cloudUser.id).eq("kind","file").eq("project_id",String(entry.projectId)).eq("file_name",entry.file).order("deleted_at",{ascending:false}).limit(1);
+          if(data&&data[0]) await supabaseClient.from("trash_items").delete().eq("id",data[0].id).eq("user_id",cloudUser.id);
+        } else {
+          const items=readLocalTrash();const index=items.findIndex(item=>item.kind==="file"&&String(item.project_id)===String(entry.projectId)&&item.file_name===entry.file);if(index>=0){items.splice(index,1);writeLocalTrash(items);}
+        }
+      }
       function restoreDeletedFile(entry) {
+        void removeFileTrashAfterUndo(entry);
         const p=state.projects[entry.projectId];if(!p||Object.hasOwn(p.files,entry.file))return false;
         p.files[entry.file]=entry.content;p.openFiles=[...entry.openFiles].filter(f=>Object.hasOwn(p.files,f));if(!p.openFiles.includes(entry.file))p.openFiles.push(entry.file);
         p.activeFile=entry.file;if(state.activeProject===entry.projectId)elements.editor.dataset.file="";render();scheduleSave();return true;
@@ -2472,7 +2487,7 @@ button.addEventListener("click", () => {
         elements.profileSave.disabled = true;
         const fallbackUsername = String(cloudUser.email || "").split("@")[0].slice(0,24);
         try {
-          const result = await supabaseClient.from("profiles").select("username,display_name,bio,avatar_url,featured_project_ids").eq("id",cloudUser.id).maybeSingle();
+          const result = await supabaseClient.from("profiles").select("username,display_name,bio,avatar_url,featured_project_ids,display_name_change_count,display_name_changed_at").eq("id",cloudUser.id).maybeSingle();
           if (result.error) throw result.error;
           profileRecord = result.data || {username:fallbackUsername};
           elements.profileUsername.value = profileRecord.username || fallbackUsername;
@@ -2481,7 +2496,8 @@ button.addEventListener("click", () => {
           renderProfileProjects(Array.isArray(profileRecord.featured_project_ids) ? profileRecord.featured_project_ids : []);
           elements.profileAvatar.value = profileRecord.avatar_url || "";
           renderProfileAvatar(profileRecord.avatar_url, profileRecord.display_name || profileRecord.username || fallbackUsername);
-          elements.profileStatus.textContent = "Your username is fixed. You can update your creator details."; 
+          updateDisplayNameCooldown();
+          elements.profileStatus.textContent += " Your username is fixed."; 
         } catch (error) {
           console.error("Could not load Orbit profile:",error);
           elements.profileStatus.textContent = "Could not load your profile. Please try again."; 
@@ -2504,10 +2520,11 @@ button.addEventListener("click", () => {
         elements.profileStatus.textContent = "Saving profile…";
         try {
           const payload = {id:cloudUser.id,username,username_key:username.toLowerCase(),display_name:displayName || null,bio:bio || null,avatar_url:avatar || null,featured_project_ids:featuredProjectIds,updated_at:new Date().toISOString()};
-          const result = await supabaseClient.from("profiles").upsert(payload,{onConflict:"id"});
+          const result = await supabaseClient.from("profiles").upsert(payload,{onConflict:"id"}).select("username,display_name,bio,avatar_url,featured_project_ids,display_name_change_count,display_name_changed_at").single();
           if (result.error) throw result.error;
-          profileRecord = payload;
-          renderProfileAvatar(payload.avatar_url, payload.display_name || payload.username);
+          profileRecord = result.data || payload;
+          renderProfileAvatar(profileRecord.avatar_url, profileRecord.display_name || profileRecord.username);
+          updateDisplayNameCooldown();
           elements.profileStatus.textContent = "Profile saved.";
           showToast("Your Orbit profile was saved.");
           window.setTimeout(() => {elements.profileBackdrop.hidden = true;},450);
@@ -2596,6 +2613,7 @@ button.addEventListener("click", () => {
             refresh_token: data.session.refresh_token
           });
           if (sessionError) throw sessionError;
+          saveAccountSession(data.session);
           closeAuth();
           await loadCloudWorkspace(data.session);
           showToast(authMode === "activate" ? "Your Orbit account is ready." : "Signed in successfully.");
@@ -2727,8 +2745,10 @@ button.addEventListener("click", () => {
       }
       async function deleteProject(id) {
         const p=state.projects[id];if(!p)return;if(Object.keys(state.projects).length<=1){showToast("Keep at least one project in Orbit.");return;}
-        const ok=await askForConfirmation({title:"Delete project?",description:`Delete "${p.name}" and all its files?`,note:"This also removes it from your synced account. This action cannot be undone.",confirmText:"Delete project"});
-        if(!ok||!state.projects[id])return;delete state.projects[id];if(state.activeProject===id)state.activeProject=Object.keys(state.projects)[0];
+        const ok=await askForConfirmation({title:"Delete project?",description:`Delete "${p.name}" and all its files?`,note:"A backup will stay in your Bin for 7 days, then expire automatically.",confirmText:"Delete project"});
+        if(!ok||!state.projects[id])return;
+        if(!cloudUser){try{await addTrashItem({kind:"project",project_id:id,project_name:p.name,project_data:{files:p.files,activeFile:p.activeFile,openFiles:p.openFiles}});}catch(error){showToast("Project was not deleted because its Bin backup could not be saved.");return;}}
+        delete state.projects[id];if(state.activeProject===id)state.activeProject=Object.keys(state.projects)[0];
         elements.editor.dataset.file="";render();scheduleSave();showToast("Project deleted.");
       }
 

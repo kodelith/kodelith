@@ -80,6 +80,15 @@
     .activity-button:hover, .activity-button.active { color: var(--text); }
     .activity-button.active { border-left-color: var(--accent); }
     .activity-bottom { flex: 1; }
+    .profile-activity { margin-top: 4px; border-top: 1px solid var(--line); padding-top: 7px; }
+    .profile-projects-heading { margin: 14px 0 4px; color: var(--muted); font-size: 10px; font-weight: 750; letter-spacing: .1em; }
+    .profile-projects-help { margin: 0 0 9px; color: var(--muted); font-size: 11px; line-height: 1.5; }
+    .profile-project-list { display: grid; gap: 6px; max-height: 170px; overflow: auto; padding: 2px 0; }
+    .profile-project-option { display:flex; align-items:center; gap:8px; padding:8px 9px; border:1px solid var(--line); border-radius:7px; background:var(--panel-raised); font-size:12px; }
+    .profile-project-option input { accent-color:var(--accent); }
+    .profile-project-empty { color:var(--muted); font-size:11px; padding:9px; border:1px dashed var(--line); border-radius:7px; }
+    .profile-upload-button { width:100%; margin:9px 0 4px; padding:9px 10px; border:1px dashed var(--line-strong); border-radius:7px; background:var(--panel-soft); color:var(--text); cursor:pointer; font:inherit; font-size:12px; }
+    .profile-upload-button:hover { border-color:var(--accent); background:var(--panel-raised); }
     .sidebar { width: 216px; flex: 0 0 216px; display: flex; flex-direction: column; background: var(--panel); border-right: 1px solid var(--line); }
     .projects-panel { padding:10px 9px 11px; border-bottom:1px solid var(--line); }
     .projects-panel-head { display:flex; align-items:center; justify-content:space-between; padding:0 5px 8px; color:var(--muted); font-size:10px; font-weight:750; letter-spacing:.11em; }
@@ -455,7 +464,6 @@
       </button>
       <div class="topbar-spacer"></div>
       <button class="top-action" id="themeToggle" type="button" title="Switch color theme" aria-label="Switch color theme" aria-pressed="false">◐</button>
-      <button class="top-action" id="profileButton" type="button" hidden>Profile</button>
       <div class="save-state" title="Saved in this browser">
         <span class="save-dot" id="saveDot"></span><span id="saveLabel">Saved locally</span>
       </div>
@@ -474,6 +482,7 @@
         <button class="activity-button" id="newFileActivity" type="button" title="New file" aria-label="New file">＋</button>
         <div class="activity-bottom"></div>
         <button class="activity-button" id="importActivity" type="button" title="Import project" aria-label="Import project">↥</button>
+        <button class="activity-button profile-activity" id="profileButton" type="button" title="Your profile" aria-label="Your profile" hidden>◎</button>
       </nav>
 
       <aside class="sidebar" aria-label="Workspace">
@@ -635,8 +644,10 @@
       <input id="profileDisplayName" maxlength="40" placeholder="How people should see you">
       <label for="profileBio">Bio</label>
       <textarea id="profileBio" maxlength="240" rows="3" placeholder="A little about what you build…"></textarea>
-      <label for="profileWebsite">Website</label>
-      <input id="profileWebsite" type="url" maxlength="300" placeholder="https://example.com">
+      <div class="profile-projects-heading">PROJECTS ON YOUR PROFILE</div>
+      <p class="profile-projects-help">Connect projects already in Orbit, or upload an Orbit project backup to add one.</p>
+      <div class="profile-project-list" id="profileProjects"></div>
+      <button type="button" class="profile-upload-button" id="profileUploadButton">＋ Upload Orbit project backup</button>
       <label for="profileAvatar">Avatar image URL (optional)</label>
       <input id="profileAvatar" type="url" maxlength="300" placeholder="https://…">
       <p class="profile-status" id="profileStatus" role="status" aria-live="polite"></p>
@@ -797,7 +808,8 @@ button.addEventListener("click", () => {
         profileUsername: document.getElementById("profileUsername"),
         profileDisplayName: document.getElementById("profileDisplayName"),
         profileBio: document.getElementById("profileBio"),
-        profileWebsite: document.getElementById("profileWebsite"),
+        profileProjects: document.getElementById("profileProjects"),
+        profileUploadButton: document.getElementById("profileUploadButton"),
         profileAvatar: document.getElementById("profileAvatar"),
         profileStatus: document.getElementById("profileStatus"),
         profileSave: document.getElementById("profileSave"),
@@ -2205,6 +2217,23 @@ button.addEventListener("click", () => {
       }
 
       let profileRecord = null;
+      function getSelectedProfileProjectIds() {
+        return [...elements.profileProjects.querySelectorAll("input[data-project-id]:checked")].map(input => input.dataset.projectId).filter(id => Object.hasOwn(state.projects,id)).slice(0,6);
+      }
+      function renderProfileProjects(selectedIds = []) {
+        if (!elements.profileProjects) return;
+        const selected = new Set(selectedIds.filter(id => Object.hasOwn(state.projects,id)).slice(0,6));
+        elements.profileProjects.replaceChildren();
+        const projects = Object.entries(state.projects);
+        if (!projects.length) { const empty=document.createElement("div"); empty.className="profile-project-empty"; empty.textContent="No projects yet. Upload a backup or create a project first."; elements.profileProjects.append(empty); return; }
+        for (const [id,project] of projects) {
+          const label=document.createElement("label"); label.className="profile-project-option";
+          const checkbox=document.createElement("input"); checkbox.type="checkbox"; checkbox.dataset.projectId=id; checkbox.checked=selected.has(id);
+          checkbox.addEventListener("change",()=>{if(getSelectedProfileProjectIds().length>6){checkbox.checked=false;showToast("You can connect up to 6 projects.");}});
+          const name=document.createElement("span"); name.textContent=project.name;
+          label.append(checkbox,name); elements.profileProjects.append(label);
+        }
+      }
       async function openProfile() {
         if (!cloudUser || !supabaseClient) { showToast("Sign in to set up your Orbit profile."); return; }
         elements.profileBackdrop.hidden = false;
@@ -2212,13 +2241,13 @@ button.addEventListener("click", () => {
         elements.profileSave.disabled = true;
         const fallbackUsername = String(cloudUser.email || "").split("@")[0].slice(0,24);
         try {
-          const result = await supabaseClient.from("profiles").select("username,display_name,bio,website_url,avatar_url").eq("id",cloudUser.id).maybeSingle();
+          const result = await supabaseClient.from("profiles").select("username,display_name,bio,avatar_url,featured_project_ids").eq("id",cloudUser.id).maybeSingle();
           if (result.error) throw result.error;
           profileRecord = result.data || {username:fallbackUsername};
           elements.profileUsername.value = profileRecord.username || fallbackUsername;
           elements.profileDisplayName.value = profileRecord.display_name || "";
           elements.profileBio.value = profileRecord.bio || "";
-          elements.profileWebsite.value = profileRecord.website_url || "";
+          renderProfileProjects(Array.isArray(profileRecord.featured_project_ids) ? profileRecord.featured_project_ids : []);
           elements.profileAvatar.value = profileRecord.avatar_url || "";
           elements.profileStatus.textContent = "Your username is fixed. You can update your creator details."; 
         } catch (error) {
@@ -2233,16 +2262,16 @@ button.addEventListener("click", () => {
         const username = elements.profileUsername.value.trim();
         const displayName = elements.profileDisplayName.value.trim();
         const bio = elements.profileBio.value.trim();
-        const website = elements.profileWebsite.value.trim();
+        const featuredProjectIds = getSelectedProfileProjectIds();
         const avatar = elements.profileAvatar.value.trim();
         const validUrl = value => { if (!value) return true; try { const url = new URL(value); return url.protocol === "https:" || url.protocol === "http:"; } catch { return false; } };
-        if (!username || displayName.length > 40 || bio.length > 240 || !validUrl(website) || !validUrl(avatar)) {
-          elements.profileStatus.textContent = "Check the length limits and use full http:// or https:// links."; return;
+        if (!username || displayName.length > 40 || bio.length > 240 || !validUrl(avatar) || featuredProjectIds.length > 6) {
+          elements.profileStatus.textContent = "Check the profile details and choose up to 6 projects."; return;
         }
         elements.profileSave.disabled = true;
         elements.profileStatus.textContent = "Saving profile…";
         try {
-          const payload = {id:cloudUser.id,username,username_key:username.toLowerCase(),display_name:displayName || null,bio:bio || null,website_url:website || null,avatar_url:avatar || null,updated_at:new Date().toISOString()};
+          const payload = {id:cloudUser.id,username,username_key:username.toLowerCase(),display_name:displayName || null,bio:bio || null,avatar_url:avatar || null,featured_project_ids:featuredProjectIds,updated_at:new Date().toISOString()};
           const result = await supabaseClient.from("profiles").upsert(payload,{onConflict:"id"});
           if (result.error) throw result.error;
           profileRecord = payload;
@@ -2657,10 +2686,14 @@ button.addEventListener("click", () => {
       document.getElementById("exportButton").addEventListener("click", exportProject);
       document.getElementById("downloadButton").addEventListener("click", exportProject);
       document.getElementById("importActivity").addEventListener("click", () => elements.importInput.click());
-      elements.importInput.addEventListener("change", () => {
-        if (elements.importInput.files && elements.importInput.files[0]) importProject(elements.importInput.files[0]);
+      elements.importInput.addEventListener("change", async () => {
+        if (elements.importInput.files && elements.importInput.files[0]) {
+          await importProject(elements.importInput.files[0]);
+          if (!elements.profileBackdrop.hidden) renderProfileProjects([...getSelectedProfileProjectIds(),state.activeProject]);
+        }
       });
       elements.profileButton.addEventListener("click",openProfile);
+      elements.profileUploadButton.addEventListener("click",() => elements.importInput.click());
       elements.profileForm.addEventListener("submit",saveProfile);
       document.getElementById("profileCancel").addEventListener("click",() => {elements.profileBackdrop.hidden=true;});
       elements.profileBackdrop.addEventListener("click",event => {if(event.target===elements.profileBackdrop)elements.profileBackdrop.hidden=true;});

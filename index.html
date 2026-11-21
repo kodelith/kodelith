@@ -1133,9 +1133,11 @@ button.addEventListener("click", () => {
             const {data:removedRows,error:readRemovedError}=await supabaseClient.from("projects").select("id,name,data").eq("user_id",userId).in("id",removedIds);
             if(readRemovedError) throw readRemovedError;
             if(removedRows&&removedRows.length){
-              const backups=removedRows.map(row=>({user_id:userId,kind:"project",project_id:String(row.id),project_name:row.name,project_data:row.data,deleted_at:new Date().toISOString(),expires_at:new Date(Date.now()+7*86400000).toISOString()}));
-              const {error:trashError}=await supabaseClient.from("trash_items").insert(backups);
-              if(trashError) throw trashError;
+              const {data:existingTrash,error:existingTrashError}=await supabaseClient.from("trash_items").select("project_id").eq("user_id",userId).eq("kind","project").in("project_id",removedIds).gt("expires_at",new Date().toISOString());
+              if(existingTrashError) throw existingTrashError;
+              const alreadyBackedUp=new Set((existingTrash||[]).map(item=>String(item.project_id)));
+              const backups=removedRows.filter(row=>!alreadyBackedUp.has(String(row.id))).map(row=>({user_id:userId,kind:"project",project_id:String(row.id),project_name:row.name,project_data:row.data,deleted_at:new Date().toISOString(),expires_at:new Date(Date.now()+7*86400000).toISOString()}));
+              if(backups.length){const {error:trashError}=await supabaseClient.from("trash_items").insert(backups);if(trashError) throw trashError;}
             }
             const { error: deleteError } = await supabaseClient.from("projects").delete().eq("user_id", userId).in("id", removedIds);
             if (deleteError) throw deleteError;
@@ -2748,7 +2750,7 @@ button.addEventListener("click", () => {
         const p=state.projects[id];if(!p)return;if(Object.keys(state.projects).length<=1){showToast("Keep at least one project in Orbit.");return;}
         const ok=await askForConfirmation({title:"Delete project?",description:`Delete "${p.name}" and all its files?`,note:"A backup will stay in your Bin for 7 days, then expire automatically.",confirmText:"Delete project"});
         if(!ok||!state.projects[id])return;
-        if(!cloudUser){try{await addTrashItem({kind:"project",project_id:id,project_name:p.name,project_data:{files:p.files,activeFile:p.activeFile,openFiles:p.openFiles}});}catch(error){showToast("Project was not deleted because its Bin backup could not be saved.");return;}}
+        try{await addTrashItem({kind:"project",project_id:id,project_name:p.name,project_data:{files:p.files,activeFile:p.activeFile,openFiles:p.openFiles}});}catch(error){showToast("Project was not deleted because its Bin backup could not be saved.");return;}
         delete state.projects[id];if(state.activeProject===id)state.activeProject=Object.keys(state.projects)[0];
         elements.editor.dataset.file="";render();if(cloudUser&&cloudReady)saveCloudProjects();else scheduleSave();showToast("Project deleted. Find it in Settings → Bin for 7 days.");
       }

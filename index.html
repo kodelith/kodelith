@@ -650,10 +650,10 @@
       <label for="profileBio">Bio</label>
       <textarea id="profileBio" maxlength="240" rows="3" placeholder="A little about what you build…"></textarea>
       <div class="profile-projects-heading">PROJECTS ON YOUR PROFILE</div>
-      <p class="profile-projects-help">Connect a project already in Orbit, or upload an Orbit ZIP export / JSON backup.</p>
+      <p class="profile-projects-help">Choose projects already saved in your Orbit workspace to feature on your profile.</p>
       <div class="profile-project-picker-row"><select class="profile-project-picker" id="profileProjectPicker" aria-label="Choose an Orbit project"><option value="">Choose an Orbit project…</option></select><button type="button" class="profile-add-project" id="profileAddProjectButton">＋ Add</button></div>
       <div class="profile-project-list" id="profileProjects"></div>
-      <label for="profileAvatar">Avatar image URL (optional)</label>
+      <label for="profileAvatar">Profile picture URL (optional)</label>
       <input id="profileAvatar" type="url" maxlength="300" placeholder="https://…">
       <p class="profile-status" id="profileStatus" role="status" aria-live="polite"></p>
       <div class="modal-actions">
@@ -1155,6 +1155,7 @@ button.addEventListener("click", () => {
         elements.accountButton.textContent = "Sign out";
         elements.accountButton.disabled = false;
         elements.profileButton.hidden = false;
+        void refreshProfileAvatar();
         elements.storageCopy.textContent = cachedWorkspace ? "Restored your workspace from this device while checking for newer cloud changes." : "Loading your cloud workspace…";
         if (cachedWorkspace) {
           state = cachedWorkspace;
@@ -2256,6 +2257,17 @@ button.addEventListener("click", () => {
           const fallback=document.createElement("span"); fallback.className="profile-avatar-fallback"; fallback.textContent=(String(username||"O").trim().charAt(0)||"O").toUpperCase(); elements.profileButton.append(fallback);
         }
       }
+      async function refreshProfileAvatar() {
+        if (!cloudUser || !supabaseClient) return;
+        const fallback=String(cloudUser.email || "").split("@")[0].slice(0,24);
+        renderProfileAvatar(profileRecord && profileRecord.avatar_url, profileRecord && (profileRecord.display_name || profileRecord.username) || fallback);
+        try {
+          const {data,error}=await supabaseClient.from("profiles").select("username,display_name,avatar_url").eq("id",cloudUser.id).maybeSingle();
+          if(error) throw error;
+          if(data) { profileRecord={...(profileRecord||{}),...data}; renderProfileAvatar(data.avatar_url,data.display_name||data.username||fallback); }
+        } catch(error) { console.warn("Could not load profile avatar:",error); }
+      }
+
       async function openProfile() {
         if (!cloudUser || !supabaseClient) { showToast("Sign in to set up your Orbit profile."); return; }
         elements.profileBackdrop.hidden = false;

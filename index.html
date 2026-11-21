@@ -1177,6 +1177,8 @@ button.addEventListener("click", () => {
         elements.accountButton.textContent = "Sign in";
         elements.accountButton.title = "Sign in to sync your projects across devices.";
         elements.profileButton.hidden = true;
+        profileRecord = null;
+        elements.profileButton.hidden = true;
         elements.storageCopy.textContent = "Sign in to save your projects to your account and open them on another device.";
         elements.saveLabel.textContent = "Saved locally";
         elements.saveDot.style.background = "var(--green)";
@@ -1907,7 +1909,7 @@ button.addEventListener("click", () => {
 
       let latestDiagnostics = [];
 
-      function runProjectChecks() {
+      function runProjectChecks(showDialog = true) {
         saveEditorValue();
         const project = currentProject();
         const issues = [];
@@ -1994,12 +1996,86 @@ button.addEventListener("click", () => {
             elements.diagnosticsList.append(button);
           }
         }
-        elements.diagnosticsBackdrop.hidden = false;
+        if (showDialog) elements.diagnosticsBackdrop.hidden = false;
         return issues;
       }
 
       function closeDiagnostics() {
         elements.diagnosticsBackdrop.hidden = true;
+      }
+
+      let terminalLines = ["Orbit browser terminal · type help to see available commands."];
+      let terminalHistory = [];
+      let terminalHistoryIndex = 0;
+
+      function terminalLog(message) {
+        terminalLines.push(String(message));
+        if (terminalLines.length > 160) terminalLines = terminalLines.slice(-160);
+        elements.terminalOutput.textContent = terminalLines.join("\n");
+        elements.terminalOutput.scrollTop = elements.terminalOutput.scrollHeight;
+      }
+
+      function renderTerminalProblems() {
+        elements.terminalProblems.replaceChildren();
+        if (!latestDiagnostics.length) {
+          const empty = document.createElement("div"); empty.className = "terminal-problem-empty";
+          empty.textContent = "No problems detected. Run check to scan this project."; elements.terminalProblems.append(empty); return;
+        }
+        latestDiagnostics.forEach(issue => {
+          const button = document.createElement("button"); button.type = "button"; button.className = "terminal-problem";
+          button.textContent = (issue.severity === "warning" ? "Warning: " : "Error: ") + issue.message + " — " + issue.file + ":" + issue.line;
+          button.addEventListener("click",() => {activateFile(issue.file);elements.editor.focus();elements.editor.setSelectionRange(issue.index,issue.index);});
+          elements.terminalProblems.append(button);
+        });
+      }
+
+      function setTerminalTab(tab) {
+        document.querySelectorAll("[data-terminal-tab]").forEach(button => {
+          const active = button.dataset.terminalTab === tab; button.classList.toggle("active",active); button.setAttribute("aria-selected",String(active));
+        });
+        elements.terminalOutput.hidden = tab === "problems";
+        elements.terminalProblems.hidden = tab !== "problems";
+        elements.terminalForm.hidden = tab !== "terminal";
+        if (tab === "problems") renderTerminalProblems();
+        if (tab === "terminal") elements.terminalInput.focus();
+      }
+
+      function openTerminal(tab = "terminal") {
+        elements.terminalPanel.hidden = false; elements.terminalPanel.closest(".main-area").classList.add("terminal-open");
+        elements.terminalToggle.classList.add("active"); setTerminalTab(tab);
+      }
+
+      function closeTerminal() {
+        elements.terminalPanel.hidden = true; elements.terminalPanel.closest(".main-area").classList.remove("terminal-open");
+        elements.terminalToggle.classList.remove("active");
+      }
+
+      function runTerminalCommand(raw) {
+        const commandLine = String(raw || "").trim(); if (!commandLine) return;
+        terminalHistory.push(commandLine); terminalHistoryIndex = terminalHistory.length; terminalLog("orbit $ " + commandLine);
+        const space = commandLine.indexOf(" ");
+        const command = (space < 0 ? commandLine : commandLine.slice(0,space)).toLowerCase();
+        const argument = space < 0 ? "" : commandLine.slice(space+1).trim();
+        const project = currentProject();
+        switch (command) {
+          case "help":
+            terminalLog("Commands: help, clear, pwd, ls, cat <file>, open <file>, new <file>, echo <text>, date, whoami, preview, run, check, profile.");
+            terminalLog("Browser terminal only: it cannot execute Mac shell commands, npm, git, or Python."); break;
+          case "clear": terminalLines = []; elements.terminalOutput.textContent = ""; break;
+          case "pwd": terminalLog("/workspace/" + slugify(project.name)); break;
+          case "ls": terminalLog(Object.keys(project.files).length ? Object.keys(project.files).join("    ") : "(empty project — no files)"); break;
+          case "cat": { const file = argument || project.activeFile; if (!file || !Object.hasOwn(project.files,file)) terminalLog("File not found. Use ls to list files."); else terminalLog(project.files[file] || "(empty file)"); break; }
+          case "open": if (!argument || !Object.hasOwn(project.files,argument)) terminalLog("Usage: open <existing-filename>. Use ls to list files."); else {activateFile(argument);terminalLog("Opened " + argument);} break;
+          case "new": if (!argument) terminalLog("Usage: new <filename>"); else if (createFile(argument)) terminalLog("Created " + argument); break;
+          case "echo": terminalLog(argument); break;
+          case "date": terminalLog(new Date().toString()); break;
+          case "whoami": terminalLog(cloudUser ? (profileRecord && profileRecord.username || cloudUser.email || "signed-in user") : "local guest"); break;
+          case "preview": case "run": saveEditorValue(); buildPreview(); terminalLog("Live preview refreshed. This does not execute shell scripts."); break;
+          case "check": { saveEditorValue(); const issues = runProjectChecks(false); renderTerminalProblems(); terminalLog(issues.length ? issues.length + " problem(s) found. Open the Problems tab." : "Project checks passed: no common HTML/JavaScript issues found."); setTerminalTab("problems"); break; }
+          case "profile": if (cloudUser) openProfile(); else terminalLog("Sign in to open your Orbit profile."); break;
+          case "npm": case "npx": case "git": case "python": terminalLog(command + " needs a server-side development runtime. This browser-only terminal cannot run system commands."); break;
+          default: terminalLog("Command not found: " + command + ". Type help for supported commands.");
+        }
       }
 
       const orbitCommands = [
@@ -2015,6 +2091,8 @@ button.addEventListener("click", () => {
         { name:"Undo", group:"Editor", shortcut:"⌘ Z", run:() => undoOrbit() },
         { name:"Redo", group:"Editor", shortcut:"⌘ ⇧ Z", run:() => redoOrbit() },
         { name:"Toggle dark/light theme", group:"Appearance", shortcut:"", run:() => themeToggle.click() },
+        { name:"Toggle terminal", group:"Panel", shortcut:"Ctrl/⌘ + backtick", run:() => elements.terminalPanel.hidden ? openTerminal() : closeTerminal() },
+        { name:"Open profile", group:"Account", shortcut:"", run:() => openProfile() },
         { name:"Focus code editor", group:"Editor", shortcut:"", run:() => elements.editor.focus() }
       ];
 
@@ -2520,6 +2598,10 @@ button.addEventListener("click", () => {
       elements.importInput.addEventListener("change", () => {
         if (elements.importInput.files && elements.importInput.files[0]) importProject(elements.importInput.files[0]);
       });
+      elements.profileButton.addEventListener("click",openProfile);
+      elements.profileForm.addEventListener("submit",saveProfile);
+      document.getElementById("profileCancel").addEventListener("click",() => {elements.profileBackdrop.hidden=true;});
+      elements.profileBackdrop.addEventListener("click",event => {if(event.target===elements.profileBackdrop)elements.profileBackdrop.hidden=true;});
       elements.accountButton.addEventListener("click", async () => {
         if (!cloudUser) {
           openAuth("signin");
@@ -2650,6 +2732,14 @@ button.addEventListener("click", () => {
       elements.aiPrompt.addEventListener("keydown", event => {
         if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); elements.aiForm.requestSubmit(); }
       });
+      elements.terminalToggle.addEventListener("click",() => elements.terminalPanel.hidden ? openTerminal() : closeTerminal());
+      document.getElementById("terminalClose").addEventListener("click",closeTerminal);
+      document.querySelectorAll("[data-terminal-tab]").forEach(button => button.addEventListener("click",() => setTerminalTab(button.dataset.terminalTab)));
+      elements.terminalForm.addEventListener("submit",event => {event.preventDefault();const command=elements.terminalInput.value;elements.terminalInput.value="";runTerminalCommand(command);});
+      elements.terminalInput.addEventListener("keydown",event => {
+        if(event.key==="ArrowUp" && terminalHistory.length){event.preventDefault();terminalHistoryIndex=Math.max(0,terminalHistoryIndex-1);elements.terminalInput.value=terminalHistory[terminalHistoryIndex]||"";}
+        if(event.key==="ArrowDown" && terminalHistory.length){event.preventDefault();terminalHistoryIndex=Math.min(terminalHistory.length,terminalHistoryIndex+1);elements.terminalInput.value=terminalHistory[terminalHistoryIndex]||"";}
+      });
       document.getElementById("runButton").addEventListener("click", () => {
         saveEditorValue();
         buildPreview();
@@ -2755,6 +2845,8 @@ button.addEventListener("click", () => {
           saveEditorValue();
           buildPreview();
         }
+        if ((event.metaKey || event.ctrlKey) && event.key === "`") {event.preventDefault();elements.terminalPanel.hidden ? openTerminal() : closeTerminal();}
+        if (event.key === "Escape" && !elements.profileBackdrop.hidden) elements.profileBackdrop.hidden = true;
         if (event.key === "Escape" && !elements.modalBackdrop.hidden) closeNameModal();
         if (event.key === "Escape" && !elements.authBackdrop.hidden) closeAuth();
       });

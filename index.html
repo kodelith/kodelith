@@ -80,7 +80,7 @@
     .activity-button:hover, .activity-button.active { color: var(--text); }
     .activity-button.active { border-left-color: var(--accent); }
     .activity-bottom { flex: 1; }
-    .profile-activity { margin-top: 4px; border-top: 1px solid var(--line); padding-top: 7px; width:36px; height:36px; border-radius:50%; overflow:hidden; border:2px solid var(--line-strong); padding:0; }
+    .profile-activity { position:relative; margin-top:4px; border-top:1px solid var(--line); padding-top:7px; width:36px; height:36px; border-radius:50%; overflow:visible; border:2px solid var(--line-strong); padding:0; }
     .modal.settings-modal { width:min(620px,100%); max-height:min(82vh,760px); overflow:auto; }
     .settings-tabs { display:flex; gap:6px; border-bottom:1px solid var(--line); margin:14px 0; padding-bottom:8px; }
     .settings-tab { padding:7px 11px; border:1px solid var(--line); border-radius:7px; background:var(--panel-soft); color:var(--text); cursor:pointer; font:inherit; font-size:12px; }
@@ -98,6 +98,7 @@
     .bin-item-actions button,.account-item button { padding:6px 9px; border:1px solid var(--line); border-radius:6px; background:var(--panel-soft); color:var(--text); cursor:pointer; font:inherit; font-size:11px; }
     .settings-empty { padding:18px; text-align:center; border:1px dashed var(--line); border-radius:8px; color:var(--muted); font-size:12px; }
     .profile-activity img { width:100%; height:100%; display:block; object-fit:cover; border-radius:50%; }
+    .profile-verified-badge { position:absolute; right:-3px; bottom:-3px; width:15px; height:15px; display:grid; place-items:center; border:2px solid var(--panel); border-radius:50%; background:#1d9bf0; color:#fff; font-size:10px; line-height:1; font-weight:900; box-shadow:0 1px 3px #0005; }
     .profile-avatar-fallback { width:100%; height:100%; display:grid; place-items:center; border-radius:50%; background:var(--panel-raised); color:var(--text); font-size:13px; font-weight:750; }
     .profile-project-picker-row { display:flex; gap:7px; margin:8px 0; }
     .profile-project-picker { min-width:0; flex:1; padding:8px; border:1px solid var(--line); border-radius:7px; background:var(--panel-raised); color:var(--text); font:inherit; font-size:12px; }
@@ -2477,6 +2478,20 @@ button.addEventListener("click", () => {
           elements.profileButton.append(img);
         } else {
           const fallback=document.createElement("span"); fallback.className="profile-avatar-fallback"; fallback.textContent=(String(username||"O").trim().charAt(0)||"O").toUpperCase(); elements.profileButton.append(fallback);
+        }
+        const accountUsername=String(profileRecord&&profileRecord.username || (cloudUser&&cloudUser.email||"").split("@")[0] || "").trim().toLowerCase();
+        if(accountUsername==="sagar") {
+          const verified=document.createElement("span");
+          verified.className="profile-verified-badge";
+          verified.textContent="✓";
+          verified.title="Verified Orbit account";
+          verified.setAttribute("aria-label","Verified account");
+          elements.profileButton.append(verified);
+          elements.profileButton.title="Your profile · Verified";
+          elements.profileButton.setAttribute("aria-label","Your verified profile");
+        } else {
+          elements.profileButton.title="Your profile";
+          elements.profileButton.setAttribute("aria-label","Your profile");
         }
       }
       async function refreshProfileAvatar() {

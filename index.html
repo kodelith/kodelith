@@ -81,6 +81,21 @@
     .activity-button.active { border-left-color: var(--accent); }
     .activity-bottom { flex: 1; }
     .profile-activity { margin-top: 4px; border-top: 1px solid var(--line); padding-top: 7px; width:36px; height:36px; border-radius:50%; overflow:hidden; border:2px solid var(--line-strong); padding:0; }
+    .settings-modal { width:min(620px,100%); max-height:min(82vh,760px); overflow:auto; }
+    .settings-tabs { display:flex; gap:6px; border-bottom:1px solid var(--line); margin:14px 0; padding-bottom:8px; }
+    .settings-tab { padding:7px 11px; border:1px solid var(--line); border-radius:7px; background:var(--panel-soft); color:var(--text); cursor:pointer; font:inherit; font-size:12px; }
+    .settings-tab.active { border-color:var(--accent); background:var(--panel-raised); }
+    .settings-section[hidden] { display:none; }
+    .settings-row { display:flex; align-items:flex-start; justify-content:space-between; gap:14px; padding:12px 0; border-bottom:1px solid var(--line); }
+    .settings-row strong { display:block; font-size:12px; }
+    .settings-row small { display:block; margin-top:4px; color:var(--muted); font-size:11px; line-height:1.5; }
+    .bin-list,.account-list { display:grid; gap:8px; max-height:48vh; overflow:auto; }
+    .bin-item,.account-item { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:10px; border:1px solid var(--line); border-radius:8px; background:var(--panel-raised); }
+    .bin-item-title,.account-item-title { min-width:0; font-size:12px; font-weight:650; overflow-wrap:anywhere; }
+    .bin-item-meta,.account-item-meta { margin-top:3px; color:var(--muted); font-size:10px; }
+    .bin-item-actions { display:flex; gap:6px; flex-shrink:0; }
+    .bin-item-actions button,.account-item button { padding:6px 9px; border:1px solid var(--line); border-radius:6px; background:var(--panel-soft); color:var(--text); cursor:pointer; font:inherit; font-size:11px; }
+    .settings-empty { padding:18px; text-align:center; border:1px dashed var(--line); border-radius:8px; color:var(--muted); font-size:12px; }
     .profile-activity img { width:100%; height:100%; display:block; object-fit:cover; border-radius:50%; }
     .profile-avatar-fallback { width:100%; height:100%; display:grid; place-items:center; border-radius:50%; background:var(--panel-raised); color:var(--text); font-size:13px; font-weight:750; }
     .profile-project-picker-row { display:flex; gap:7px; margin:8px 0; }
@@ -487,6 +502,7 @@
         <button class="activity-button" id="newFileActivity" type="button" title="New file" aria-label="New file">＋</button>
         <div class="activity-bottom"></div>
         <button class="activity-button" id="importActivity" type="button" title="Import project" aria-label="Import project">↥</button>
+        <button class="activity-button" id="settingsActivity" type="button" title="Settings" aria-label="Settings">⚙</button>
         <button class="activity-button profile-activity" id="profileButton" type="button" title="Your profile" aria-label="Your profile" hidden>◎</button>
       </nav>
 
@@ -662,6 +678,34 @@
       </div>
     </form>
   </div>
+  <div class="modal-backdrop" id="settingsBackdrop" hidden>
+    <section class="modal settings-modal" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
+      <h2 id="settingsTitle">Orbit settings</h2>
+      <p>Manage your account, workspace and deleted work.</p>
+      <div class="settings-tabs" role="tablist">
+        <button class="settings-tab active" id="settingsGeneralTab" type="button" role="tab" aria-selected="true">General</button>
+        <button class="settings-tab" id="settingsBinTab" type="button" role="tab" aria-selected="false">Bin</button>
+      </div>
+      <section class="settings-section" id="settingsGeneralSection">
+        <div class="settings-row"><div><strong>Display name</strong><small>First change is free. The next changes require 1 hour, then 1 day, then 7 days between changes. Your username never changes.</small></div></div>
+        <div class="settings-row"><div><strong>Deleted work</strong><small>Projects and files stay in the Bin for 7 days before they expire. Restore them any time before expiry.</small></div><button class="settings-tab" id="settingsOpenBin" type="button">Open Bin</button></div>
+        <div class="settings-row"><div><strong>Accounts</strong><small>Add another Orbit account and switch between saved accounts from the account menu.</small></div><button class="settings-tab" id="settingsManageAccounts" type="button">Manage accounts</button></div>
+      </section>
+      <section class="settings-section" id="settingsBinSection" hidden>
+        <div class="settings-row"><div><strong>Recently deleted</strong><small>Items are automatically removed after 7 days. Restore puts them back into your workspace.</small></div><button class="settings-tab" id="settingsRefreshBin" type="button">Refresh</button></div>
+        <div class="bin-list" id="settingsBinList"><div class="settings-empty">Loading Bin…</div></div>
+      </section>
+      <div class="modal-actions"><button type="button" id="settingsClose">Close</button></div>
+    </section>
+  </div>
+  <div class="modal-backdrop" id="accountBackdrop" hidden>
+    <section class="modal" role="dialog" aria-modal="true" aria-labelledby="accountManagerTitle">
+      <h2 id="accountManagerTitle">Your Orbit accounts</h2>
+      <p>Switch accounts instantly or add another account. Saved sessions stay on this device.</p>
+      <div class="account-list" id="accountList"></div>
+      <div class="modal-actions"><button type="button" id="accountAddButton" class="confirm">＋ Add account</button><button type="button" id="accountCloseButton">Close</button></div>
+    </section>
+  </div>
   <div class="modal-backdrop" id="authBackdrop" hidden>
     <form class="modal" id="authForm">
       <h2 id="authTitle">Sign in to Orbit</h2>
@@ -816,6 +860,7 @@ button.addEventListener("click", () => {
         profileProjects: document.getElementById("profileProjects"),
         profileProjectPicker: document.getElementById("profileProjectPicker"),
         profileAddProjectButton: document.getElementById("profileAddProjectButton"),
+        settingsActivity: document.getElementById("settingsActivity"),
         profileAvatar: document.getElementById("profileAvatar"),
         profileStatus: document.getElementById("profileStatus"),
         profileSave: document.getElementById("profileSave"),

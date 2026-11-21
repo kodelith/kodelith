@@ -2709,7 +2709,7 @@ button.addEventListener("click", () => {
         html=html.replace(/<link\b(?=[^>]*\bhref\s*=\s*["']style\.css["'])[^>]*>/gi,"");
         html=html.replace(/<script\b(?=[^>]*\bsrc\s*=\s*["']script\.js["'])[^>]*>\s*<\/script\s*>/gi,"");
         const styleTag=css?"<style>"+css.replace(/<\/style/gi,"<\\/style")+"</style>":"";
-        const scriptTag=js?"<script>"+js.replace(/<\/script/gi,"<\\/script")+"</script>":"";
+        const scriptTag=js?"<script>"+js.replace(/<\/script/gi,"<\\/script")+"<" + "/script>":"";
         if(/<\/head\s*>/i.test(html))html=html.replace(/<\/head\s*>/i,styleTag+"</head>");
         else html=styleTag+html;
         if(scriptTag){if(/<\/body\s*>/i.test(html))html=html.replace(/<\/body\s*>/i,scriptTag+"</body>");else html+=scriptTag;}

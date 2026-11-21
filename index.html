@@ -1201,7 +1201,7 @@ button.addEventListener("click", () => {
         cloudUser = session.user;
         cloudReady = false;
         loadedCloudUserId = userId;
-        elements.accountButton.textContent = "Sign out";
+        elements.accountButton.textContent = "Accounts";
         elements.accountButton.disabled = false;
         elements.profileButton.hidden = false;
         void refreshProfileAvatar();
@@ -1250,7 +1250,7 @@ button.addEventListener("click", () => {
           state = (!rows.length && !cachedWorkspace) ? remoteWorkspace : mergePendingWorkspaceEdits(baselineWorkspace,workingWorkspace,remoteWorkspace);
           cloudReady = true;
           cloudLoading = false;
-          elements.accountButton.textContent = "Sign out";
+          elements.accountButton.textContent = "Accounts";
           elements.accountButton.title = `Signed in as ${session.user.email || "your account"}. Click to sign out.`;
           elements.accountButton.disabled = false;
           elements.profileButton.hidden = false;
@@ -1265,7 +1265,7 @@ button.addEventListener("click", () => {
           cloudLoading = false;
           console.error("Could not refresh Orbit projects from the cloud:",error);
           cloudReady = false;
-          elements.accountButton.textContent = "Sign out";
+          elements.accountButton.textContent = "Accounts";
           elements.accountButton.disabled = false;
           elements.profileButton.hidden = false;
           elements.storageCopy.textContent = "Showing the saved copy on this device. Reconnect to sync newer changes.";
@@ -1283,7 +1283,8 @@ button.addEventListener("click", () => {
         loadedCloudUserId = "";
         cloudProjectIds = new Set();
         elements.accountButton.textContent = "Sign in";
-        elements.accountButton.title = "Sign in to sync your projects across devices.";
+        elements.accountButton.textContent = readSavedAccounts().length ? "Accounts" : "Sign in";
+        elements.accountButton.title = "Manage accounts, add another account, or sign in.";
         elements.profileButton.hidden = true;
         profileRecord = null;
         elements.profileButton.hidden = true;
@@ -2404,6 +2405,7 @@ button.addEventListener("click", () => {
         }
       }
       async function openAccountManager() {
+        if(!supabaseClient){openAuth("signin");return;}
         const {data}=await supabaseClient.auth.getSession();if(data&&data.session)saveAccountSession(data.session);
         renderAccountManager();document.getElementById("accountBackdrop").hidden=false;
       }
@@ -2414,7 +2416,7 @@ button.addEventListener("click", () => {
           if(error)throw error;
           if(!data.session)throw new Error("The saved session has expired. Sign in to this account again.");
           saveAccountSession(data.session);document.getElementById("accountBackdrop").hidden=true;
-          await loadCloudWorkspace(data.session);showToast("Switched to "+(data.session.user.email||"your account")+".");
+          showToast("Switching to "+(data.session.user.email||"your account")+".");
         } catch(error) { showToast(error.message||"Could not switch accounts. Please sign in again."); }
       }
       async function addAnotherAccount() {
@@ -2432,9 +2434,10 @@ button.addEventListener("click", () => {
       async function signOutActiveAccount() {
         const ok=await askForConfirmation({title:"Sign out of this account?",description:"Your cloud projects remain saved. The saved sign-in will be removed from this device.",confirmText:"Sign out"});
         if(!ok)return;
-        localStorage.setItem(ACCOUNT_SESSIONS_KEY,JSON.stringify(readSavedAccounts().filter(item=>item.user_id!==cloudUser?.id)));
+        const userId=cloudUser&&cloudUser.id;
         document.getElementById("accountBackdrop").hidden=true;
-        const {error}=await supabaseClient.auth.signOut();if(error)showToast("Could not sign out.");else {handleSignedOut();showToast("Signed out.");}
+        const {error}=await supabaseClient.auth.signOut();if(error){showToast("Could not sign out.");return;}
+        localStorage.setItem(ACCOUNT_SESSIONS_KEY,JSON.stringify(readSavedAccounts().filter(item=>item.user_id!==userId)));handleSignedOut();showToast("Signed out.");
       }
       function getSelectedProfileProjectIds() {
         return [...elements.profileProjects.querySelectorAll("[data-project-id]")].map(item => item.dataset.projectId).filter(id => Object.hasOwn(state.projects,id)).slice(0,6);
@@ -2749,7 +2752,7 @@ button.addEventListener("click", () => {
         if(!ok||!state.projects[id])return;
         if(!cloudUser){try{await addTrashItem({kind:"project",project_id:id,project_name:p.name,project_data:{files:p.files,activeFile:p.activeFile,openFiles:p.openFiles}});}catch(error){showToast("Project was not deleted because its Bin backup could not be saved.");return;}}
         delete state.projects[id];if(state.activeProject===id)state.activeProject=Object.keys(state.projects)[0];
-        elements.editor.dataset.file="";render();scheduleSave();showToast("Project deleted.");
+        elements.editor.dataset.file="";render();if(cloudUser&&cloudReady)saveCloudProjects();else scheduleSave();showToast("Project deleted. Find it in Settings → Bin for 7 days.");
       }
 
       function selectProject(projectId) {

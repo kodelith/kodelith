@@ -787,6 +787,22 @@ button.addEventListener("click", () => {
         confirmModal: document.getElementById("confirmModal"),
         importInput: document.getElementById("importInput"),
         accountButton: document.getElementById("accountButton"),
+        profileButton: document.getElementById("profileButton"),
+        profileBackdrop: document.getElementById("profileBackdrop"),
+        profileForm: document.getElementById("profileForm"),
+        profileUsername: document.getElementById("profileUsername"),
+        profileDisplayName: document.getElementById("profileDisplayName"),
+        profileBio: document.getElementById("profileBio"),
+        profileWebsite: document.getElementById("profileWebsite"),
+        profileAvatar: document.getElementById("profileAvatar"),
+        profileStatus: document.getElementById("profileStatus"),
+        profileSave: document.getElementById("profileSave"),
+        terminalPanel: document.getElementById("terminalPanel"),
+        terminalOutput: document.getElementById("terminalOutput"),
+        terminalProblems: document.getElementById("terminalProblems"),
+        terminalForm: document.getElementById("terminalForm"),
+        terminalInput: document.getElementById("terminalInput"),
+        terminalToggle: document.getElementById("terminalToggle"),
         storageCopy: document.getElementById("storageCopy"),
         authBackdrop: document.getElementById("authBackdrop"),
         authForm: document.getElementById("authForm"),
@@ -2046,6 +2062,57 @@ button.addEventListener("click", () => {
         elements.toast.hidden = false;
         window.clearTimeout(toastTimer);
         toastTimer = window.setTimeout(() => { elements.toast.hidden = true; }, 3600);
+      }
+
+      let profileRecord = null;
+      async function openProfile() {
+        if (!cloudUser || !supabaseClient) { showToast("Sign in to set up your Orbit profile."); return; }
+        elements.profileBackdrop.hidden = false;
+        elements.profileStatus.textContent = "Loading profile…";
+        elements.profileSave.disabled = true;
+        const fallbackUsername = String(cloudUser.email || "").split("@")[0].slice(0,24);
+        try {
+          const result = await supabaseClient.from("profiles").select("username,display_name,bio,website_url,avatar_url").eq("id",cloudUser.id).maybeSingle();
+          if (result.error) throw result.error;
+          profileRecord = result.data || {username:fallbackUsername};
+          elements.profileUsername.value = profileRecord.username || fallbackUsername;
+          elements.profileDisplayName.value = profileRecord.display_name || "";
+          elements.profileBio.value = profileRecord.bio || "";
+          elements.profileWebsite.value = profileRecord.website_url || "";
+          elements.profileAvatar.value = profileRecord.avatar_url || "";
+          elements.profileStatus.textContent = "Your username is fixed. You can update your creator details."; 
+        } catch (error) {
+          console.error("Could not load Orbit profile:",error);
+          elements.profileStatus.textContent = "Could not load your profile. Please try again."; 
+        } finally { elements.profileSave.disabled = false; }
+      }
+
+      async function saveProfile(event) {
+        event.preventDefault();
+        if (!cloudUser || !supabaseClient) return;
+        const username = elements.profileUsername.value.trim();
+        const displayName = elements.profileDisplayName.value.trim();
+        const bio = elements.profileBio.value.trim();
+        const website = elements.profileWebsite.value.trim();
+        const avatar = elements.profileAvatar.value.trim();
+        const validUrl = value => { if (!value) return true; try { const url = new URL(value); return url.protocol === "https:" || url.protocol === "http:"; } catch { return false; } };
+        if (!username || displayName.length > 40 || bio.length > 240 || !validUrl(website) || !validUrl(avatar)) {
+          elements.profileStatus.textContent = "Check the length limits and use full http:// or https:// links."; return;
+        }
+        elements.profileSave.disabled = true;
+        elements.profileStatus.textContent = "Saving profile…";
+        try {
+          const payload = {id:cloudUser.id,username,username_key:username.toLowerCase(),display_name:displayName || null,bio:bio || null,website_url:website || null,avatar_url:avatar || null,updated_at:new Date().toISOString()};
+          const result = await supabaseClient.from("profiles").upsert(payload,{onConflict:"id"});
+          if (result.error) throw result.error;
+          profileRecord = payload;
+          elements.profileStatus.textContent = "Profile saved.";
+          showToast("Your Orbit profile was saved.");
+          window.setTimeout(() => {elements.profileBackdrop.hidden = true;},450);
+        } catch (error) {
+          console.error("Could not save Orbit profile:",error);
+          elements.profileStatus.textContent = error.message || "Could not save your profile. Please try again."; 
+        } finally { elements.profileSave.disabled = false; }
       }
 
       function setAuthMode(mode) {

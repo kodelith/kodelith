@@ -3340,7 +3340,7 @@ button.addEventListener("click", () => {
           setDeployStatus("Uploading "+files.length+" files…");
           for(let i=0;i<files.length;i++){
             const file=files[i],path=releasePrefix+"/"+file.name;
-            const {error}=await storage.upload(path,new Blob([file.content],{type:deployMimeType(file.name)}),{contentType:deployMimeType(file.name),cacheControl:"60",upsert:true});
+            const {error}=await storage.upload(path,new Blob([file.content],{type:deployMimeType(file.name)}),{contentType:deployMimeType(file.name),cacheControl:"31536000",upsert:true});
             if(error)throw new Error("Could not upload "+file.name+": "+error.message);
             uploadedReleasePaths.push(path);setDeployStatus("Uploading "+(i+1)+" of "+files.length+" files…");
           }
@@ -3365,7 +3365,7 @@ button.addEventListener("click", () => {
         }catch(error){
           if(stablePointerUpdated&&storage&&stablePath){
             try{
-              const previousPrefix=existing?.release_prefixes?.[0];
+              const previousPrefix=existing?.slug===document.getElementById("deploySlug").value.trim().toLowerCase()?existing?.release_prefixes?.[0]:null;
               if(previousPrefix){
                 const previousUrl=storage.getPublicUrl(previousPrefix+"/index.html").data.publicUrl;
                 const rollback='<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="refresh" content="0;url='+previousUrl+'"><title>Opening website…</title></head><body><a href="'+previousUrl+'">Continue</a><script>location.replace('+JSON.stringify(previousUrl)+');<'+"/script></body></html>";
@@ -3379,8 +3379,9 @@ button.addEventListener("click", () => {
       }
       async function unpublishCurrentProject(){
         if(!cloudUser||!supabaseClient||!activeDeployment)return;
+        const deployBackdrop=document.getElementById("deployBackdrop");deployBackdrop.hidden=true;
         const ok=await askForConfirmation({title:"Unpublish website?",description:"Visitors will no longer be able to open this deployed website.",note:"Your Orbit project and its editor files will stay untouched.",confirmText:"Unpublish"});
-        if(!ok)return;
+        deployBackdrop.hidden=false;if(!ok)return;
         const button=document.getElementById("deployUnpublish");button.disabled=true;
         try{
           const {data,error}=await supabaseClient.from("orbit_deployments").select("id,file_paths").eq("user_id",cloudUser.id).eq("project_id",String(state.activeProject)).maybeSingle();

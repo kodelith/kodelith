@@ -1534,7 +1534,7 @@ button.addEventListener("click", () => {
       async function deleteFile(file) {
         const project=currentProject();
         if(Object.keys(project.files).length===1){showToast("Keep at least one file in your project.");return;}
-        const ok=await askForConfirmation({title:"Delete this file?",description:`Delete "${file}" from this project?`,note:"You can restore it with Undo.",confirmText:"Delete file"});
+        const ok=await askForConfirmation({title:"Delete this file?",description:`Delete "${file}" from this project?`,note:"Undo it immediately, or restore the backup from Settings → Bin for 7 days.",confirmText:"Delete file"});
         if(!ok||!Object.hasOwn(project.files,file))return;
         try { await addTrashItem({kind:"file",project_id:state.activeProject,project_name:project.name,file_name:file,content:project.files[file]}); } catch(error) { showToast("The file was not deleted because its Bin backup could not be saved."); return; }
         fileDeletionUndo.push({projectId:state.activeProject,file,content:project.files[file],openFiles:[...project.openFiles],activeFile:project.activeFile});fileDeletionRedo.length=0;

@@ -555,6 +555,32 @@
     @media(max-width:600px){.chat-modal{width:100%;height:92vh}.friends-tab{padding:8px 6px}}
     #chatBackdrop{z-index:8}
     #friendPreviewBackdrop{z-index:9}
+
+    .deploy-modal{width:min(510px,100%);padding:22px}
+    .deploy-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:14px}
+    .deploy-heading h2{font-size:19px;margin:0 0 5px}
+    .deploy-heading p{margin:0;font-size:11px}
+    .deploy-close{width:30px;height:30px;border:1px solid var(--line);border-radius:8px;background:var(--panel-soft);color:var(--text);font-size:21px;cursor:pointer}
+    .deploy-project-name{padding:10px 12px;margin-bottom:16px;border:1px solid var(--line);border-radius:8px;background:var(--panel-soft);font-size:12px;font-weight:700;overflow-wrap:anywhere}
+    .deploy-slug-row{display:flex;align-items:center;gap:8px;padding:0 10px;border:1px solid var(--line);border-radius:8px;background:var(--bg)}
+    .deploy-slug-row span{font-size:11px;color:var(--muted);white-space:nowrap}
+    .deploy-modal .deploy-slug-row input{min-width:0;border:0;background:transparent;outline:none;padding:10px 0;color:var(--text);font:12px ui-monospace,monospace}
+    .deploy-note{margin:12px 0!important;padding:10px 11px;border:1px solid var(--line);border-radius:8px;background:var(--panel-soft);font-size:10px!important;line-height:1.6!important}
+    .deploy-url-panel{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:12px;padding:11px;border:1px solid #86b99a;border-radius:8px;background:#effaf2}
+    .deploy-url-panel>div{min-width:0;display:grid;gap:5px}
+    .deploy-url-panel small{font-size:9px;font-weight:800;letter-spacing:.08em;color:#277344}
+    .deploy-url-panel a{max-width:330px;overflow-wrap:anywhere;font-size:11px;color:#1264a3}
+    .deploy-url-panel button{flex:0 0 auto;padding:7px 9px;border:1px solid #a7cfb3;border-radius:7px;background:#fff;color:#176338;font-size:10px;cursor:pointer}
+    .deploy-status{min-height:16px;margin:10px 0 0!important;font-size:10px!important}
+    .deploy-actions{align-items:center}
+    .deploy-actions #deployUnpublish{margin-right:auto;color:#b42318}
+    .deploy-modal button:disabled{opacity:.55;cursor:wait}
+    body.dark-theme .deploy-note{background:#202f3d;border-color:#35495c}
+    body.dark-theme .deploy-url-panel{background:#172d22;border-color:#315c40}
+    body.dark-theme .deploy-url-panel small{color:#8dd5a5}
+    body.dark-theme .deploy-url-panel a{color:#8cc7ff}
+    body.dark-theme .deploy-url-panel button{background:#213a2b;color:#a7e3b8;border-color:#456a50}
+    @media(max-width:520px){.deploy-modal{padding:17px}.deploy-url-panel{align-items:flex-start;flex-direction:column}.deploy-url-panel a{max-width:100%}}
 </style>
 </head>
 <body>
@@ -580,6 +606,7 @@
       <button class="top-action" id="exportButton" type="button" title="Export this project to your device">
         <span aria-hidden="true">↓</span><span class="top-action-label">Export</span>
       </button>
+      <button class="top-action" id="deployButton" type="button" title="Publish this website">↗ <span class="top-action-label">Deploy</span></button>
       <button class="top-action primary" id="newProjectButton" type="button">
         <span aria-hidden="true">＋</span><span class="top-action-label">New project</span>
       </button>
@@ -868,6 +895,22 @@
       </div>
     </form>
   </div>
+  <div class="modal-backdrop" id="deployBackdrop" hidden>
+    <form class="modal deploy-modal" id="deployForm" role="dialog" aria-modal="true" aria-labelledby="deployTitle">
+      <div class="deploy-heading"><div><h2 id="deployTitle">Deploy website</h2><p>Publish this Orbit project to a public URL.</p></div><button type="button" class="deploy-close" id="deployClose" aria-label="Close deploy">×</button></div>
+      <div class="deploy-project-name" id="deployProjectName">Current project</div>
+      <label for="deploySlug">Website address</label>
+      <div class="deploy-slug-row"><span>orbit-site /</span><input id="deploySlug" maxlength="40" autocomplete="off" spellcheck="false" placeholder="my-website" required></div>
+      <p class="deploy-note"><strong>Public website:</strong> anyone with the link can view your published HTML, CSS, JavaScript and assets. Do not publish passwords, API keys, private data or secret files. Orbit publishes static files; it does not run server-side code or npm build commands.</p>
+      <div class="deploy-url-panel" id="deployUrlPanel" hidden><div><small>YOUR LIVE WEBSITE</small><a id="deployPublicUrl" href="#" target="_blank" rel="noopener noreferrer"></a></div><button type="button" id="deployCopyUrl">Copy link</button></div>
+      <p class="deploy-status" id="deployStatus" role="status" aria-live="polite"></p>
+      <div class="modal-actions deploy-actions">
+        <button type="button" id="deployUnpublish" hidden>Unpublish</button>
+        <button type="button" id="deployCancel">Close</button>
+        <button class="confirm" type="submit" id="deploySubmit">Deploy website</button>
+      </div>
+    </form>
+  </div>
   <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -888,6 +931,7 @@
       const ACCOUNT_SESSIONS_KEY = "orbit-saved-accounts-v1";
       const SUPABASE_URL = "https://xxielgvlkjrkdnhiddrh.supabase.co";
       const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_FIo9gJJ1rGSQGhxhHIy09w_HDI0LeLn";
+      const DEPLOY_BUCKET = "orbit-sites";
             const starterFiles = {
         "index.html": `<!doctype html>
 <html lang="en">
@@ -3222,6 +3266,120 @@ button.addEventListener("click", () => {
         showToast(`Opened ${currentProject().name}`);
       }
 
+
+      function deployMimeType(file) {
+        const ext=String(file).split(".").pop().toLowerCase();
+        return ({html:"text/html; charset=utf-8",htm:"text/html; charset=utf-8",css:"text/css; charset=utf-8",js:"text/javascript; charset=utf-8",mjs:"text/javascript; charset=utf-8",json:"application/json; charset=utf-8",svg:"image/svg+xml",xml:"application/xml; charset=utf-8",txt:"text/plain; charset=utf-8",md:"text/markdown; charset=utf-8",webmanifest:"application/manifest+json",png:"image/png",jpg:"image/jpeg",jpeg:"image/jpeg",gif:"image/gif",webp:"image/webp",ico:"image/x-icon",woff:"font/woff",woff2:"font/woff2",ttf:"font/ttf",otf:"font/otf",mp4:"video/mp4",webm:"video/webm",pdf:"application/pdf"})[ext]||"application/octet-stream";
+      }
+      function validateDeployFiles(project) {
+        const entries=Object.entries(project?.files||{}).filter(([name,content])=>typeof name==="string"&&typeof content==="string");
+        if(!entries.some(([name])=>name==="index.html"))throw new Error("Create a root index.html file before deploying.");
+        if(entries.length>100)throw new Error("This project has more than 100 files. Remove some files before deploying.");
+        const encoder=new TextEncoder();let total=0;const safe=[];
+        for(const [name,content] of entries){
+          const path=name.replace(/\\/g,"/");
+          const parts=path.split("/");
+          if(!path||path.startsWith("/")||parts.some(part=>!part||part==="."||part==="..")||/[\u0000-\u001f]/.test(path))throw new Error("Invalid file path: "+name);
+          if(parts.some(part=>/^\.env(?:\.|$)/i.test(part)||part.toLowerCase()===".git"||part.toLowerCase()==="node_modules"||part.toLowerCase()==="__macosx"))throw new Error("Orbit blocked a private or generated file path: "+name);
+          const size=encoder.encode(content).byteLength;
+          if(size>20*1024*1024)throw new Error(name+" is larger than the 20 MB per-file limit.");
+          total+=size;if(total>30*1024*1024)throw new Error("This project exceeds the 30 MB total deploy limit.");
+          safe.push({name:path,content,size});
+        }
+        return safe;
+      }
+      function setDeployStatus(message,isError=false){const node=document.getElementById("deployStatus");node.textContent=message;node.style.color=isError?"var(--red)":"var(--muted)";}
+      function setDeployUrl(url){const panel=document.getElementById("deployUrlPanel"),link=document.getElementById("deployPublicUrl");panel.hidden=!url;if(url){link.href=url;link.textContent=url;}}
+      let activeDeployment=null;
+      async function openDeployModal(){
+        if(!cloudUser||!cloudReady||!supabaseClient){showToast("Sign in and wait for your projects to finish syncing before deploying.");return;}
+        saveEditorValue();
+        const project=currentProject();if(!project){showToast("Open a project before deploying.");return;}
+        const backdrop=document.getElementById("deployBackdrop");
+        document.getElementById("deployProjectName").textContent=project.name;
+        const slugInput=document.getElementById("deploySlug");
+        slugInput.value=slugify(project.name).slice(0,40).replace(/-+$/,"");
+        if(slugInput.value.length<3)slugInput.value=(slugInput.value+"-site").slice(0,40);
+        document.getElementById("deploySubmit").disabled=true;
+        document.getElementById("deployUnpublish").hidden=true;
+        document.getElementById("deploySubmit").textContent="Deploy website";
+        setDeployStatus("Checking this project's deployment…");setDeployUrl("");
+        backdrop.hidden=false;
+        try{
+          const {data,error}=await supabaseClient.from("orbit_deployments").select("*").eq("user_id",cloudUser.id).eq("project_id",String(state.activeProject)).maybeSingle();
+          if(error)throw error;activeDeployment=data;
+          if(data){slugInput.value=data.slug;setDeployUrl(data.public_url);document.getElementById("deployUnpublish").hidden=false;document.getElementById("deploySubmit").textContent="Update website";setDeployStatus("Last published "+new Date(data.updated_at).toLocaleString()+".");}
+          else setDeployStatus("Ready to publish. Your current editor files will be uploaded.");
+        }catch(error){activeDeployment=null;setDeployStatus(error.message||"Could not load deployment details.",true);}
+        finally{document.getElementById("deploySubmit").disabled=false;}
+      }
+      async function deployCurrentProject(event){
+        if(event)event.preventDefault();
+        if(!cloudUser||!cloudReady||!supabaseClient){setDeployStatus("Sign in before deploying.",true);return;}
+        const button=document.getElementById("deploySubmit");if(button.disabled)return;
+        saveEditorValue();
+        const project=currentProject();let uploaded=[];
+        button.disabled=true;document.getElementById("deployUnpublish").disabled=true;
+        try{
+          const slug=document.getElementById("deploySlug").value.trim().toLowerCase();
+          if(!/^[a-z0-9][a-z0-9-]{1,38}[a-z0-9]$/.test(slug))throw new Error("Use 3–40 characters: lowercase letters, numbers and hyphens. Start and end with a letter or number.");
+          const files=validateDeployFiles(project);
+          const {data:collision,error:collisionError}=await supabaseClient.from("orbit_deployments").select("project_id").eq("user_id",cloudUser.id).eq("slug",slug).neq("project_id",String(state.activeProject)).maybeSingle();
+          if(collisionError)throw collisionError;if(collision)throw new Error("That website address is already used by another Orbit project.");
+          const {data:existing,error:existingError}=await supabaseClient.from("orbit_deployments").select("*").eq("user_id",cloudUser.id).eq("project_id",String(state.activeProject)).maybeSingle();
+          if(existingError)throw existingError;
+          const version=Date.now().toString(36)+"-"+crypto.randomUUID().slice(0,8);
+          const releasePrefix=cloudUser.id+"/"+slug+"/_releases/"+version;
+          const storage=supabaseClient.storage.from(DEPLOY_BUCKET);
+          setDeployStatus("Uploading "+files.length+" files…");
+          for(let i=0;i<files.length;i++){
+            const file=files[i],path=releasePrefix+"/"+file.name;
+            const {error}=await storage.upload(path,new Blob([file.content],{type:deployMimeType(file.name)}),{contentType:deployMimeType(file.name),cacheControl:"60",upsert:true});
+            if(error)throw new Error("Could not upload "+file.name+": "+error.message);
+            uploaded.push(path);setDeployStatus("Uploading "+(i+1)+" of "+files.length+" files…");
+          }
+          const releaseUrl=storage.getPublicUrl(releasePrefix+"/index.html").data.publicUrl;
+          const stablePath=cloudUser.id+"/"+slug+"/index.html";
+          const redirectHtml='<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="refresh" content="0;url='+releaseUrl+'"><title>Opening website…</title></head><body><p>Opening your website… <a href="'+releaseUrl+'">Continue</a></p><script>location.replace('+JSON.stringify(releaseUrl)+');<'+"/script></body></html>";
+          const {error:redirectError}=await storage.upload(stablePath,new Blob([redirectHtml],{type:"text/html; charset=utf-8"}),{contentType:"text/html; charset=utf-8",cacheControl:"60",upsert:true});
+          if(redirectError)throw new Error("Files uploaded, but the public link could not be updated: "+redirectError.message);
+          uploaded.push(stablePath);
+          const oldPrefixes=Array.isArray(existing?.release_prefixes)?existing.release_prefixes:[];
+          const releasePrefixes=[releasePrefix,...oldPrefixes.filter(prefix=>prefix!==releasePrefix)].slice(0,3);
+          const keepSet=new Set(releasePrefixes);
+          const oldPaths=Array.isArray(existing?.file_paths)?existing.file_paths:[];
+          const filePaths=[stablePath,...uploaded.filter(path=>path!==stablePath),...oldPaths.filter(path=>path!==stablePath&&releasePrefixes.some(prefix=>path.startsWith(prefix+"/")))];
+          const publicUrl=storage.getPublicUrl(stablePath).data.publicUrl;
+          const {error:saveError}=await supabaseClient.from("orbit_deployments").upsert({user_id:cloudUser.id,project_id:String(state.activeProject),project_name:String(project.name||"Website").slice(0,60),slug,storage_prefix:cloudUser.id+"/"+slug,public_url:publicUrl,file_count:files.length,release_prefixes:releasePrefixes,file_paths:[...new Set(filePaths)],updated_at:new Date().toISOString()},{onConflict:"user_id,project_id"});
+          if(saveError)throw saveError;
+          const obsolete=oldPaths.filter(path=>path!==stablePath&&!releasePrefixes.some(prefix=>path.startsWith(prefix+"/")));
+          if(existing?.slug&&existing.slug!==slug)obsolete.push(...oldPaths);
+          for(let i=0;i<obsolete.length;i+=100){const {error}=await storage.remove([...new Set(obsolete.slice(i,i+100))]);if(error)console.warn("Old deployment files could not be cleaned up:",error.message);}
+          activeDeployment={slug,public_url:publicUrl,updated_at:new Date().toISOString()};
+          setDeployUrl(publicUrl);document.getElementById("deployUnpublish").hidden=false;button.textContent="Update website";
+          setDeployStatus("Published successfully · "+files.length+" files. Updates may take up to a minute to appear.");
+          showToast("Website deployed successfully.");
+        }catch(error){
+          if(uploaded.length){const storage=supabaseClient.storage.from(DEPLOY_BUCKET);for(let i=0;i<uploaded.length;i+=100){try{await storage.remove(uploaded.slice(i,i+100));}catch{}}}
+          console.error("Orbit deploy failed:",error);setDeployStatus(error.message||"Deployment failed. Your project files were not changed.",true);
+        }finally{button.disabled=false;document.getElementById("deployUnpublish").disabled=false;}
+      }
+      async function unpublishCurrentProject(){
+        if(!cloudUser||!supabaseClient||!activeDeployment)return;
+        const ok=await askForConfirmation({title:"Unpublish website?",description:"Visitors will no longer be able to open this deployed website.",note:"Your Orbit project and its editor files will stay untouched.",confirmText:"Unpublish"});
+        if(!ok)return;
+        const button=document.getElementById("deployUnpublish");button.disabled=true;
+        try{
+          const {data,error}=await supabaseClient.from("orbit_deployments").select("id,file_paths").eq("user_id",cloudUser.id).eq("project_id",String(state.activeProject)).maybeSingle();
+          if(error)throw error;if(!data)throw new Error("This project is not currently deployed.");
+          const {error:deleteError}=await supabaseClient.from("orbit_deployments").delete().eq("id",data.id);if(deleteError)throw deleteError;
+          const paths=Array.isArray(data.file_paths)?data.file_paths:[];
+          for(let i=0;i<paths.length;i+=100){const {error:removeError}=await supabaseClient.storage.from(DEPLOY_BUCKET).remove(paths.slice(i,i+100));if(removeError)console.warn("Deployment file cleanup issue:",removeError.message);}
+          activeDeployment=null;setDeployUrl("");button.hidden=true;document.getElementById("deploySubmit").textContent="Deploy website";setDeployStatus("Website unpublished. Your Orbit project is safe.");showToast("Website unpublished.");
+        }catch(error){setDeployStatus(error.message||"Could not unpublish this website.",true);}
+        finally{button.disabled=false;}
+      }
+
       function exportProject() {
         const project = currentProject();
         const encoder = new TextEncoder();
@@ -3419,6 +3577,13 @@ button.addEventListener("click", () => {
       }));
       document.getElementById("newFileActivity").addEventListener("click", () => document.getElementById("newFileButton").click());
       document.getElementById("exportButton").addEventListener("click", exportProject);
+      document.getElementById("deployButton").addEventListener("click",()=>void openDeployModal());
+      document.getElementById("deployForm").addEventListener("submit",deployCurrentProject);
+      document.getElementById("deployClose").addEventListener("click",()=>{document.getElementById("deployBackdrop").hidden=true;});
+      document.getElementById("deployCancel").addEventListener("click",()=>{document.getElementById("deployBackdrop").hidden=true;});
+      document.getElementById("deployBackdrop").addEventListener("click",event=>{if(event.target===event.currentTarget)event.currentTarget.hidden=true;});
+      document.getElementById("deployUnpublish").addEventListener("click",()=>void unpublishCurrentProject());
+      document.getElementById("deployCopyUrl").addEventListener("click",async()=>{const url=document.getElementById("deployPublicUrl").href;if(!url||url==="#")return;try{await navigator.clipboard.writeText(url);showToast("Website link copied.");}catch{const field=document.getElementById("deployPublicUrl");const range=document.createRange();range.selectNodeContents(field);const selection=window.getSelection();selection.removeAllRanges();selection.addRange(range);showToast("Select and copy the website link.");}});
       document.getElementById("downloadButton").addEventListener("click", exportProject);
       document.getElementById("importActivity").addEventListener("click", () => elements.importInput.click());
       elements.importInput.addEventListener("change", async () => {

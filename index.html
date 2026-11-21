@@ -745,6 +745,7 @@
 
       const STORAGE_KEY = "orbit-studio-v1";
       const CLOUD_CACHE_PREFIX = "orbit-cloud-cache-v1:";
+      const ACCOUNT_SESSIONS_KEY = "orbit-saved-accounts-v1";
       const SUPABASE_URL = "https://xxielgvlkjrkdnhiddrh.supabase.co";
       const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_FIo9gJJ1rGSQGhxhHIy09w_HDI0LeLn";
             const starterFiles = {
@@ -2269,6 +2270,157 @@ button.addEventListener("click", () => {
       }
 
       let profileRecord = null;
+      const LOCAL_TRASH_PREFIX = "orbit-trash-local-v1:";
+      function localTrashKey() { return LOCAL_TRASH_PREFIX + (cloudUser ? cloudUser.id : "guest"); }
+      function readLocalTrash() {
+        try { const items=JSON.parse(localStorage.getItem(localTrashKey())||"[]"); return Array.isArray(items)?items.filter(item=>item.expires_at>Date.now()):[]; }
+        catch { return []; }
+      }
+      function writeLocalTrash(items) { try { localStorage.setItem(localTrashKey(),JSON.stringify(items)); } catch(error) { console.warn("Could not save local Bin:",error); } }
+      async function addTrashItem(item) {
+        const record={...item,deleted_at:new Date().toISOString(),expires_at:new Date(Date.now()+7*86400000).toISOString()};
+        if(cloudUser && cloudReady && supabaseClient) {
+          const {error}=await supabaseClient.from("trash_items").insert({user_id:cloudUser.id,kind:record.kind,project_id:String(record.project_id),project_name:record.project_name,file_name:record.file_name||null,content:record.content??null,project_data:record.project_data??null,deleted_at:record.deleted_at,expires_at:record.expires_at});
+          if(error) throw error;
+        } else { const items=readLocalTrash(); items.unshift({...record,local_id:crypto.randomUUID()}); writeLocalTrash(items); }
+      }
+      function formatTrashDate(value) {
+        const date=new Date(value); return Number.isNaN(date.getTime())?"Unknown":date.toLocaleString();
+      }
+      async function loadBinItems() {
+        const local=readLocalTrash().map(item=>({...item,_local:true}));
+        if(!cloudUser || !supabaseClient || !cloudReady) return local;
+        await cloudSaveQueue.catch(()=>{});
+        const {data,error}=await supabaseClient.from("trash_items").select("id,kind,project_id,project_name,file_name,content,project_data,deleted_at,expires_at").eq("user_id",cloudUser.id).order("deleted_at",{ascending:false});
+        if(error) throw error;
+        const now=Date.now(), active=(data||[]).filter(item=>new Date(item.expires_at).getTime()>now);
+        const expired=(data||[]).filter(item=>new Date(item.expires_at).getTime()<=now).map(item=>item.id);
+        if(expired.length) await supabaseClient.from("trash_items").delete().eq("user_id",cloudUser.id).in("id",expired);
+        return [...active.map(item=>({...item,_local:false})),...local];
+      }
+      async function renderBin() {
+        const list=document.getElementById("settingsBinList"); if(!list)return;
+        list.replaceChildren(); const loading=document.createElement("div"); loading.className="settings-empty"; loading.textContent="Loading deleted items…"; list.append(loading);
+        try {
+          const items=await loadBinItems(); list.replaceChildren();
+          if(!items.length){const empty=document.createElement("div");empty.className="settings-empty";empty.textContent="Your Bin is empty. Deleted projects and files will appear here for 7 days.";list.append(empty);return;}
+          for(const item of items){
+            const row=document.createElement("div");row.className="bin-item";
+            const info=document.createElement("div");info.style.minWidth="0";
+            const title=document.createElement("div");title.className="bin-item-title";title.textContent=(item.kind==="project"?"Project · ":"File · ")+(item.file_name||item.project_name);
+            const meta=document.createElement("div");meta.className="bin-item-meta";meta.textContent="From "+item.project_name+" · Expires "+formatTrashDate(item.expires_at);info.append(title,meta);
+            const actions=document.createElement("div");actions.className="bin-item-actions";
+            const restore=document.createElement("button");restore.type="button";restore.textContent="Restore";restore.addEventListener("click",()=>restoreTrashItem(item));
+            const remove=document.createElement("button");remove.type="button";remove.textContent="Delete";remove.addEventListener("click",()=>permanentlyDeleteTrashItem(item));
+            actions.append(restore,remove);row.append(info,actions);list.append(row);
+          }
+        } catch(error) { console.error("Could not load Orbit Bin:",error);list.replaceChildren();const empty=document.createElement("div");empty.className="settings-empty";empty.textContent="Couldn't load the Bin. Check your connection and try again.";list.append(empty); }
+      }
+      async function removeTrashRecord(item) {
+        if(item._local){writeLocalTrash(readLocalTrash().filter(entry=>entry.local_id!==item.local_id));return;}
+        const {error}=await supabaseClient.from("trash_items").delete().eq("id",item.id).eq("user_id",cloudUser.id);
+        if(error) throw error;
+      }
+      async function restoreTrashItem(item) {
+        try {
+          if(item.kind==="project"){
+            const data=item.project_data||{};let id=String(item.project_id);
+            if(Object.hasOwn(state.projects,id)) id=crypto.randomUUID();
+            const files=data.files&&typeof data.files==="object"?data.files:{};
+            state.projects[id]={name:item.project_name,files,activeFile:Object.hasOwn(files,data.activeFile)?data.activeFile:Object.keys(files)[0]||"",openFiles:Array.isArray(data.openFiles)?data.openFiles.filter(file=>Object.hasOwn(files,file)):Object.keys(files)};
+            state.activeProject=id;
+          } else {
+            const project=state.projects[String(item.project_id)];
+            if(!project) throw new Error("The original project is missing. Restore the project first.");
+            if(Object.hasOwn(project.files,item.file_name)) throw new Error("A file with that name already exists. Rename the current file first.");
+            project.files[item.file_name]=item.content;project.openFiles.push(item.file_name);project.activeFile=item.file_name;state.activeProject=String(item.project_id);
+          }
+          await removeTrashRecord(item);elements.editor.dataset.file="";render();scheduleSave();await renderBin();showToast("Restored to your Orbit workspace.");
+        } catch(error) { showToast(error.message||"Could not restore this item."); }
+      }
+      async function permanentlyDeleteTrashItem(item) {
+        const ok=await askForConfirmation({title:"Delete permanently?",description:"This item will be removed from the Bin and cannot be restored.",confirmText:"Delete permanently"});
+        if(!ok)return;
+        try { await removeTrashRecord(item);await renderBin();showToast("Item permanently deleted."); }
+        catch(error){showToast("Could not delete this Bin item.");}
+      }
+      function setSettingsTab(tab) {
+        const bin=tab==="bin";
+        document.getElementById("settingsGeneralSection").hidden=bin;
+        document.getElementById("settingsBinSection").hidden=!bin;
+        document.getElementById("settingsGeneralTab").classList.toggle("active",!bin);
+        document.getElementById("settingsBinTab").classList.toggle("active",bin);
+        document.getElementById("settingsGeneralTab").setAttribute("aria-selected",String(!bin));
+        document.getElementById("settingsBinTab").setAttribute("aria-selected",String(bin));
+        if(bin) void renderBin();
+      }
+      function openSettings(tab="general") { document.getElementById("settingsBackdrop").hidden=false;setSettingsTab(tab); }
+      function getDisplayNameWait(count) { return count<=1?3600000:count===2?86400000:7*86400000; }
+      function updateDisplayNameCooldown() {
+        const input=elements.profileDisplayName, record=profileRecord||{}, count=Number(record.display_name_change_count||0), changed=record.display_name_changed_at?new Date(record.display_name_changed_at).getTime():0;
+        const remaining=count>0&&changed?Math.max(0,changed+getDisplayNameWait(count)-Date.now()):0;
+        input.disabled=remaining>0;
+        if(remaining>0){const hours=Math.floor(remaining/3600000),minutes=Math.ceil((remaining%3600000)/60000);input.title="You can change your display name in "+(hours?hours+"h ":"")+minutes+"m.";elements.profileStatus.textContent="Display name locked for "+(hours?hours+" hour(s) ":"")+minutes+" minute(s). You can still update your bio, avatar and projects.";}
+        else {input.title="";if(count===0)elements.profileStatus.textContent="Your first display-name change is available now.";else elements.profileStatus.textContent="Your display name can be changed now.";}
+      }
+      function readSavedAccounts() {
+        try { const data=JSON.parse(localStorage.getItem(ACCOUNT_SESSIONS_KEY)||"[]");return Array.isArray(data)?data.filter(item=>item&&item.user_id&&item.access_token&&item.refresh_token):[]; } catch { return []; }
+      }
+      function saveAccountSession(session) {
+        if(!session||!session.user)return;
+        const accounts=readSavedAccounts().filter(item=>item.user_id!==session.user.id);
+        accounts.unshift({user_id:session.user.id,email:session.user.email||"Orbit account",access_token:session.access_token,refresh_token:session.refresh_token,updated_at:new Date().toISOString()});
+        try { localStorage.setItem(ACCOUNT_SESSIONS_KEY,JSON.stringify(accounts.slice(0,8))); } catch(error) { console.warn("Could not save account switcher session:",error); }
+      }
+      function renderAccountManager() {
+        const list=document.getElementById("accountList");list.replaceChildren();
+        const accounts=readSavedAccounts();
+        if(!accounts.length){const empty=document.createElement("div");empty.className="settings-empty";empty.textContent="No saved accounts on this device yet.";list.append(empty);}
+        for(const account of accounts){
+          const row=document.createElement("div");row.className="account-item";
+          const info=document.createElement("div");info.style.minWidth="0";
+          const title=document.createElement("div");title.className="account-item-title";title.textContent=account.email;
+          const meta=document.createElement("div");meta.className="account-item-meta";meta.textContent=cloudUser&&cloudUser.id===account.user_id?"Currently active":"Saved on this device";info.append(title,meta);
+          const actions=document.createElement("div");actions.className="bin-item-actions";
+          if(cloudUser&&cloudUser.id===account.user_id){const signout=document.createElement("button");signout.type="button";signout.textContent="Sign out";signout.addEventListener("click",()=>signOutActiveAccount());actions.append(signout);}
+          else {const sw=document.createElement("button");sw.type="button";sw.textContent="Switch";sw.addEventListener("click",()=>switchSavedAccount(account.user_id));actions.append(sw);}
+          const remove=document.createElement("button");remove.type="button";remove.textContent="Remove";remove.addEventListener("click",()=>removeSavedAccount(account.user_id));actions.append(remove);
+          row.append(info,actions);list.append(row);
+        }
+      }
+      async function openAccountManager() {
+        const {data}=await supabaseClient.auth.getSession();if(data&&data.session)saveAccountSession(data.session);
+        renderAccountManager();document.getElementById("accountBackdrop").hidden=false;
+      }
+      async function switchSavedAccount(userId) {
+        const account=readSavedAccounts().find(item=>item.user_id===userId);if(!account)return;
+        try {
+          const {data,error}=await supabaseClient.auth.setSession({access_token:account.access_token,refresh_token:account.refresh_token});
+          if(error)throw error;
+          if(!data.session)throw new Error("The saved session has expired. Sign in to this account again.");
+          saveAccountSession(data.session);document.getElementById("accountBackdrop").hidden=true;
+          await loadCloudWorkspace(data.session);showToast("Switched to "+(data.session.user.email||"your account")+".");
+        } catch(error) { showToast(error.message||"Could not switch accounts. Please sign in again."); }
+      }
+      async function addAnotherAccount() {
+        const {data}=await supabaseClient.auth.getSession();if(data&&data.session)saveAccountSession(data.session);
+        document.getElementById("accountBackdrop").hidden=true;
+        if(cloudUser) await supabaseClient.auth.signOut();
+        openAuth("signin");
+      }
+      async function removeSavedAccount(userId) {
+        const ok=await askForConfirmation({title:"Remove saved account?",description:"This only removes the saved sign-in from this device. It does not delete the Orbit account or its projects.",confirmText:"Remove"});
+        if(!ok)return;
+        localStorage.setItem(ACCOUNT_SESSIONS_KEY,JSON.stringify(readSavedAccounts().filter(item=>item.user_id!==userId)));
+        renderAccountManager();showToast("Saved account removed from this device.");
+      }
+      async function signOutActiveAccount() {
+        const ok=await askForConfirmation({title:"Sign out of this account?",description:"Your cloud projects remain saved. The saved sign-in will be removed from this device.",confirmText:"Sign out"});
+        if(!ok)return;
+        localStorage.setItem(ACCOUNT_SESSIONS_KEY,JSON.stringify(readSavedAccounts().filter(item=>item.user_id!==cloudUser?.id)));
+        document.getElementById("accountBackdrop").hidden=true;
+        const {error}=await supabaseClient.auth.signOut();if(error)showToast("Could not sign out.");else {handleSignedOut();showToast("Signed out.");}
+      }
       function getSelectedProfileProjectIds() {
         return [...elements.profileProjects.querySelectorAll("[data-project-id]")].map(item => item.dataset.projectId).filter(id => Object.hasOwn(state.projects,id)).slice(0,6);
       }

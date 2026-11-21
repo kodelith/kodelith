@@ -581,7 +581,8 @@
     body.dark-theme .deploy-url-panel a{color:#8cc7ff}
     body.dark-theme .deploy-url-panel button{background:#213a2b;color:#a7e3b8;border-color:#456a50}
     @media(max-width:520px){.deploy-modal{padding:17px}.deploy-url-panel{align-items:flex-start;flex-direction:column}.deploy-url-panel a{max-width:100%}}
-</style>
+.preview-url{color:var(--muted);text-decoration:none;cursor:pointer}.preview-url:hover{color:var(--accent);text-decoration:underline}
+    </style>
 </head>
 <body>
   <div class="app">
@@ -673,7 +674,7 @@
         <section class="preview-area" id="previewArea" aria-label="Live preview">
           <div class="preview-toolbar">
             <span class="preview-heading">LIVE PREVIEW</span>
-            <span class="preview-url" id="previewUrl">orbit://preview/index.html</span>
+            <a class="preview-url" id="previewUrl" href="#" target="_blank" rel="noopener noreferrer" title="Open the published website">orbit://preview/index.html</a>
             <span class="preview-message">Live</span>
             <select class="preview-device" id="previewDevice" aria-label="Preview device size" title="Preview device size">
               <option value="100%">Desktop</option>
@@ -2235,7 +2236,7 @@ button.addEventListener("click", () => {
         // Ignore links to project files that do not exist yet. Keep the current
         // preview visible instead of replacing it with an Orbit-generated 404 page.
         if (typeof html !== "string") return;
-        elements.previewUrl.textContent = "orbit://preview/" + fileName;
+        elements.previewUrl.textContent = "orbit://preview/" + fileName; updatePreviewAddress();
         const css = project.files["style.css"] || "";
         const js = project.files["script.js"] || "";
         const styleTag = css ? "<style>" + css.replace(/<\/style/gi, "</style") + "</style>" : "";
@@ -3288,6 +3289,12 @@ button.addEventListener("click", () => {
         }
         return safe;
       }
+      function updatePreviewAddress(){
+        const node=document.getElementById("previewUrl");if(!node)return;
+        const published=activeDeployment&&activeDeployment.public_url&&String(activeDeployment.project_id||state.activeProject)===String(state.activeProject);
+        if(published){node.href=activeDeployment.public_url;node.textContent=activeDeployment.public_url;node.title="Open published website in a new tab";node.dataset.published="true";}
+        else{node.href="#";node.textContent="orbit://preview/"+(currentPreviewFile||"index.html");node.title="Click to open Deploy and publish this website";node.dataset.published="false";}
+      }
       function setDeployStatus(message,isError=false){const node=document.getElementById("deployStatus");node.textContent=message;node.style.color=isError?"var(--red)":"var(--muted)";}
       function setDeployUrl(url){const panel=document.getElementById("deployUrlPanel"),link=document.getElementById("deployPublicUrl");panel.hidden=!url;if(url){link.href=url;link.textContent=url;}}
       let activeDeployment=null;
@@ -3308,9 +3315,9 @@ button.addEventListener("click", () => {
         try{
           const {data,error}=await supabaseClient.from("orbit_deployments").select("*").eq("user_id",cloudUser.id).eq("project_id",String(state.activeProject)).maybeSingle();
           if(error)throw error;activeDeployment=data;
-          if(data){slugInput.value=data.slug;setDeployUrl(data.public_url);document.getElementById("deployUnpublish").hidden=false;document.getElementById("deploySubmit").textContent="Update website";setDeployStatus("Last published "+new Date(data.updated_at).toLocaleString()+".");}
-          else setDeployStatus("Ready to publish. Your current editor files will be uploaded.");
-        }catch(error){activeDeployment=null;setDeployStatus(error.message||"Could not load deployment details.",true);}
+          if(data){activeDeployment=data;slugInput.value=data.slug;setDeployUrl(data.public_url);updatePreviewAddress();document.getElementById("deployUnpublish").hidden=false;document.getElementById("deploySubmit").textContent="Update website";setDeployStatus("Last published "+new Date(data.updated_at).toLocaleString()+".");}
+          else {activeDeployment=null;updatePreviewAddress();setDeployStatus("Ready to publish. Your current editor files will be uploaded.");}
+        }catch(error){activeDeployment=null;updatePreviewAddress();setDeployStatus(error.message||"Could not load deployment details.",true);}
         finally{document.getElementById("deploySubmit").disabled=false;}
       }
       async function deployCurrentProject(event){
@@ -3319,78 +3326,42 @@ button.addEventListener("click", () => {
         const button=document.getElementById("deploySubmit");if(button.disabled)return;
         saveEditorValue();
         const project=currentProject();
-        let existing=null,storage=null,stablePath="",stablePointerUpdated=false,releasePrefix="";
-        const uploadedReleasePaths=[];
         button.disabled=true;document.getElementById("deployUnpublish").disabled=true;
         try{
           const slug=document.getElementById("deploySlug").value.trim().toLowerCase();
-          if(!/^[a-z0-9][a-z0-9-]{1,38}[a-z0-9]$/.test(slug))throw new Error("Use 3–40 characters: lowercase letters, numbers and hyphens. Start and end with a letter or number.");
+          if(!/^[a-z0-9][a-z0-9-]{1,38}[a-z0-9]$/.test(slug))throw new Error("Use 3–40 characters: lowercase letters, numbers and hyphens.");
           const files=validateDeployFiles(project);
-          const {data:collision,error:collisionError}=await supabaseClient.from("orbit_deployments").select("project_id").eq("user_id",cloudUser.id).eq("slug",slug).neq("project_id",String(state.activeProject)).maybeSingle();
-          if(collisionError)throw collisionError;if(collision)throw new Error("That website address is already used by another Orbit project.");
-          const {data:previous,error:existingError}=await supabaseClient.from("orbit_deployments").select("*").eq("user_id",cloudUser.id).eq("project_id",String(state.activeProject)).maybeSingle();
-          if(existingError)throw existingError;existing=previous;
-          const sameSlug=existing?.slug===slug;
-          const oldPrefixes=sameSlug&&Array.isArray(existing?.release_prefixes)?existing.release_prefixes:[];
-          const oldPaths=sameSlug&&Array.isArray(existing?.file_paths)?existing.file_paths:[];
-          const version=Date.now().toString(36)+"-"+crypto.randomUUID().slice(0,8);
-          releasePrefix=cloudUser.id+"/"+slug+"/_releases/"+version;
-          stablePath=cloudUser.id+"/"+slug+"/index.html";
-          storage=supabaseClient.storage.from(DEPLOY_BUCKET);
-          setDeployStatus("Uploading "+files.length+" files…");
-          for(let i=0;i<files.length;i++){
-            const file=files[i],path=releasePrefix+"/"+file.name;
-            const {error}=await storage.upload(path,new Blob([file.content],{type:deployMimeType(file.name)}),{contentType:deployMimeType(file.name),cacheControl:"31536000",upsert:true});
-            if(error)throw new Error("Could not upload "+file.name+": "+error.message);
-            uploadedReleasePaths.push(path);setDeployStatus("Uploading "+(i+1)+" of "+files.length+" files…");
-          }
-          const releaseUrl=storage.getPublicUrl(releasePrefix+"/index.html").data.publicUrl;
-          const redirectHtml='<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="refresh" content="0;url='+releaseUrl+'"><title>Opening website…</title></head><body><p>Opening your website… <a href="'+releaseUrl+'">Continue</a></p><script>location.replace('+JSON.stringify(releaseUrl)+');<'+"/script></body></html>";
-          const {error:redirectError}=await storage.upload(stablePath,new Blob([redirectHtml],{type:"text/html; charset=utf-8"}),{contentType:"text/html; charset=utf-8",cacheControl:"60",upsert:true});
-          if(redirectError)throw new Error("Files uploaded, but the public link could not be updated: "+redirectError.message);
-          stablePointerUpdated=true;
-          const releasePrefixes=[releasePrefix,...oldPrefixes.filter(prefix=>prefix!==releasePrefix)].slice(0,3);
-          const retainedPaths=[...oldPaths.filter(path=>path!==stablePath&&releasePrefixes.some(prefix=>path.startsWith(prefix+"/")))];
-          const filePaths=[stablePath,...uploadedReleasePaths,...retainedPaths];
-          const publicUrl=storage.getPublicUrl(stablePath).data.publicUrl;
-          const {error:saveError}=await supabaseClient.from("orbit_deployments").upsert({user_id:cloudUser.id,project_id:String(state.activeProject),project_name:String(project.name||"Website").slice(0,60),slug,storage_prefix:cloudUser.id+"/"+slug,public_url:publicUrl,file_count:files.length,release_prefixes:releasePrefixes,file_paths:[...new Set(filePaths)],updated_at:new Date().toISOString()},{onConflict:"user_id,project_id"});
-          if(saveError)throw saveError;
-          const obsolete=(Array.isArray(existing?.file_paths)?existing.file_paths:[]).filter(path=>path!==stablePath&&!filePaths.includes(path));
-          if(existing?.slug&&existing.slug!==slug)obsolete.push(...(existing.file_paths||[]));
-          for(let i=0;i<obsolete.length;i+=100){const {error}=await storage.remove([...new Set(obsolete.slice(i,i+100))]);if(error)console.warn("Old deployment files could not be cleaned up:",error.message);}
-          activeDeployment={slug,public_url:publicUrl,updated_at:new Date().toISOString()};
-          setDeployUrl(publicUrl);document.getElementById("deployUnpublish").hidden=false;button.textContent="Update website";
-          setDeployStatus("Published successfully · "+files.length+" files. Updates may take up to a minute to appear.");
-          showToast("Website deployed successfully.");
+          if(!files.some(file=>file.name.toLowerCase()==="index.html"))throw new Error("Create an index.html file in the project root before deploying.");
+          setDeployStatus("Publishing "+files.length+" files to GitHub Pages…");
+          const {data,error}=await supabaseClient.functions.invoke("orbit-publish",{body:{action:"deploy",projectId:String(state.activeProject),projectName:project.name,slug,files}});
+          if(error)throw error;
+          if(data?.error)throw new Error(data.error);
+          activeDeployment=data.deployment||{slug,public_url:"https://save-codes.github.io/my-code/"+slug+"/",updated_at:new Date().toISOString()};
+          activeDeployment.public_url=activeDeployment.public_url||"https://save-codes.github.io/my-code/"+slug+"/";
+          setDeployUrl(activeDeployment.public_url);
+          document.getElementById("deployUnpublish").hidden=false;
+          button.textContent="Update website";
+          setDeployStatus("Published to GitHub Pages · "+files.length+" files. GitHub Pages may take a few minutes to update.");
+          updatePreviewAddress();
+          showToast("Website published. Your unique link is ready.");
         }catch(error){
-          if(stablePointerUpdated&&storage&&stablePath){
-            try{
-              const previousPrefix=existing?.slug===document.getElementById("deploySlug").value.trim().toLowerCase()?existing?.release_prefixes?.[0]:null;
-              if(previousPrefix){
-                const previousUrl=storage.getPublicUrl(previousPrefix+"/index.html").data.publicUrl;
-                const rollback='<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="refresh" content="0;url='+previousUrl+'"><title>Opening website…</title></head><body><a href="'+previousUrl+'">Continue</a><script>location.replace('+JSON.stringify(previousUrl)+');<'+"/script></body></html>";
-                await storage.upload(stablePath,new Blob([rollback],{type:"text/html; charset=utf-8"}),{contentType:"text/html; charset=utf-8",cacheControl:"60",upsert:true});
-              }else await storage.remove([stablePath]);
-            }catch(rollbackError){console.error("Could not restore the previous public link:",rollbackError);}
-          }
-          if(uploadedReleasePaths.length&&storage){for(let i=0;i<uploadedReleasePaths.length;i+=100){try{await storage.remove(uploadedReleasePaths.slice(i,i+100));}catch{}}}
-          console.error("Orbit deploy failed:",error);setDeployStatus(error.message||"Deployment failed. Your project files were not changed.",true);
+          console.error("Orbit GitHub Pages deploy failed:",error);
+          const message=error?.context?.json?.error||error.message||"Deployment failed. Your project files were not changed.";
+          setDeployStatus(message,true);
         }finally{button.disabled=false;document.getElementById("deployUnpublish").disabled=false;}
       }
       async function unpublishCurrentProject(){
         if(!cloudUser||!supabaseClient||!activeDeployment)return;
         const deployBackdrop=document.getElementById("deployBackdrop");deployBackdrop.hidden=true;
-        const ok=await askForConfirmation({title:"Unpublish website?",description:"Visitors will no longer be able to open this deployed website.",note:"Your Orbit project and its editor files will stay untouched.",confirmText:"Unpublish"});
+        const ok=await askForConfirmation({title:"Unpublish website?",description:"Visitors will no longer be able to open this deployed website.",note:"Your Orbit project and editor files will stay untouched.",confirmText:"Unpublish"});
         deployBackdrop.hidden=false;if(!ok)return;
         const button=document.getElementById("deployUnpublish");button.disabled=true;
         try{
-          const {data,error}=await supabaseClient.from("orbit_deployments").select("id,file_paths").eq("user_id",cloudUser.id).eq("project_id",String(state.activeProject)).maybeSingle();
-          if(error)throw error;if(!data)throw new Error("This project is not currently deployed.");
-          const {error:deleteError}=await supabaseClient.from("orbit_deployments").delete().eq("id",data.id);if(deleteError)throw deleteError;
-          const paths=Array.isArray(data.file_paths)?data.file_paths:[];
-          for(let i=0;i<paths.length;i+=100){const {error:removeError}=await supabaseClient.storage.from(DEPLOY_BUCKET).remove(paths.slice(i,i+100));if(removeError)console.warn("Deployment file cleanup issue:",removeError.message);}
-          activeDeployment=null;setDeployUrl("");button.hidden=true;document.getElementById("deploySubmit").textContent="Deploy website";setDeployStatus("Website unpublished. Your Orbit project is safe.");showToast("Website unpublished.");
-        }catch(error){setDeployStatus(error.message||"Could not unpublish this website.",true);}
+          const {data,error}=await supabaseClient.functions.invoke("orbit-publish",{body:{action:"unpublish",projectId:String(state.activeProject)}});
+          if(error)throw error;if(data?.error)throw new Error(data.error);
+          activeDeployment=null;setDeployUrl("");button.hidden=true;document.getElementById("deploySubmit").textContent="Deploy website";
+          setDeployStatus("Website unpublished. Your Orbit project is safe.");updatePreviewAddress();showToast("Website unpublished.");
+        }catch(error){setDeployStatus(error?.context?.json?.error||error.message||"Could not unpublish this website.",true);}
         finally{button.disabled=false;}
       }
 
@@ -3592,6 +3563,7 @@ button.addEventListener("click", () => {
       document.getElementById("newFileActivity").addEventListener("click", () => document.getElementById("newFileButton").click());
       document.getElementById("exportButton").addEventListener("click", exportProject);
       document.getElementById("deployButton").addEventListener("click",()=>void openDeployModal());
+      document.getElementById("previewUrl").addEventListener("click",event=>{if(event.currentTarget.dataset.published!=="true"){event.preventDefault();void openDeployModal();}});
       document.getElementById("deployForm").addEventListener("submit",deployCurrentProject);
       document.getElementById("deployClose").addEventListener("click",()=>{document.getElementById("deployBackdrop").hidden=true;});
       document.getElementById("deployCancel").addEventListener("click",()=>{document.getElementById("deployBackdrop").hidden=true;});

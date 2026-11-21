@@ -898,10 +898,10 @@
   </div>
   <div class="modal-backdrop" id="deployBackdrop" hidden>
     <form class="modal deploy-modal" id="deployForm" role="dialog" aria-modal="true" aria-labelledby="deployTitle">
-      <div class="deploy-heading"><div><h2 id="deployTitle">Deploy website</h2><p>Publish this Orbit project to a public URL.</p></div><button type="button" class="deploy-close" id="deployClose" aria-label="Close deploy">×</button></div>
+      <div class="deploy-heading"><div><h2 id="deployTitle">Deploy website</h2><p>Publish this project to its own unique GitHub Pages address.</p></div><button type="button" class="deploy-close" id="deployClose" aria-label="Close deploy">×</button></div>
       <div class="deploy-project-name" id="deployProjectName">Current project</div>
       <label for="deploySlug">Website address</label>
-      <div class="deploy-slug-row"><span>orbit-site /</span><input id="deploySlug" maxlength="40" autocomplete="off" spellcheck="false" placeholder="my-website" required></div>
+      <div class="deploy-slug-row"><span>save-codes.github.io/my-code/</span><input id="deploySlug" maxlength="40" autocomplete="off" spellcheck="false" placeholder="my-website" required></div>
       <p class="deploy-note"><strong>Public website:</strong> anyone with the link can view your published HTML, CSS, JavaScript and assets. Do not publish passwords, API keys, private data or secret files. Orbit publishes static files; it does not run server-side code or npm build commands.</p>
       <div class="deploy-url-panel" id="deployUrlPanel" hidden><div><small>YOUR LIVE WEBSITE</small><a id="deployPublicUrl" href="#" target="_blank" rel="noopener noreferrer"></a></div><button type="button" id="deployCopyUrl">Copy link</button></div>
       <p class="deploy-status" id="deployStatus" role="status" aria-live="polite"></p>

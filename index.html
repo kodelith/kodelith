@@ -503,6 +503,34 @@
     .profile-modal label{font-size:11px;font-weight:700;color:var(--muted)}
     .profile-status{font-size:11px}
     @media(max-width:520px){.profile-view-modal{width:100%;border-radius:18px}.profile-view-cover{height:94px}.profile-view-content{padding:0 18px 20px}.profile-view-avatar{width:92px;height:92px;margin-top:-46px}.settings-modal{padding:18px!important}}
+
+    .friends-modal{width:min(680px,100%);max-height:min(86vh,820px);padding:22px!important;border-radius:18px!important;display:flex;flex-direction:column;gap:15px}
+    .friends-header{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+    .friends-header h2{margin:0;font-size:22px;letter-spacing:-.5px}
+    .friends-header p{margin:5px 0 0;color:var(--muted);font-size:12px}
+    .friends-close,.friend-preview-head button{width:32px;height:32px;border:1px solid var(--line);border-radius:50%;background:var(--panel-soft);color:var(--text);font-size:20px;cursor:pointer}
+    .friends-search{display:flex;align-items:center;gap:10px;padding:0 13px;height:42px;border:1px solid var(--line);border-radius:12px;background:var(--panel-soft);color:var(--muted)}
+    .friends-search span{font-size:22px}
+    .friends-search input{width:100%;min-width:0;border:0!important;outline:0!important;background:transparent!important;color:var(--text)!important;font:inherit;font-size:13px}
+    .friends-content{overflow:auto;display:grid;gap:18px;padding-right:3px}
+    .friends-section-title{display:flex;align-items:center;gap:8px;margin-bottom:8px;color:var(--muted);font-size:10px;font-weight:800;letter-spacing:1px}
+    .friends-section-title span{display:inline-grid;place-items:center;min-width:18px;height:18px;padding:0 5px;border-radius:20px;background:var(--panel-soft);font-size:10px;letter-spacing:0}
+    .friends-list{display:grid;gap:7px}
+    .friends-empty{padding:14px;border:1px dashed var(--line);border-radius:11px;color:var(--muted);font-size:12px;text-align:center}
+    .friend-person{display:flex;align-items:center;gap:10px;padding:9px;border:1px solid var(--line);border-radius:12px;background:var(--panel-soft);min-width:0}
+    .friend-person-avatar{width:38px;height:38px;flex:0 0 38px;display:grid;place-items:center;overflow:hidden;border:0;border-radius:50%;background:linear-gradient(135deg,#2563eb,#8b5cf6);color:white;font-size:14px;font-weight:750;cursor:pointer}
+    .friend-person-avatar img{width:100%;height:100%;object-fit:cover}
+    .friend-person-info{display:grid;gap:3px;min-width:0;flex:1;text-align:left;border:0;background:transparent;color:var(--text);cursor:pointer}
+    .friend-person-info strong{font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .friend-person-info small{font-size:10px;color:var(--muted)}
+    .friend-person-action{flex:0 0 auto;padding:7px 11px;border:1px solid var(--line);border-radius:9px;background:var(--panel);color:var(--text);font-size:11px;font-weight:700;cursor:pointer}
+    .friend-person-action.primary{border-color:#2563eb;background:#2563eb;color:#fff}
+    .friend-person-action:disabled{opacity:.65;cursor:default}
+    .friend-preview-modal{width:min(1100px,100%);height:min(84vh,850px);padding:0!important;overflow:hidden;border-radius:15px!important;display:flex;flex-direction:column}
+    .friend-preview-head{height:48px;flex:0 0 48px;display:flex;align-items:center;justify-content:space-between;padding:0 14px;border-bottom:1px solid var(--line);font-size:13px}
+    .friend-preview-modal iframe{width:100%;height:100%;flex:1;border:0;background:white}
+    .friend-view-website{flex:0 0 auto;padding:7px 10px;border:0;border-radius:9px;background:#2563eb;color:#fff;font-size:10px;font-weight:700;cursor:pointer}
+    @media(max-width:600px){.friends-modal{padding:16px!important;width:100%;max-height:90vh}.friend-person{gap:7px}.friend-person-action{padding:7px 8px}.friend-preview-modal{width:100%;height:90vh}}
 </style>
 </head>
 <body>
@@ -2782,6 +2810,7 @@ button.addEventListener("click", () => {
           const result = await supabaseClient.from("profiles").upsert(payload,{onConflict:"id"}).select("username,display_name,bio,avatar_url,featured_project_ids").single();
           if (result.error) throw result.error;
           profileRecord = result.data || payload;
+          await syncProfileWebsitePreviews(featuredProjectIds);
           renderProfileAvatar(profileRecord.avatar_url, profileRecord.display_name || profileRecord.username);
           elements.profileStatus.textContent = "Profile saved.";
           renderProfileView();
@@ -3239,7 +3268,13 @@ button.addEventListener("click", () => {
           if (!elements.profileEditBackdrop.hidden) renderProfileProjects([...getSelectedProfileProjectIds(),state.activeProject]);
         }
       });
-      elements.profileButton.addEventListener("click",openProfile);
+      elements.profileButton.addEventListener("click",()=>void openProfile());
+      document.getElementById("friendsActivity").addEventListener("click",openFriends);
+      document.getElementById("friendsClose").addEventListener("click",()=>{document.getElementById("friendsBackdrop").hidden=true;});
+      document.getElementById("friendsBackdrop").addEventListener("click",event=>{if(event.target===event.currentTarget)event.currentTarget.hidden=true;});
+      document.getElementById("friendPreviewClose").addEventListener("click",()=>{document.getElementById("friendPreviewBackdrop").hidden=true;document.getElementById("friendPreviewFrame").srcdoc="";});
+      document.getElementById("friendPreviewBackdrop").addEventListener("click",event=>{if(event.target===event.currentTarget){event.currentTarget.hidden=true;document.getElementById("friendPreviewFrame").srcdoc="";}});
+      document.getElementById("friendSearchInput").addEventListener("input",event=>{window.clearTimeout(friendSearchTimer);const term=event.target.value.trim();friendSearchTimer=window.setTimeout(()=>void loadFriendsHub(term),250);});
       elements.settingsActivity.addEventListener("click",()=>openSettings());
       document.getElementById("settingsClose").addEventListener("click",()=>{document.getElementById("settingsBackdrop").hidden=true;});
       document.getElementById("settingsGeneralTab").addEventListener("click",()=>setSettingsTab("general"));

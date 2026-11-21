@@ -488,7 +488,7 @@
           <pre class="highlight-layer" id="highlightLayer" aria-hidden="true"><code id="highlightCode"></code></pre>
           <textarea class="code-editor" id="codeEditor" aria-label="Code editor" spellcheck="false" autocapitalize="off" autocomplete="off" autocorrect="off"></textarea>
           <div class="html-suggestions" id="htmlSuggestions" role="listbox" aria-label="HTML tag suggestions"><div class="html-suggestions-title">SUGGESTIONS</div><div id="htmlSuggestionItems"></div></div>
-          <div class="empty-editor" id="emptyEditor" hidden>Select a file to start editing.</div>
+          <div class="empty-editor" id="emptyEditor">No files yet. Choose + in Explorer to create your first file.</div>
         </section>
         <div class="preview-splitter" id="previewSplitter" role="separator" aria-label="Resize editor and preview" aria-orientation="vertical" aria-valuemin="25" aria-valuemax="75" aria-valuenow="58" tabindex="0" title="Drag to resize editor and preview"></div>
         <section class="preview-area" id="previewArea" aria-label="Live preview">
@@ -612,6 +612,7 @@
       "use strict";
 
       const STORAGE_KEY = "orbit-studio-v1";
+      const CLOUD_CACHE_PREFIX = "orbit-cloud-cache-v1:";
       const SUPABASE_URL = "https://xxielgvlkjrkdnhiddrh.supabase.co";
       const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_FIo9gJJ1rGSQGhxhHIy09w_HDI0LeLn";
             const starterFiles = {
@@ -836,13 +837,42 @@ button.addEventListener("click", () => {
       let cloudSaveQueue = Promise.resolve();
       let aiBusy = false;
 
+      function isLegacyStarterFiles(files) {
+        const names = Object.keys(starterFiles);
+        const keys = Object.keys(files || {});
+        return keys.length === names.length && names.every(name => files[name] === starterFiles[name]);
+      }
+
       function makeStarterProject(name) {
-        return {
-          name,
-          files: { ...starterFiles },
-          activeFile: "index.html",
-          openFiles: ["index.html", "style.css", "script.js"]
-        };
+        return { name, files: {}, activeFile: "", openFiles: [] };
+      }
+
+      function readCloudCache(userId) {
+        try {
+          const raw = localStorage.getItem(CLOUD_CACHE_PREFIX + userId);
+          if (!raw) return null;
+          const parsed = JSON.parse(raw);
+          if (!parsed || !parsed.projects || typeof parsed.projects !== "object") return null;
+          const projects = {};
+          for (const [id, project] of Object.entries(parsed.projects)) {
+            if (!project || typeof project.name !== "string" || !project.files || typeof project.files !== "object") continue;
+            let files = Object.fromEntries(Object.entries(project.files).filter(([file, content]) => typeof file === "string" && typeof content === "string"));
+            if (isLegacyStarterFiles(files)) files = {};
+            const openFiles = Array.isArray(project.openFiles) ? project.openFiles.filter(file => Object.hasOwn(files,file)) : Object.keys(files);
+            projects[id] = {name:project.name,files,activeFile:Object.hasOwn(files,project.activeFile)?project.activeFile:Object.keys(files)[0]||"",openFiles};
+          }
+          if (!Object.keys(projects).length) return null;
+          return {activeProject:Object.hasOwn(projects,parsed.activeProject)?parsed.activeProject:Object.keys(projects)[0],projects};
+        } catch (error) {
+          console.warn("Could not read Orbit local cloud cache:",error);
+          return null;
+        }
+      }
+
+      function writeCloudCache(userId, workspace = state) {
+        if (!userId || !workspace) return;
+        try { localStorage.setItem(CLOUD_CACHE_PREFIX + userId, JSON.stringify(workspace)); }
+        catch (error) { console.warn("Could not update Orbit local cloud cache:",error); }
       }
 
       function loadState() {
@@ -862,11 +892,12 @@ button.addEventListener("click", () => {
             const files = Object.fromEntries(Object.entries(project.files).filter(([file, text]) =>
               typeof file === "string" && typeof text === "string"
             ));
-            if (Object.keys(files).length) {
+            if (isLegacyStarterFiles(files)) Object.keys(files).forEach(file => delete files[file]);
+            if (project.files && typeof project.files === "object") {
               const openFiles = Array.isArray(project.openFiles)
                 ? project.openFiles.filter(file => typeof file === "string" && Object.hasOwn(files, file))
                 : Object.keys(files);
-              projects[id] = { name: project.name, files, activeFile: Object.hasOwn(files, project.activeFile) ? project.activeFile : Object.keys(files)[0], openFiles };
+              projects[id] = { name: project.name, files, activeFile: Object.hasOwn(files, project.activeFile) ? project.activeFile : Object.keys(files)[0] || "", openFiles };
             }
           }
           if (!Object.keys(projects).length) throw new Error("No usable projects found in saved workspace.");
@@ -887,6 +918,7 @@ button.addEventListener("click", () => {
       function saveState() {
         if (cloudUser) {
           if (cloudReady) saveCloudProjects();
+          else { writeCloudCache(cloudUser.id); elements.saveLabel.textContent = "Saved on this device"; elements.saveDot.style.background = "var(--orange)"; }
           return;
         }
         elements.saveLabel.textContent = "Saving…";
@@ -952,6 +984,7 @@ button.addEventListener("click", () => {
             if (deleteError) throw deleteError;
           }
           cloudProjectIds = currentIds;
+          writeCloudCache(userId);
           if (cloudUser && cloudUser.id === userId) {
             elements.saveLabel.textContent = "Saved to cloud";
             elements.saveDot.style.background = "var(--green)";
@@ -968,95 +1001,98 @@ button.addEventListener("click", () => {
         });
       }
 
+      let cloudLoading = false;
+
       async function loadCloudWorkspace(session) {
         if (!session || !session.user) return;
-        if (loadedCloudUserId === session.user.id) return;
+        const userId = session.user.id;
+        if (loadedCloudUserId === userId && cloudReady) return;
+        if (cloudLoading) return;
+        cloudLoading = true;
         const localWorkspace = state;
+        const cachedWorkspace = readCloudCache(userId);
         cloudUser = session.user;
         cloudReady = false;
-        loadedCloudUserId = session.user.id;
-        elements.accountButton.textContent = "Loading account…";
-        elements.accountButton.disabled = true;
-        elements.saveLabel.textContent = "Loading cloud projects…";
+        loadedCloudUserId = userId;
+        elements.accountButton.textContent = "Sign out";
+        elements.accountButton.disabled = false;
+        elements.profileButton.hidden = false;
+        elements.storageCopy.textContent = cachedWorkspace ? "Restored your workspace from this device while checking for newer cloud changes." : "Loading your cloud workspace…";
+        if (cachedWorkspace) {
+          state = cachedWorkspace;
+          cloudProjectIds = new Set(Object.keys(cachedWorkspace.projects));
+          elements.saveLabel.textContent = "Restored local copy · syncing";
+          elements.saveDot.style.background = "var(--orange)";
+          render();
+        } else {
+          elements.saveLabel.textContent = "Loading cloud projects…";
+        }
         try {
-          const { data: rows, error: projectError } = await supabaseClient
-            .from("projects")
-            .select("id, name, data")
-            .order("updated_at", { ascending: false });
+          const { data: rows, error: projectError } = await supabaseClient.from("projects").select("id, name, data").order("updated_at", { ascending: false });
           if (projectError) throw projectError;
           if (!Array.isArray(rows)) throw new Error("Project data is unavailable.");
-
           const projects = {};
           for (const row of rows) {
             if (!row || typeof row.id !== "string" || typeof row.name !== "string" || !row.data || typeof row.data !== "object") continue;
-            const files = Object.fromEntries(Object.entries(row.data.files || {}).filter(([file, text]) =>
-              typeof file === "string" && typeof text === "string"
-            ));
-            if (!Object.keys(files).length) continue;
-            const openFiles = Array.isArray(row.data.openFiles)
-              ? row.data.openFiles.filter(file => typeof file === "string" && Object.hasOwn(files, file))
-              : Object.keys(files);
-            projects[row.id] = {
-              name: row.name,
-              files,
-              activeFile: Object.hasOwn(files, row.data.activeFile) ? row.data.activeFile : Object.keys(files)[0],
-              openFiles
-            };
+            let files = Object.fromEntries(Object.entries(row.data.files || {}).filter(([file, content]) => typeof file === "string" && typeof content === "string"));
+            if (isLegacyStarterFiles(files)) files = {};
+            const openFiles = Array.isArray(row.data.openFiles) ? row.data.openFiles.filter(file => typeof file === "string" && Object.hasOwn(files, file)) : Object.keys(files);
+            projects[row.id] = {name:row.name,files,activeFile:Object.hasOwn(files,row.data.activeFile)?row.data.activeFile:Object.keys(files)[0]||"",openFiles};
           }
           if (!Object.keys(projects).length && rows.length) throw new Error("No usable projects were returned from the cloud.");
           cloudProjectIds = new Set(rows.map(row => row.id).filter(id => typeof id === "string"));
           if (!Object.keys(projects).length) {
-            const idMap = Object.fromEntries(Object.keys(localWorkspace.projects).map(id => [id, crypto.randomUUID()]));
-            const importedProjects = Object.fromEntries(
-              Object.entries(localWorkspace.projects).map(([id, project]) => [idMap[id], project])
-            );
-            if (Object.keys(importedProjects).length) {
-              const activeProject = idMap[localWorkspace.activeProject]
-                ? idMap[localWorkspace.activeProject]
-                : Object.keys(importedProjects)[0];
-              state = { activeProject, projects: importedProjects };
+            if (!cachedWorkspace && Object.keys(localWorkspace.projects).length) {
+              const idMap = Object.fromEntries(Object.keys(localWorkspace.projects).map(id => [id,crypto.randomUUID()]));
+              const importedProjects = Object.fromEntries(Object.entries(localWorkspace.projects).map(([id,project]) => {
+                const files = isLegacyStarterFiles(project.files) ? {} : project.files;
+                return [idMap[id],{...project,files,activeFile:Object.hasOwn(files,project.activeFile)?project.activeFile:Object.keys(files)[0]||"",openFiles:(project.openFiles||[]).filter(file=>Object.hasOwn(files,file))}];
+              }));
+              state = {activeProject:idMap[localWorkspace.activeProject]||Object.keys(importedProjects)[0],projects:importedProjects};
             } else {
-              const project = makeStarterProject("My first project");
               const id = crypto.randomUUID();
-              state = { activeProject: id, projects: { [id]: project } };
+              state = {activeProject:id,projects:{[id]:makeStarterProject("My first project")}};
             }
           } else {
-            state = { activeProject: Object.keys(projects)[0], projects };
+            state = {activeProject:Object.keys(projects)[0],projects};
           }
           cloudReady = true;
+          cloudLoading = false;
           elements.accountButton.textContent = "Sign out";
           elements.accountButton.title = `Signed in as ${session.user.email || "your account"}. Click to sign out.`;
           elements.accountButton.disabled = false;
+          elements.profileButton.hidden = false;
           elements.storageCopy.textContent = "Signed in. Your projects sync to your account.";
           elements.saveLabel.textContent = "Saved to cloud";
           elements.saveDot.style.background = "var(--green)";
           elements.saveDot.title = "Your projects are saved to your Orbit account.";
+          writeCloudCache(userId);
           render();
           if (!rows.length) saveCloudProjects();
         } catch (error) {
-          console.error("Could not load Orbit projects from the cloud:", error);
-          cloudUser = null;
+          cloudLoading = false;
+          console.error("Could not refresh Orbit projects from the cloud:",error);
           cloudReady = false;
-          loadedCloudUserId = "";
-          cloudProjectIds = new Set();
+          elements.accountButton.textContent = "Sign out";
           elements.accountButton.disabled = false;
-          elements.accountButton.textContent = "Sign in";
-          elements.storageCopy.textContent = "Sign in to save your projects to your account and open them on another device.";
-          state = loadState();
+          elements.profileButton.hidden = false;
+          elements.storageCopy.textContent = "Showing the saved copy on this device. Reconnect to sync newer changes.";
+          state = cachedWorkspace || localWorkspace;
           render();
-          const { error: signOutError } = await supabaseClient.auth.signOut();
-          if (signOutError) console.error("Could not clear the incomplete Orbit sign-in:", signOutError);
-          showToast("Cloud account setup is incomplete. Finish the Supabase setup, then sign in again.");
+          elements.saveLabel.textContent = "Offline copy";
+          elements.saveDot.style.background = "var(--orange)";
+          showToast("Cloud sync is unavailable. Your workspace is still open and changes are cached on this device.");
         }
       }
 
-      function handleSignedOut() {
+            function handleSignedOut() {
         cloudUser = null;
         cloudReady = false;
         loadedCloudUserId = "";
         cloudProjectIds = new Set();
         elements.accountButton.textContent = "Sign in";
         elements.accountButton.title = "Sign in to sync your projects across devices.";
+        elements.profileButton.hidden = true;
         elements.storageCopy.textContent = "Sign in to save your projects to your account and open them on another device.";
         elements.saveLabel.textContent = "Saved locally";
         elements.saveDot.style.background = "var(--green)";
@@ -1239,7 +1275,7 @@ button.addEventListener("click", () => {
           updateCursorPosition();
         }
         elements.statusFile.textContent = editorReady ? fileKind(activeFile).toUpperCase() : "NO FILE";
-        elements.previewUrl.textContent = `orbit://preview/${project.files["index.html"] ? "index.html" : "no-entry-file"}`;
+        elements.previewUrl.textContent = `orbit://preview/${Object.keys(project.files).length ? (project.files["index.html"] ? "index.html" : "no-entry-file") : "empty"}`;
         schedulePreview();
       }
 
@@ -1751,6 +1787,7 @@ button.addEventListener("click", () => {
       function buildPreview(fileName = currentPreviewFile || "index.html", anchor = "") {
         if (typeof fileName !== "string") fileName = currentPreviewFile || "index.html";
         const project = currentProject();
+        if (!Object.keys(project.files).length) { currentPreviewFile = ""; elements.previewUrl.textContent = "orbit://preview/empty"; elements.preview.srcdoc = "<!doctype html><html><head><meta charset=utf-8></head><body></body></html>"; return; }
         currentPreviewFile = fileName;
         let html = project.files[fileName];
         elements.previewUrl.textContent = "orbit://preview/" + fileName;
@@ -2326,7 +2363,7 @@ button.addEventListener("click", () => {
           projectName = `My Project ${number}`;
         }
         createProject(projectName);
-        showToast(`Created ${projectName}. Your HTML, CSS and JavaScript files are ready!`);
+        showToast(`Created ${projectName}. Add your first file from Explorer.`);
       });
       document.getElementById("projectSwitcher").addEventListener("click", () => {
         const firstOther = Object.keys(state.projects).find(id => id !== state.activeProject);

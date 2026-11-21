@@ -2399,7 +2399,7 @@ button.addEventListener("click", () => {
           const actions=document.createElement("div");actions.className="bin-item-actions";
           if(cloudUser&&cloudUser.id===account.user_id){const signout=document.createElement("button");signout.type="button";signout.textContent="Sign out";signout.addEventListener("click",()=>signOutActiveAccount());actions.append(signout);}
           else {const sw=document.createElement("button");sw.type="button";sw.textContent="Switch";sw.addEventListener("click",()=>switchSavedAccount(account.user_id));actions.append(sw);}
-          const remove=document.createElement("button");remove.type="button";remove.textContent="Remove";remove.addEventListener("click",()=>removeSavedAccount(account.user_id));actions.append(remove);
+          if(!(cloudUser&&cloudUser.id===account.user_id)){const remove=document.createElement("button");remove.type="button";remove.textContent="Remove";remove.addEventListener("click",()=>removeSavedAccount(account.user_id));actions.append(remove);}
           row.append(info,actions);list.append(row);
         }
       }
@@ -2981,32 +2981,22 @@ button.addEventListener("click", () => {
         }
       });
       elements.profileButton.addEventListener("click",openProfile);
+      elements.settingsActivity.addEventListener("click",()=>openSettings());
+      document.getElementById("settingsClose").addEventListener("click",()=>{document.getElementById("settingsBackdrop").hidden=true;});
+      document.getElementById("settingsGeneralTab").addEventListener("click",()=>setSettingsTab("general"));
+      document.getElementById("settingsBinTab").addEventListener("click",()=>setSettingsTab("bin"));
+      document.getElementById("settingsOpenBin").addEventListener("click",()=>setSettingsTab("bin"));
+      document.getElementById("settingsRefreshBin").addEventListener("click",()=>void renderBin());
+      document.getElementById("settingsManageAccounts").addEventListener("click",()=>{document.getElementById("settingsBackdrop").hidden=true;void openAccountManager();});
+      document.getElementById("accountAddButton").addEventListener("click",()=>void addAnotherAccount());
+      document.getElementById("accountCloseButton").addEventListener("click",()=>{document.getElementById("accountBackdrop").hidden=true;});
+      document.getElementById("accountBackdrop").addEventListener("click",event=>{if(event.target===event.currentTarget)event.currentTarget.hidden=true;});
+      document.getElementById("settingsBackdrop").addEventListener("click",event=>{if(event.target===event.currentTarget)event.currentTarget.hidden=true;});
       elements.profileAddProjectButton.addEventListener("click",() => { const id=elements.profileProjectPicker.value; if(!id)return; const selected=getSelectedProfileProjectIds(); if(selected.length>=6){showToast("You can connect up to 6 projects.");return;} renderProfileProjects([...selected,id]); });
       elements.profileForm.addEventListener("submit",saveProfile);
       document.getElementById("profileCancel").addEventListener("click",() => {elements.profileBackdrop.hidden=true;});
       elements.profileBackdrop.addEventListener("click",event => {if(event.target===elements.profileBackdrop)elements.profileBackdrop.hidden=true;});
-      elements.accountButton.addEventListener("click", async () => {
-        if (!cloudUser) {
-          openAuth("signin");
-          return;
-        }
-        try {
-          const confirmed = await askForConfirmation({
-            title: "Sign out of Orbit?",
-            description: "You can sign back in whenever you need to access your cloud workspace.",
-            note: "Your cloud projects stay saved to your account. Signing out won't delete your projects or files.",
-            confirmText: "Sign out"
-          });
-          if (!confirmed) return;
-          const { error } = await supabaseClient.auth.signOut();
-          if (error) throw error;
-          handleSignedOut();
-          showToast("Signed out. Your cloud projects are safe in your account.");
-        } catch (error) {
-          console.error("Could not sign out of Orbit:", error);
-          showToast("Couldn't sign out. Please try again.");
-        }
-      });
+      elements.accountButton.addEventListener("click", () => { if(readSavedAccounts().length || cloudUser) void openAccountManager(); else openAuth("signin"); });
       elements.togglePasswordVisibility.addEventListener("click", () => {
         const showing = elements.authPassword.type === "password";
         elements.authPassword.type = showing ? "text" : "password";

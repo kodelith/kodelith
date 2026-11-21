@@ -531,7 +531,28 @@
     .friend-preview-modal iframe{width:100%;height:100%;flex:1;border:0;background:white}
     .friend-view-website{flex:0 0 auto;padding:7px 10px;border:0;border-radius:9px;background:#2563eb;color:#fff;font-size:10px;font-weight:700;cursor:pointer}
     @media(max-width:600px){.friends-modal{padding:16px!important;width:100%;max-height:90vh}.friend-person{gap:7px}.friend-person-action{padding:7px 8px}.friend-preview-modal{width:100%;height:90vh}}
-    #friendPreviewBackdrop{z-index:7}
+    .friends-tabs{display:flex;gap:8px;padding:4px;border:1px solid var(--line);border-radius:11px;background:var(--panel-soft)}
+    .friends-tab{flex:1;padding:9px 12px;border:0;border-radius:8px;background:transparent;color:var(--muted);font:inherit;font-size:12px;font-weight:700;cursor:pointer}
+    .friends-tab.active{background:var(--panel);color:var(--text);box-shadow:0 1px 4px #0001}
+    .friends-tab span{display:inline-grid;place-items:center;min-width:18px;height:18px;margin-left:4px;padding:0 5px;border-radius:20px;background:#2563eb;color:white;font-size:10px}
+    .friend-card-actions{display:flex;gap:6px;align-items:center}
+    .friend-person-action.message{border-color:#2563eb;color:#2563eb;background:transparent}
+    .chat-modal{width:min(560px,100%);height:min(680px,84vh);padding:0!important;display:flex;flex-direction:column;overflow:hidden}
+    .chat-head{display:flex;align-items:center;justify-content:space-between;padding:15px 18px;border-bottom:1px solid var(--line)}
+    .chat-head h2{margin:0;font-size:17px}.chat-head small{display:block;margin-top:3px;color:var(--muted);font-size:11px}
+    .chat-head button{width:32px;height:32px;border:1px solid var(--line);border-radius:50%;background:var(--panel-soft);color:var(--text);font-size:20px;cursor:pointer}
+    .chat-messages{flex:1;min-height:0;overflow:auto;display:flex;flex-direction:column;gap:9px;padding:16px;background:var(--panel-soft)}
+    .chat-bubble{max-width:82%;padding:9px 12px;border:1px solid var(--line);border-radius:13px;background:var(--panel);font-size:12px;line-height:1.5;white-space:pre-wrap;overflow-wrap:anywhere}
+    .chat-bubble.mine{align-self:flex-end;border-color:#2563eb;background:#2563eb;color:white}
+    .chat-time{display:block;margin-top:4px;font-size:9px;opacity:.68}
+    .chat-compose{display:flex;gap:9px;align-items:flex-end;padding:12px;border-top:1px solid var(--line)}
+    .chat-compose textarea{flex:1;min-width:0;resize:none;padding:10px;border:1px solid var(--line);border-radius:10px;background:var(--panel);color:var(--text);font:inherit;font-size:12px}
+    .chat-compose button{padding:10px 15px;border:0;border-radius:9px;background:#2563eb;color:white;font-weight:700;cursor:pointer}
+    .chat-compose button:disabled{opacity:.6;cursor:default}
+    .chat-note{padding:0 12px 10px;color:var(--muted);font-size:10px;text-align:center}
+    @media(max-width:600px){.chat-modal{width:100%;height:92vh}.friends-tab{padding:8px 6px}}
+    #chatBackdrop{z-index:8}
+    #friendPreviewBackdrop{z-index:9}
 </style>
 </head>
 <body>
@@ -725,12 +746,27 @@
   <div class="modal-backdrop" id="friendsBackdrop" hidden>
     <section class="modal friends-modal" role="dialog" aria-modal="true" aria-labelledby="friendsTitle">
       <div class="friends-header"><div><h2 id="friendsTitle">Friends</h2><p>Find creators, send requests and explore their websites</p></div><button type="button" id="friendsClose" class="friends-close" aria-label="Close">×</button></div>
-      <div class="friends-search"><span>⌕</span><input id="friendSearchInput" type="search" maxlength="24" placeholder="Search by username…" autocomplete="off" spellcheck="false"></div>
-      <div class="friends-content">
+      <div class="friends-tabs" role="tablist" aria-label="Friends">
+        <button type="button" class="friends-tab active" id="friendsFindTab" aria-selected="true">Find friends</button>
+        <button type="button" class="friends-tab" id="friendsRequestsTab" aria-selected="false">Friend requests <span id="friendRequestCount">0</span></button>
+      </div>
+      <div class="friends-content" id="friendsFindPanel">
+        <div class="friends-search"><span>⌕</span><input id="friendSearchInput" type="search" maxlength="24" placeholder="Search by username…" autocomplete="off" spellcheck="false"></div>
         <section class="friends-section"><div class="friends-section-title" id="friendSearchTitle">PEOPLE YOU MAY KNOW</div><div class="friends-list" id="friendSearchResults"><div class="friends-empty">Loading suggestions…</div></div></section>
-        <section class="friends-section"><div class="friends-section-title">FRIEND REQUESTS <span id="friendRequestCount">0</span></div><div class="friends-list" id="friendRequestsList"><div class="friends-empty">No new requests.</div></div></section>
         <section class="friends-section"><div class="friends-section-title">YOUR FRIENDS <span id="friendCount">0</span></div><div class="friends-list" id="friendsList"><div class="friends-empty">Your friends will appear here.</div></div></section>
       </div>
+      <div class="friends-content" id="friendsRequestsPanel" hidden>
+        <section class="friends-section"><div class="friends-section-title">INCOMING REQUESTS</div><div class="friends-list" id="incomingFriendRequests"><div class="friends-empty">No incoming requests.</div></div></section>
+        <section class="friends-section"><div class="friends-section-title">SENT REQUESTS</div><div class="friends-list" id="outgoingFriendRequests"><div class="friends-empty">No sent requests.</div></div></section>
+      </div>
+    </section>
+  </div>
+  <div class="modal-backdrop" id="chatBackdrop" hidden>
+    <section class="modal chat-modal" role="dialog" aria-modal="true" aria-labelledby="chatTitle">
+      <div class="chat-head"><div><h2 id="chatTitle">Chat</h2><small id="chatSubtitle"></small></div><button type="button" id="chatClose" aria-label="Close chat">×</button></div>
+      <div class="chat-messages" id="chatMessages" aria-live="polite"><div class="friends-empty">Loading messages…</div></div>
+      <form class="chat-compose" id="chatForm"><textarea id="chatInput" maxlength="4000" rows="2" placeholder="Write a message…" required></textarea><button type="submit" id="chatSend">Send</button></form>
+      <div class="chat-note">Messages are available only between accepted friends.</div>
     </section>
   </div>
   <div class="modal-backdrop" id="friendPreviewBackdrop" hidden>
@@ -2421,6 +2457,9 @@ button.addEventListener("click", () => {
       let friendRequestRows = [];
       let friendProfilesById = new Map();
       let friendSearchTimer = null;
+      let activeChatPeer = null;
+      let chatRefreshTimer = null;
+      let chatLastMessageId = "";
       const LOCAL_TRASH_PREFIX = "orbit-trash-local-v1:";
       function localTrashKey() { return LOCAL_TRASH_PREFIX + (cloudUser ? cloudUser.id : "guest"); }
       function readLocalTrash() {
@@ -2746,7 +2785,10 @@ button.addEventListener("click", () => {
         info.append(title,handle);info.addEventListener("click",()=>{document.getElementById("friendsBackdrop").hidden=true;void openProfile(profile.id);});
         const action=document.createElement("button");action.type="button";action.className="friend-person-action";
         if(relation?.status==="accepted"){
+          const actions=document.createElement("div");actions.className="friend-card-actions";
+          const message=document.createElement("button");message.type="button";message.className="friend-person-action message";message.textContent="Message";message.addEventListener("click",()=>void openChat(profile));
           action.textContent="Remove";action.title="Remove friend";action.addEventListener("click",()=>void removeFriend(relation.id));
+          actions.append(message,action);row.append(avatar,info,actions);return row;
         }else if(relation?.status==="pending"&&relation.recipient_id===cloudUser.id){
           action.textContent="Accept";action.classList.add("primary");action.addEventListener("click",()=>void acceptFriendRequest(relation.id));
         }else if(relation?.status==="pending"){
@@ -2782,9 +2824,12 @@ button.addEventListener("click", () => {
           const accepted=friendRequestRows.filter(row=>row.status==="accepted");
           const otherProfiles=await fetchFriendProfiles(relatedIds);
           const byId=new Map(otherProfiles.map(profile=>[profile.id,profile]));
-          fillFriendList("friendRequestsList",pending.map(row=>byId.get(row.sender_id===cloudUser.id?row.recipient_id:row.sender_id)).filter(Boolean),"request");
+          const incoming=pending.filter(row=>row.recipient_id===cloudUser.id);
+          const outgoing=pending.filter(row=>row.sender_id===cloudUser.id);
+          fillFriendList("incomingFriendRequests",incoming.map(row=>byId.get(row.sender_id)).filter(Boolean),"request");
+          fillFriendList("outgoingFriendRequests",outgoing.map(row=>byId.get(row.recipient_id)).filter(Boolean),"request");
           fillFriendList("friendsList",accepted.map(row=>byId.get(row.sender_id===cloudUser.id?row.recipient_id:row.sender_id)).filter(Boolean),"friend");
-          document.getElementById("friendRequestCount").textContent=String(pending.length);
+          document.getElementById("friendRequestCount").textContent=String(incoming.length);
           document.getElementById("friendCount").textContent=String(accepted.length);
           if(searchTerm){
             document.getElementById("friendSearchTitle").textContent="SEARCH RESULTS";
@@ -2822,11 +2867,74 @@ button.addEventListener("click", () => {
         try{const {error}=await supabaseClient.from("friend_requests").delete().eq("id",id);if(error)throw error;showToast("Friend removed.");await loadFriendsHub(document.getElementById("friendSearchInput").value.trim());}
         catch(error){console.error(error);showToast("Could not remove this friend.");}
       }
+      function setFriendsTab(tab) {
+        const requests=tab==="requests";
+        document.getElementById("friendsFindPanel").hidden=requests;
+        document.getElementById("friendsRequestsPanel").hidden=!requests;
+        document.getElementById("friendsFindTab").classList.toggle("active",!requests);
+        document.getElementById("friendsRequestsTab").classList.toggle("active",requests);
+        document.getElementById("friendsFindTab").setAttribute("aria-selected",String(!requests));
+        document.getElementById("friendsRequestsTab").setAttribute("aria-selected",String(requests));
+      }
       function openFriends() {
         if(!cloudUser||!supabaseClient){showToast("Sign in to find friends.");openAuth("signin");return;}
         document.getElementById("friendSearchInput").value="";
+        setFriendsTab("find");
         document.getElementById("friendsBackdrop").hidden=false;
         void loadFriendsHub("");
+      }
+      function renderChatMessages(rows) {
+        const list=document.getElementById("chatMessages");
+        const wasNearBottom=list.scrollHeight-list.scrollTop-list.clientHeight<90;
+        list.replaceChildren();
+        if(!rows.length){const empty=document.createElement("div");empty.className="friends-empty";empty.textContent="No messages yet. Say hello!";list.append(empty);}
+        for(const message of rows){
+          const bubble=document.createElement("div");bubble.className="chat-bubble"+(message.sender_id===cloudUser?.id?" mine":"");
+          const body=document.createElement("div");body.textContent=message.content;
+          const time=document.createElement("small");time.className="chat-time";time.textContent=new Date(message.created_at).toLocaleString([], {month:"short",day:"numeric",hour:"numeric",minute:"2-digit"});
+          bubble.append(body,time);list.append(bubble);
+        }
+        if(wasNearBottom)list.scrollTop=list.scrollHeight;
+      }
+      async function loadChatMessages() {
+        if(!activeChatPeer||!cloudUser||!supabaseClient)return;
+        const peer=activeChatPeer.id;
+        const {data,error}=await supabaseClient.from("friend_messages").select("id,sender_id,recipient_id,content,created_at").or("and(sender_id.eq."+cloudUser.id+",recipient_id.eq."+peer+"),and(sender_id.eq."+peer+",recipient_id.eq."+cloudUser.id+")").order("created_at",{ascending:true}).limit(200);
+        if(error){console.error("Could not load chat:",error);return;}
+        if(activeChatPeer?.id!==peer)return;
+        renderChatMessages(data||[]);
+      }
+      async function openChat(profile) {
+        const relation=relationForFriend(profile.id);
+        if(relation?.status!=="accepted"){showToast("You can message accepted friends only.");return;}
+        activeChatPeer=profile;
+        document.getElementById("chatTitle").textContent=friendDisplayName(profile);
+        document.getElementById("chatSubtitle").textContent="@"+String(profile.username||"creator");
+        document.getElementById("chatMessages").innerHTML='<div class="friends-empty">Loading messages…</div>';
+        document.getElementById("chatInput").value="";
+        document.getElementById("chatBackdrop").hidden=false;
+        if(chatRefreshTimer)clearInterval(chatRefreshTimer);
+        await loadChatMessages();
+        chatRefreshTimer=setInterval(()=>{if(!document.getElementById("chatBackdrop").hidden)void loadChatMessages();},3500);
+        document.getElementById("chatInput").focus();
+      }
+      function closeChat() {
+        document.getElementById("chatBackdrop").hidden=true;
+        activeChatPeer=null;
+        if(chatRefreshTimer){clearInterval(chatRefreshTimer);chatRefreshTimer=null;}
+      }
+      async function sendChatMessage(event) {
+        event.preventDefault();
+        const content=document.getElementById("chatInput").value.trim();
+        if(!content||!activeChatPeer||!cloudUser)return;
+        const button=document.getElementById("chatSend");button.disabled=true;
+        try{
+          const {error}=await supabaseClient.from("friend_messages").insert({sender_id:cloudUser.id,recipient_id:activeChatPeer.id,content});
+          if(error)throw error;
+          document.getElementById("chatInput").value="";
+          await loadChatMessages();
+        }catch(error){console.error("Message send failed:",error);showToast(error.message||"Could not send message.");}
+        finally{button.disabled=false;document.getElementById("chatInput").focus();}
       }
 
       async function saveProfile(event) {
@@ -3308,6 +3416,11 @@ button.addEventListener("click", () => {
       });
       elements.profileButton.addEventListener("click",()=>void openProfile());
       document.getElementById("friendsActivity").addEventListener("click",openFriends);
+      document.getElementById("friendsFindTab").addEventListener("click",()=>setFriendsTab("find"));
+      document.getElementById("friendsRequestsTab").addEventListener("click",()=>{setFriendsTab("requests");void loadFriendsHub(document.getElementById("friendSearchInput").value.trim());});
+      document.getElementById("chatClose").addEventListener("click",closeChat);
+      document.getElementById("chatBackdrop").addEventListener("click",event=>{if(event.target===event.currentTarget)closeChat();});
+      document.getElementById("chatForm").addEventListener("submit",sendChatMessage);
       document.getElementById("friendsClose").addEventListener("click",()=>{document.getElementById("friendsBackdrop").hidden=true;});
       document.getElementById("friendsBackdrop").addEventListener("click",event=>{if(event.target===event.currentTarget)event.currentTarget.hidden=true;});
       document.getElementById("friendPreviewClose").addEventListener("click",()=>{document.getElementById("friendPreviewBackdrop").hidden=true;document.getElementById("friendPreviewFrame").srcdoc="";});
@@ -3559,6 +3672,7 @@ button.addEventListener("click", () => {
         if (event.key === "Escape" && !elements.profileEditBackdrop.hidden) elements.profileEditBackdrop.hidden = true;
         if (event.key === "Escape" && !document.getElementById("profileBackdrop").hidden) document.getElementById("profileBackdrop").hidden = true;
         if (event.key === "Escape" && !elements.modalBackdrop.hidden) closeNameModal();
+        if (event.key === "Escape" && !document.getElementById("chatBackdrop").hidden) closeChat();
         if (event.key === "Escape" && !elements.authBackdrop.hidden) closeAuth();
       });
       window.addEventListener("beforeunload", () => {

@@ -747,7 +747,7 @@
         <h2 class="profile-view-name" id="profileViewName">Orbit creator</h2>
         <p class="profile-view-bio" id="profileViewBio"></p>
         <section class="profile-view-projects">
-          <div class="profile-view-projects-title">FEATURED PROJECTS</div>
+          <div class="profile-view-projects-title">WEBSITES</div>
           <div class="profile-view-project-list" id="profileViewProjects"></div>
         </section>
       </div>
@@ -2637,6 +2637,7 @@ button.addEventListener("click", () => {
         try{
           const {data,error}=await supabaseClient.from("profiles").select("id,username,display_name,bio,avatar_url,featured_project_ids").eq("id",userId).maybeSingle();
           if(error)throw error;if(!data)throw new Error("This Orbit profile could not be found.");profileRecord=data;
+          if(userId===cloudUser.id)await syncProfileWebsitePreviews(Array.isArray(data.featured_project_ids)?data.featured_project_ids:[]);
           const previews=await supabaseClient.from("profile_project_previews").select("id,project_id,project_name,preview_html,updated_at").eq("user_id",userId).order("updated_at",{ascending:false});
           if(previews.error)throw previews.error;profilePreviewRows=previews.data||[];
         }catch(error){console.error("Could not load Orbit profile:",error);showToast(error.message||"Couldn't load this profile.");}
@@ -2717,7 +2718,8 @@ button.addEventListener("click", () => {
         }else if(relation?.status==="pending"&&relation.recipient_id===cloudUser.id){
           action.textContent="Accept";action.classList.add("primary");action.addEventListener("click",()=>void acceptFriendRequest(relation.id));
         }else if(relation?.status==="pending"){
-          action.textContent="Requested";action.disabled=true;
+          action.textContent=relation.sender_id===cloudUser.id?"Cancel":"Pending";
+          if(relation.sender_id===cloudUser.id)action.addEventListener("click",()=>void cancelFriendRequest(relation.id));else action.disabled=true;
         }else{
           action.textContent="＋ Add";action.classList.add("primary");action.addEventListener("click",()=>void sendFriendRequest(profile.id));
         }
@@ -2744,13 +2746,13 @@ button.addEventListener("click", () => {
           const {data:relations,error}=await supabaseClient.from("friend_requests").select("id,sender_id,recipient_id,status,created_at").or("sender_id.eq."+cloudUser.id+",recipient_id.eq."+cloudUser.id).order("created_at",{ascending:false});
           if(error)throw error;friendRequestRows=relations||[];
           const relatedIds=[...new Set(friendRequestRows.map(row=>row.sender_id===cloudUser.id?row.recipient_id:row.sender_id))];
-          const incoming=friendRequestRows.filter(row=>row.status==="pending"&&row.recipient_id===cloudUser.id);
+          const pending=friendRequestRows.filter(row=>row.status==="pending");
           const accepted=friendRequestRows.filter(row=>row.status==="accepted");
           const otherProfiles=await fetchFriendProfiles(relatedIds);
           const byId=new Map(otherProfiles.map(profile=>[profile.id,profile]));
-          fillFriendList("friendRequestsList",incoming.map(row=>byId.get(row.sender_id)).filter(Boolean),"request");
+          fillFriendList("friendRequestsList",pending.map(row=>byId.get(row.sender_id===cloudUser.id?row.recipient_id:row.sender_id)).filter(Boolean),"request");
           fillFriendList("friendsList",accepted.map(row=>byId.get(row.sender_id===cloudUser.id?row.recipient_id:row.sender_id)).filter(Boolean),"friend");
-          document.getElementById("friendRequestCount").textContent=String(incoming.length);
+          document.getElementById("friendRequestCount").textContent=String(pending.length);
           document.getElementById("friendCount").textContent=String(accepted.length);
           if(searchTerm){
             document.getElementById("friendSearchTitle").textContent="SEARCH RESULTS";
@@ -2773,6 +2775,10 @@ button.addEventListener("click", () => {
           const {error}=await supabaseClient.from("friend_requests").insert({sender_id:cloudUser.id,recipient_id:userId,status:"pending"});
           if(error)throw error;showToast("Friend request sent.");await loadFriendsHub(document.getElementById("friendSearchInput").value.trim());
         }catch(error){console.error("Friend request failed:",error);showToast(error.code==="23505"?"A request or friendship already exists.":"Could not send friend request.");await loadFriendsHub(document.getElementById("friendSearchInput").value.trim());}
+      }
+      async function cancelFriendRequest(id) {
+        try{const {error}=await supabaseClient.from("friend_requests").delete().eq("id",id);if(error)throw error;showToast("Friend request cancelled.");await loadFriendsHub(document.getElementById("friendSearchInput").value.trim());}
+        catch(error){console.error(error);showToast("Could not cancel this request.");}
       }
       async function acceptFriendRequest(id) {
         try{const {error}=await supabaseClient.from("friend_requests").update({status:"accepted",updated_at:new Date().toISOString()}).eq("id",id);if(error)throw error;showToast("You're now friends.");await loadFriendsHub(document.getElementById("friendSearchInput").value.trim());}

@@ -1098,6 +1098,29 @@ button.addEventListener("click", () => {
         return { name, files: {}, activeFile: "", openFiles: [] };
       }
 
+      function isOrbitInternalSourceLeak(content) {
+        if (typeof content !== "string" || content.length < 300) return false;
+        const markers = ["syncProfileWebsitePreviews", "buildShareablePreview", "friendDisplayName", "friendRequestRows"];
+        return markers.filter(marker => content.includes(marker)).length >= 2 && !/<\\s*html[\\s>]/i.test(content);
+      }
+
+      function repairLeakedProjectSource(project) {
+        if (!project || !project.files || typeof project.files !== "object") return false;
+        let repaired = false;
+        for (const [file, content] of Object.entries(project.files)) {
+          if (isOrbitInternalSourceLeak(content)) {
+            delete project.files[file];
+            project.openFiles = (project.openFiles || []).filter(name => name !== file);
+            if (project.activeFile === file) project.activeFile = "";
+            repaired = true;
+          }
+        }
+        if (!project.activeFile || !Object.hasOwn(project.files, project.activeFile)) {
+          project.activeFile = Object.keys(project.files).find(name => /\\.html?$/i.test(name)) || Object.keys(project.files)[0] || "";
+        }
+        return repaired;
+      }
+
       function readCloudCache(userId) {
         try {
           const raw = localStorage.getItem(CLOUD_CACHE_PREFIX + userId);
@@ -1431,6 +1454,14 @@ button.addEventListener("click", () => {
       function render() {
         const project = currentProject();
         if (!project) return;
+        const repairedInternalSource = repairLeakedProjectSource(project);
+        if (repairedInternalSource) {
+          elements.editor.dataset.file = "";
+          queueMicrotask(() => {
+            scheduleSave();
+            showToast("Recovered Orbit's editor from an accidental internal-code paste. Your other project files were kept.");
+          });
+        }
         elements.projectName.textContent = project.name;
         elements.folderName.textContent = project.name.toLocaleUpperCase();
         elements.statusProject.textContent = project.name;

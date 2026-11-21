@@ -2289,7 +2289,7 @@ button.addEventListener("click", () => {
       const LOCAL_TRASH_PREFIX = "orbit-trash-local-v1:";
       function localTrashKey() { return LOCAL_TRASH_PREFIX + (cloudUser ? cloudUser.id : "guest"); }
       function readLocalTrash() {
-        try { const items=JSON.parse(localStorage.getItem(localTrashKey())||"[]"); return Array.isArray(items)?items.filter(item=>item.expires_at>Date.now()):[]; }
+        try { const items=JSON.parse(localStorage.getItem(localTrashKey())||"[]"); return Array.isArray(items)?items.filter(item=>new Date(item.expires_at).getTime()>Date.now()):[]; }
         catch { return []; }
       }
       function writeLocalTrash(items) { try { localStorage.setItem(localTrashKey(),JSON.stringify(items)); } catch(error) { console.warn("Could not save local Bin:",error); } }

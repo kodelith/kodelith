@@ -537,6 +537,7 @@
       <nav class="activity-bar" aria-label="Workspace tools">
         <button class="activity-button active" type="button" title="Explorer" aria-label="Explorer">▤</button>
         <button class="activity-button" id="newFileActivity" type="button" title="New file" aria-label="New file">＋</button>
+        <button class="activity-button" id="friendsActivity" type="button" title="Friends" aria-label="Friends">♧</button>
         <div class="activity-bottom"></div>
         <button class="activity-button" id="importActivity" type="button" title="Import project" aria-label="Import project">↥</button>
         <button class="activity-button" id="settingsActivity" type="button" title="Settings" aria-label="Settings">⚙</button>
@@ -690,6 +691,23 @@
         <button type="button" id="cancelConfirmDialog">Stay signed in</button>
         <button type="button" class="danger" id="acceptConfirmDialog">Sign out</button>
       </div>
+    </section>
+  </div>
+  <div class="modal-backdrop" id="friendsBackdrop" hidden>
+    <section class="modal friends-modal" role="dialog" aria-modal="true" aria-labelledby="friendsTitle">
+      <div class="friends-header"><div><h2 id="friendsTitle">Friends</h2><p>Find creators, send requests and explore their websites</p></div><button type="button" id="friendsClose" class="friends-close" aria-label="Close">×</button></div>
+      <div class="friends-search"><span>⌕</span><input id="friendSearchInput" type="search" maxlength="24" placeholder="Search by username…" autocomplete="off" spellcheck="false"></div>
+      <div class="friends-content">
+        <section class="friends-section"><div class="friends-section-title" id="friendSearchTitle">PEOPLE YOU MAY KNOW</div><div class="friends-list" id="friendSearchResults"><div class="friends-empty">Loading suggestions…</div></div></section>
+        <section class="friends-section"><div class="friends-section-title">FRIEND REQUESTS <span id="friendRequestCount">0</span></div><div class="friends-list" id="friendRequestsList"><div class="friends-empty">No new requests.</div></div></section>
+        <section class="friends-section"><div class="friends-section-title">YOUR FRIENDS <span id="friendCount">0</span></div><div class="friends-list" id="friendsList"><div class="friends-empty">Your friends will appear here.</div></div></section>
+      </div>
+    </section>
+  </div>
+  <div class="modal-backdrop" id="friendPreviewBackdrop" hidden>
+    <section class="modal friend-preview-modal" role="dialog" aria-modal="true" aria-labelledby="friendPreviewTitle">
+      <div class="friend-preview-head"><strong id="friendPreviewTitle">Website preview</strong><button type="button" id="friendPreviewClose" aria-label="Close preview">×</button></div>
+      <iframe id="friendPreviewFrame" title="Friend's website preview" sandbox="allow-scripts allow-forms allow-modals"></iframe>
     </section>
   </div>
   <div class="modal-backdrop" id="profileBackdrop" hidden>
@@ -2338,6 +2356,11 @@ button.addEventListener("click", () => {
       }
 
       let profileRecord = null;
+      let profileViewOwnerId = null;
+      let profilePreviewRows = [];
+      let friendRequestRows = [];
+      let friendProfilesById = new Map();
+      let friendSearchTimer = null;
       const LOCAL_TRASH_PREFIX = "orbit-trash-local-v1:";
       function localTrashKey() { return LOCAL_TRASH_PREFIX + (cloudUser ? cloudUser.id : "guest"); }
       function readLocalTrash() {
@@ -2562,27 +2585,33 @@ button.addEventListener("click", () => {
         if(username.toLowerCase()==="sagar"){const tick=document.createElement("span");tick.className="profile-view-verified";tick.textContent="✓";tick.title="Verified Orbit account";tick.setAttribute("aria-label","Verified account");name.append(tick);}
         document.getElementById("profileViewBio").textContent=String(record.bio||"");
         const projects=document.getElementById("profileViewProjects");projects.replaceChildren();
-        const ids=Array.isArray(record.featured_project_ids)?record.featured_project_ids:[];
-        const selected=ids.map(id=>({id,project:state.projects[id]})).filter(item=>item.project);
-        if(!selected.length){const empty=document.createElement("div");empty.className="profile-view-empty";empty.textContent="No featured projects yet.";projects.append(empty);}
-        for(const item of selected){
+        if(!profilePreviewRows.length){
+          const empty=document.createElement("div");empty.className="profile-view-empty";
+          empty.textContent=profileViewOwnerId===cloudUser?.id?"No website previews published yet. Feature a project in Edit profile to publish its preview.":"No website previews have been shared yet.";
+          projects.append(empty);
+        }
+        for(const item of profilePreviewRows){
           const card=document.createElement("div");card.className="profile-view-project";
-          const glyph=document.createElement("span");glyph.className="profile-view-project-icon";glyph.textContent="</>";
+          const glyph=document.createElement("span");glyph.className="profile-view-project-icon";glyph.textContent="↗";
           const info=document.createElement("div");info.className="profile-view-project-info";
-          const title=document.createElement("strong");title.textContent=item.project.name;
-          const detail=document.createElement("small");const count=Object.keys(item.project.files||{}).length;detail.textContent=count+" "+(count===1?"file":"files")+" · Orbit project";
-          info.append(title,detail);card.append(glyph,info);projects.append(card);
+          const title=document.createElement("strong");title.textContent=item.project_name||"Website";
+          const detail=document.createElement("small");detail.textContent="Website preview · No source code shown";
+          const view=document.createElement("button");view.type="button";view.className="friend-view-website";view.textContent="View website";
+          view.addEventListener("click",()=>openFriendWebsitePreview(item));
+          info.append(title,detail);card.append(glyph,info,view);projects.append(card);
         }
       }
-      async function openProfile() {
-        if(!cloudUser||!supabaseClient){showToast("Sign in to view your Orbit profile.");return;}
+      async function openProfile(userId=cloudUser?.id) {
+        if(!cloudUser||!supabaseClient||!userId){showToast("Sign in to view Orbit profiles.");return;}
+        profileViewOwnerId=userId;profilePreviewRows=[];
         const backdrop=document.getElementById("profileBackdrop");backdrop.hidden=false;
-        const fallback=String(cloudUser.email||"").split("@")[0].slice(0,24);
+        document.getElementById("profileViewProjects").innerHTML='<div class="friends-empty">Loading website previews…</div>';
         try{
-          const {data,error}=await supabaseClient.from("profiles").select("username,display_name,bio,avatar_url,featured_project_ids").eq("id",cloudUser.id).maybeSingle();
-          if(error)throw error;
-          profileRecord=data||{username:fallback};
-        }catch(error){console.error("Could not load profile:",error);showToast("Couldn't load your profile. Please try again.");}
+          const {data,error}=await supabaseClient.from("profiles").select("id,username,display_name,bio,avatar_url,featured_project_ids").eq("id",userId).maybeSingle();
+          if(error)throw error;if(!data)throw new Error("This Orbit profile could not be found.");profileRecord=data;
+          const previews=await supabaseClient.from("profile_project_previews").select("id,project_id,project_name,preview_html,updated_at").eq("user_id",userId).order("updated_at",{ascending:false});
+          if(previews.error)throw previews.error;profilePreviewRows=previews.data||[];
+        }catch(error){console.error("Could not load Orbit profile:",error);showToast(error.message||"Couldn't load this profile.");}
         renderProfileView();
       }
 

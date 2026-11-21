@@ -645,9 +645,9 @@
       <label for="profileBio">Bio</label>
       <textarea id="profileBio" maxlength="240" rows="3" placeholder="A little about what you build…"></textarea>
       <div class="profile-projects-heading">PROJECTS ON YOUR PROFILE</div>
-      <p class="profile-projects-help">Connect projects already in Orbit, or upload an Orbit project backup to add one.</p>
+      <p class="profile-projects-help">Connect a project already in Orbit, or upload an Orbit ZIP export / JSON backup.</p>
       <div class="profile-project-list" id="profileProjects"></div>
-      <button type="button" class="profile-upload-button" id="profileUploadButton">＋ Upload Orbit project backup</button>
+      <button type="button" class="profile-upload-button" id="profileUploadButton">＋ Upload project ZIP / backup</button>
       <label for="profileAvatar">Avatar image URL (optional)</label>
       <input id="profileAvatar" type="url" maxlength="300" placeholder="https://…">
       <p class="profile-status" id="profileStatus" role="status" aria-live="polite"></p>
@@ -2620,22 +2620,57 @@ button.addEventListener("click", () => {
 
       async function importProject(file) {
         try {
-          const payload = JSON.parse(await file.text());
-          if (!payload || payload.format !== "orbit-project" || !payload.files || typeof payload.files !== "object" || Array.isArray(payload.files)) {
-            throw new Error("Choose a valid Orbit project backup.");
+          let projectName = String(file.name || "Imported project").replace(/\\.(?:zip|json)$/i, "").replace(/[-_]+/g," ").trim() || "Imported project";
+          let files = {};
+          if (/\\.zip$/i.test(file.name || "")) {
+            const bytes = new Uint8Array(await file.arrayBuffer());
+            if (bytes.byteLength > 12 * 1024 * 1024) throw new Error("ZIP is too large. Keep project uploads under 12 MB.");
+            const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+            const decoder = new TextDecoder("utf-8", { fatal: true });
+            let offset = 0;
+            while (offset + 30 <= bytes.length && view.getUint32(offset, true) === 0x04034b50) {
+              const flags = view.getUint16(offset + 6, true);
+              const method = view.getUint16(offset + 8, true);
+              const compressedSize = view.getUint32(offset + 18, true);
+              const nameLength = view.getUint16(offset + 26, true);
+              const extraLength = view.getUint16(offset + 28, true);
+              if ((flags & 0x08) || method !== 0) throw new Error("Use an Orbit-exported ZIP (stored files, no compression).");
+              const nameStart = offset + 30;
+              const dataStart = nameStart + nameLength + extraLength;
+              const dataEnd = dataStart + compressedSize;
+              if (dataEnd > bytes.length) throw new Error("This ZIP is incomplete or invalid.");
+              const rawName = decoder.decode(bytes.subarray(nameStart, nameStart + nameLength));
+              const name = rawName.replace(/\\\\/g,"/");
+              const parts = name.split("/");
+              if (!name.endsWith("/") && !name.startsWith("/") && !parts.some(part => part === "..") && !name.startsWith("__MACOSX/")) {
+                const extension = name.split(".").pop().toLowerCase();
+                const textExtensions = ["html","htm","css","js","mjs","cjs","json","md","txt","svg","xml","csv","yml","yaml","toml","webmanifest","map"];
+                if (textExtensions.includes(extension)) {
+                  try { files[name] = decoder.decode(bytes.subarray(dataStart,dataEnd)); } catch { /* Skip binary or invalid UTF-8 files. */ }
+                }
+              }
+              offset = dataEnd;
+            }
+            if (!Object.keys(files).length) throw new Error("No supported text files were found in this ZIP.");
+          } else {
+            const payload = JSON.parse(await file.text());
+            if (!payload || payload.format !== "orbit-project" || !payload.files || typeof payload.files !== "object" || Array.isArray(payload.files)) {
+              throw new Error("Choose a valid Orbit ZIP or Orbit project JSON backup.");
+            }
+            projectName = typeof payload.name === "string" && payload.name.trim() ? payload.name.trim() : projectName;
+            files = Object.fromEntries(Object.entries(payload.files).filter(([name, text]) =>
+              typeof name === "string" && name.trim() && typeof text === "string" && !name.startsWith("/") && !name.split(/[\\\\/]/).includes("..")
+            ));
           }
-          const files = Object.fromEntries(Object.entries(payload.files).filter(([name, text]) =>
-            typeof name === "string" && name.trim() && typeof text === "string"
-          ));
-          if (!Object.keys(files).length) throw new Error("The project backup doesn't contain any text files.");
-          const projectName = typeof payload.name === "string" && payload.name.trim() ? payload.name.trim() : "Imported project";
+          if (!Object.keys(files).length) throw new Error("The project doesn't contain any supported text files.");
           const id = makeProjectId(projectName);
-          state.projects[id] = { name: projectName, files, activeFile: Object.keys(files)[0], openFiles: [Object.keys(files)[0]] };
+          const firstFile = Object.keys(files).find(name => /\\.html?$/i.test(name)) || Object.keys(files)[0];
+          state.projects[id] = { name: projectName, files, activeFile: firstFile, openFiles: [firstFile] };
           state.activeProject = id;
           elements.editor.dataset.file = "";
           render();
           scheduleSave();
-          showToast(`Imported ${projectName}`);
+          showToast(`Imported ${projectName} with ${Object.keys(files).length} file(s).`);
         } catch (error) {
           console.error("Could not import the Orbit project:", error);
           showToast(error instanceof SyntaxError ? "That file isn't valid project JSON." : error.message || "Couldn't import the project.");

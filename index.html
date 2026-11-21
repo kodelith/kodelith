@@ -3318,7 +3318,9 @@ button.addEventListener("click", () => {
         if(!cloudUser||!cloudReady||!supabaseClient){setDeployStatus("Sign in before deploying.",true);return;}
         const button=document.getElementById("deploySubmit");if(button.disabled)return;
         saveEditorValue();
-        const project=currentProject();let uploaded=[];
+        const project=currentProject();
+        let existing=null,storage=null,stablePath="",stablePointerUpdated=false,releasePrefix="";
+        const uploadedReleasePaths=[];
         button.disabled=true;document.getElementById("deployUnpublish").disabled=true;
         try{
           const slug=document.getElementById("deploySlug").value.trim().toLowerCase();
@@ -3326,41 +3328,52 @@ button.addEventListener("click", () => {
           const files=validateDeployFiles(project);
           const {data:collision,error:collisionError}=await supabaseClient.from("orbit_deployments").select("project_id").eq("user_id",cloudUser.id).eq("slug",slug).neq("project_id",String(state.activeProject)).maybeSingle();
           if(collisionError)throw collisionError;if(collision)throw new Error("That website address is already used by another Orbit project.");
-          const {data:existing,error:existingError}=await supabaseClient.from("orbit_deployments").select("*").eq("user_id",cloudUser.id).eq("project_id",String(state.activeProject)).maybeSingle();
-          if(existingError)throw existingError;
+          const {data:previous,error:existingError}=await supabaseClient.from("orbit_deployments").select("*").eq("user_id",cloudUser.id).eq("project_id",String(state.activeProject)).maybeSingle();
+          if(existingError)throw existingError;existing=previous;
+          const sameSlug=existing?.slug===slug;
+          const oldPrefixes=sameSlug&&Array.isArray(existing?.release_prefixes)?existing.release_prefixes:[];
+          const oldPaths=sameSlug&&Array.isArray(existing?.file_paths)?existing.file_paths:[];
           const version=Date.now().toString(36)+"-"+crypto.randomUUID().slice(0,8);
-          const releasePrefix=cloudUser.id+"/"+slug+"/_releases/"+version;
-          const storage=supabaseClient.storage.from(DEPLOY_BUCKET);
+          releasePrefix=cloudUser.id+"/"+slug+"/_releases/"+version;
+          stablePath=cloudUser.id+"/"+slug+"/index.html";
+          storage=supabaseClient.storage.from(DEPLOY_BUCKET);
           setDeployStatus("Uploading "+files.length+" files…");
           for(let i=0;i<files.length;i++){
             const file=files[i],path=releasePrefix+"/"+file.name;
             const {error}=await storage.upload(path,new Blob([file.content],{type:deployMimeType(file.name)}),{contentType:deployMimeType(file.name),cacheControl:"60",upsert:true});
             if(error)throw new Error("Could not upload "+file.name+": "+error.message);
-            uploaded.push(path);setDeployStatus("Uploading "+(i+1)+" of "+files.length+" files…");
+            uploadedReleasePaths.push(path);setDeployStatus("Uploading "+(i+1)+" of "+files.length+" files…");
           }
           const releaseUrl=storage.getPublicUrl(releasePrefix+"/index.html").data.publicUrl;
-          const stablePath=cloudUser.id+"/"+slug+"/index.html";
           const redirectHtml='<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="refresh" content="0;url='+releaseUrl+'"><title>Opening website…</title></head><body><p>Opening your website… <a href="'+releaseUrl+'">Continue</a></p><script>location.replace('+JSON.stringify(releaseUrl)+');<'+"/script></body></html>";
           const {error:redirectError}=await storage.upload(stablePath,new Blob([redirectHtml],{type:"text/html; charset=utf-8"}),{contentType:"text/html; charset=utf-8",cacheControl:"60",upsert:true});
           if(redirectError)throw new Error("Files uploaded, but the public link could not be updated: "+redirectError.message);
-          uploaded.push(stablePath);
-          const oldPrefixes=Array.isArray(existing?.release_prefixes)?existing.release_prefixes:[];
+          stablePointerUpdated=true;
           const releasePrefixes=[releasePrefix,...oldPrefixes.filter(prefix=>prefix!==releasePrefix)].slice(0,3);
-          const keepSet=new Set(releasePrefixes);
-          const oldPaths=Array.isArray(existing?.file_paths)?existing.file_paths:[];
-          const filePaths=[stablePath,...uploaded.filter(path=>path!==stablePath),...oldPaths.filter(path=>path!==stablePath&&releasePrefixes.some(prefix=>path.startsWith(prefix+"/")))];
+          const retainedPaths=[...oldPaths.filter(path=>path!==stablePath&&releasePrefixes.some(prefix=>path.startsWith(prefix+"/")))];
+          const filePaths=[stablePath,...uploadedReleasePaths,...retainedPaths];
           const publicUrl=storage.getPublicUrl(stablePath).data.publicUrl;
           const {error:saveError}=await supabaseClient.from("orbit_deployments").upsert({user_id:cloudUser.id,project_id:String(state.activeProject),project_name:String(project.name||"Website").slice(0,60),slug,storage_prefix:cloudUser.id+"/"+slug,public_url:publicUrl,file_count:files.length,release_prefixes:releasePrefixes,file_paths:[...new Set(filePaths)],updated_at:new Date().toISOString()},{onConflict:"user_id,project_id"});
           if(saveError)throw saveError;
-          const obsolete=oldPaths.filter(path=>path!==stablePath&&!releasePrefixes.some(prefix=>path.startsWith(prefix+"/")));
-          if(existing?.slug&&existing.slug!==slug)obsolete.push(...oldPaths);
+          const obsolete=(Array.isArray(existing?.file_paths)?existing.file_paths:[]).filter(path=>path!==stablePath&&!filePaths.includes(path));
+          if(existing?.slug&&existing.slug!==slug)obsolete.push(...(existing.file_paths||[]));
           for(let i=0;i<obsolete.length;i+=100){const {error}=await storage.remove([...new Set(obsolete.slice(i,i+100))]);if(error)console.warn("Old deployment files could not be cleaned up:",error.message);}
           activeDeployment={slug,public_url:publicUrl,updated_at:new Date().toISOString()};
           setDeployUrl(publicUrl);document.getElementById("deployUnpublish").hidden=false;button.textContent="Update website";
           setDeployStatus("Published successfully · "+files.length+" files. Updates may take up to a minute to appear.");
           showToast("Website deployed successfully.");
         }catch(error){
-          if(uploaded.length){const storage=supabaseClient.storage.from(DEPLOY_BUCKET);for(let i=0;i<uploaded.length;i+=100){try{await storage.remove(uploaded.slice(i,i+100));}catch{}}}
+          if(stablePointerUpdated&&storage&&stablePath){
+            try{
+              const previousPrefix=existing?.release_prefixes?.[0];
+              if(previousPrefix){
+                const previousUrl=storage.getPublicUrl(previousPrefix+"/index.html").data.publicUrl;
+                const rollback='<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="refresh" content="0;url='+previousUrl+'"><title>Opening website…</title></head><body><a href="'+previousUrl+'">Continue</a><script>location.replace('+JSON.stringify(previousUrl)+');<'+"/script></body></html>";
+                await storage.upload(stablePath,new Blob([rollback],{type:"text/html; charset=utf-8"}),{contentType:"text/html; charset=utf-8",cacheControl:"60",upsert:true});
+              }else await storage.remove([stablePath]);
+            }catch(rollbackError){console.error("Could not restore the previous public link:",rollbackError);}
+          }
+          if(uploadedReleasePaths.length&&storage){for(let i=0;i<uploadedReleasePaths.length;i+=100){try{await storage.remove(uploadedReleasePaths.slice(i,i+100));}catch{}}}
           console.error("Orbit deploy failed:",error);setDeployStatus(error.message||"Deployment failed. Your project files were not changed.",true);
         }finally{button.disabled=false;document.getElementById("deployUnpublish").disabled=false;}
       }

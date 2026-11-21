@@ -512,7 +512,7 @@
     .friends-search{display:flex;align-items:center;gap:10px;padding:0 13px;height:42px;border:1px solid var(--line);border-radius:12px;background:var(--panel-soft);color:var(--muted)}
     .friends-search span{font-size:22px}
     .friends-search input{width:100%;min-width:0;border:0!important;outline:0!important;background:transparent!important;color:var(--text)!important;font:inherit;font-size:13px}
-    .friends-content{overflow:auto;display:grid;gap:18px;padding-right:3px}
+    .friends-content{overflow:auto;display:grid;gap:18px;padding-right:3px;min-height:0}
     .friends-section-title{display:flex;align-items:center;gap:8px;margin-bottom:8px;color:var(--muted);font-size:10px;font-weight:800;letter-spacing:1px}
     .friends-section-title span{display:inline-grid;place-items:center;min-width:18px;height:18px;padding:0 5px;border-radius:20px;background:var(--panel-soft);font-size:10px;letter-spacing:0}
     .friends-list{display:grid;gap:7px}
@@ -735,7 +735,7 @@
   <div class="modal-backdrop" id="friendPreviewBackdrop" hidden>
     <section class="modal friend-preview-modal" role="dialog" aria-modal="true" aria-labelledby="friendPreviewTitle">
       <div class="friend-preview-head"><strong id="friendPreviewTitle">Website preview</strong><button type="button" id="friendPreviewClose" aria-label="Close preview">×</button></div>
-      <iframe id="friendPreviewFrame" title="Friend's website preview" sandbox="allow-scripts allow-forms allow-modals"></iframe>
+      <iframe id="friendPreviewFrame" title="Friend's website preview" sandbox="allow-scripts"></iframe>
     </section>
   </div>
   <div class="modal-backdrop" id="profileBackdrop" hidden>
@@ -2714,7 +2714,7 @@ button.addEventListener("click", () => {
         info.append(title,handle);info.addEventListener("click",()=>{document.getElementById("friendsBackdrop").hidden=true;void openProfile(profile.id);});
         const action=document.createElement("button");action.type="button";action.className="friend-person-action";
         if(relation?.status==="accepted"){
-          action.textContent="Friends";action.addEventListener("click",()=>void removeFriend(relation.id));
+          action.textContent="Remove";action.title="Remove friend";action.addEventListener("click",()=>void removeFriend(relation.id));
         }else if(relation?.status==="pending"&&relation.recipient_id===cloudUser.id){
           action.textContent="Accept";action.classList.add("primary");action.addEventListener("click",()=>void acceptFriendRequest(relation.id));
         }else if(relation?.status==="pending"){
@@ -2758,7 +2758,7 @@ button.addEventListener("click", () => {
             document.getElementById("friendSearchTitle").textContent="SEARCH RESULTS";
             const term=searchTerm.replace(/[^a-zA-Z0-9_]/g,"").slice(0,24);
             if(!term){fillFriendList("friendSearchResults",[]);return;}
-            const {data,error:searchError}=await supabaseClient.from("profiles").select("id,username,display_name,avatar_url,created_at").ilike("username","%"+term+"%").neq("id",cloudUser.id).order("username").limit(15);
+            const {data,error:searchError}=await supabaseClient.from("profiles").select("id,username,display_name,avatar_url,created_at").or("username.ilike.%"+term+"%,display_name.ilike.%"+term+"%").neq("id",cloudUser.id).order("username").limit(15);
             if(searchError)throw searchError;
             fillFriendList("friendSearchResults",data||[]);
           }else{

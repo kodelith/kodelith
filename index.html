@@ -81,6 +81,8 @@
     .activity-button.active { border-left-color: var(--accent); }
     .activity-bottom { flex: 1; }
     .profile-activity { position:relative; margin-top:4px; border-top:1px solid var(--line); padding-top:7px; width:36px; height:36px; border-radius:50%; overflow:visible; border:2px solid var(--line-strong); padding:0; }
+    #friendsActivity { position:relative; }
+    .friends-unread-dot { position:absolute; top:3px; right:3px; width:10px; height:10px; border:2px solid #f3f3f3; border-radius:50%; background:#e02424; box-shadow:0 0 0 1px #fff; }
     .modal.settings-modal { width:min(620px,100%); max-height:min(82vh,760px); overflow:auto; }
     .settings-tabs { display:flex; gap:6px; border-bottom:1px solid var(--line); margin:14px 0; padding-bottom:8px; }
     .settings-tab { padding:7px 11px; border:1px solid var(--line); border-radius:7px; background:var(--panel-soft); color:var(--text); cursor:pointer; font:inherit; font-size:12px; }
@@ -587,10 +589,10 @@
       <nav class="activity-bar" aria-label="Workspace tools">
         <button class="activity-button active" type="button" title="Explorer" aria-label="Explorer">▤</button>
         <button class="activity-button" id="newFileActivity" type="button" title="New file" aria-label="New file">＋</button>
-        <button class="activity-button" id="friendsActivity" type="button" title="Friends" aria-label="Friends">♧</button>
         <div class="activity-bottom"></div>
         <button class="activity-button" id="importActivity" type="button" title="Import project" aria-label="Import project">↥</button>
         <button class="activity-button" id="settingsActivity" type="button" title="Settings" aria-label="Settings">⚙</button>
+        <button class="activity-button" id="friendsActivity" type="button" title="Friends" aria-label="Friends">♧<span class="friends-unread-dot" id="friendsUnreadDot" hidden aria-label="Unread messages"></span></button>
         <button class="activity-button profile-activity" id="profileButton" type="button" title="Your profile" aria-label="Your profile" hidden>◎</button>
       </nav>
 
@@ -748,12 +750,15 @@
       <div class="friends-header"><div><h2 id="friendsTitle">Friends</h2><p>Find creators, send requests and explore their websites</p></div><button type="button" id="friendsClose" class="friends-close" aria-label="Close">×</button></div>
       <div class="friends-tabs" role="tablist" aria-label="Friends">
         <button type="button" class="friends-tab active" id="friendsFindTab" aria-selected="true">Find friends</button>
-        <button type="button" class="friends-tab" id="friendsRequestsTab" aria-selected="false">Friend requests <span id="friendRequestCount">0</span></button>
+        <button type="button" class="friends-tab" id="friendsYourTab" aria-selected="false">Your friends <span id="friendCount">0</span></button>
+        <button type="button" class="friends-tab" id="friendsRequestsTab" aria-selected="false">Requests <span id="friendRequestCount">0</span></button>
       </div>
       <div class="friends-content" id="friendsFindPanel">
         <div class="friends-search"><span>⌕</span><input id="friendSearchInput" type="search" maxlength="24" placeholder="Search by username…" autocomplete="off" spellcheck="false"></div>
         <section class="friends-section"><div class="friends-section-title" id="friendSearchTitle">PEOPLE YOU MAY KNOW</div><div class="friends-list" id="friendSearchResults"><div class="friends-empty">Loading suggestions…</div></div></section>
-        <section class="friends-section"><div class="friends-section-title">YOUR FRIENDS <span id="friendCount">0</span></div><div class="friends-list" id="friendsList"><div class="friends-empty">Your friends will appear here.</div></div></section>
+      </div>
+      <div class="friends-content" id="friendsYourPanel" hidden>
+        <section class="friends-section"><div class="friends-section-title">YOUR FRIENDS</div><div class="friends-list" id="friendsList"><div class="friends-empty">Your friends will appear here.</div></div></section>
       </div>
       <div class="friends-content" id="friendsRequestsPanel" hidden>
         <section class="friends-section"><div class="friends-section-title">INCOMING REQUESTS</div><div class="friends-list" id="incomingFriendRequests"><div class="friends-empty">No incoming requests.</div></div></section>
@@ -1439,6 +1444,7 @@ button.addEventListener("click", () => {
 
             function handleSignedOut() {
         cloudUser = null;
+        const unreadDot=document.getElementById("friendsUnreadDot");if(unreadDot)unreadDot.hidden=true;
         cloudReady = false;
         loadedCloudUserId = "";
         cloudProjectIds = new Set();
@@ -1473,13 +1479,13 @@ button.addEventListener("click", () => {
         supabaseClient.auth.onAuthStateChange((event, session) => {
           if (session) {
             saveAccountSession(session);
-            if (loadedCloudUserId !== session.user.id || !cloudReady) {
-              queueMicrotask(() => loadCloudWorkspace(session));
-            }
-          } else if (event === "SIGNED_OUT" && cloudUser) {
-            handleSignedOut();
-          }
+            if (loadedCloudUserId !== session.user.id || !cloudReady) queueMicrotask(() => loadCloudWorkspace(session));
+            queueMicrotask(()=>void refreshUnreadMessageBadge());
+          } else if (event === "SIGNED_OUT" && cloudUser) handleSignedOut();
         });
+        void refreshUnreadMessageBadge();
+        if(unreadMessageTimer)clearInterval(unreadMessageTimer);
+        unreadMessageTimer=setInterval(()=>void refreshUnreadMessageBadge(),5000);
       }
 
       function fileKind(file) {
@@ -2459,6 +2465,7 @@ button.addEventListener("click", () => {
       let friendSearchTimer = null;
       let activeChatPeer = null;
       let chatRefreshTimer = null;
+      let unreadMessageTimer = null;
       let chatLastMessageId = "";
       const LOCAL_TRASH_PREFIX = "orbit-trash-local-v1:";
       function localTrashKey() { return LOCAL_TRASH_PREFIX + (cloudUser ? cloudUser.id : "guest"); }
@@ -2868,20 +2875,14 @@ button.addEventListener("click", () => {
         catch(error){console.error(error);showToast("Could not remove this friend.");}
       }
       function setFriendsTab(tab) {
-        const requests=tab==="requests";
-        document.getElementById("friendsFindPanel").hidden=requests;
-        document.getElementById("friendsRequestsPanel").hidden=!requests;
-        document.getElementById("friendsFindTab").classList.toggle("active",!requests);
-        document.getElementById("friendsRequestsTab").classList.toggle("active",requests);
-        document.getElementById("friendsFindTab").setAttribute("aria-selected",String(!requests));
-        document.getElementById("friendsRequestsTab").setAttribute("aria-selected",String(requests));
+        const panelByTab={find:"friendsFindPanel",your:"friendsYourPanel",requests:"friendsRequestsPanel"};
+        for(const [key,id] of Object.entries(panelByTab)) document.getElementById(id).hidden=key!==tab;
+        for(const key of Object.keys(panelByTab)){const button=document.getElementById(key==="find"?"friendsFindTab":key==="your"?"friendsYourTab":"friendsRequestsTab");button.classList.toggle("active",key===tab);button.setAttribute("aria-selected",String(key===tab));}
       }
       function openFriends() {
         if(!cloudUser||!supabaseClient){showToast("Sign in to find friends.");openAuth("signin");return;}
-        document.getElementById("friendSearchInput").value="";
-        setFriendsTab("find");
-        document.getElementById("friendsBackdrop").hidden=false;
-        void loadFriendsHub("");
+        document.getElementById("friendSearchInput").value="";setFriendsTab("find");
+        document.getElementById("friendsBackdrop").hidden=false;void loadFriendsHub("");void refreshUnreadMessageBadge();
       }
       function renderChatMessages(rows) {
         const list=document.getElementById("chatMessages");
@@ -2896,13 +2897,27 @@ button.addEventListener("click", () => {
         }
         if(wasNearBottom)list.scrollTop=list.scrollHeight;
       }
+      async function refreshUnreadMessageBadge() {
+        const dot=document.getElementById("friendsUnreadDot");if(!dot)return;
+        if(!cloudUser||!supabaseClient){dot.hidden=true;return;}
+        const {count,error}=await supabaseClient.from("friend_messages").select("id",{count:"exact",head:true}).eq("recipient_id",cloudUser.id).is("read_at",null);
+        if(error){console.warn("Unread message count unavailable:",error);return;}
+        dot.hidden=!(count>0);
+        const button=document.getElementById("friendsActivity");button.title=count>0?count+" unread message"+(count===1?"":"s"):"Friends";button.setAttribute("aria-label",button.title);
+      }
+      async function markChatMessagesRead(peer) {
+        if(!cloudUser||!supabaseClient||!peer)return;
+        const {error}=await supabaseClient.from("friend_messages").update({read_at:new Date().toISOString()}).eq("recipient_id",cloudUser.id).eq("sender_id",peer).is("read_at",null);
+        if(error)console.warn("Could not mark messages as read:",error);
+        await refreshUnreadMessageBadge();
+      }
       async function loadChatMessages() {
         if(!activeChatPeer||!cloudUser||!supabaseClient)return;
         const peer=activeChatPeer.id;
-        const {data,error}=await supabaseClient.from("friend_messages").select("id,sender_id,recipient_id,content,created_at").or("and(sender_id.eq."+cloudUser.id+",recipient_id.eq."+peer+"),and(sender_id.eq."+peer+",recipient_id.eq."+cloudUser.id+")").order("created_at",{ascending:true}).limit(200);
+        const {data,error}=await supabaseClient.from("friend_messages").select("id,sender_id,recipient_id,content,created_at,read_at").or("and(sender_id.eq."+cloudUser.id+",recipient_id.eq."+peer+"),and(sender_id.eq."+peer+",recipient_id.eq."+cloudUser.id+")").order("created_at",{ascending:true}).limit(200);
         if(error){console.error("Could not load chat:",error);return;}
         if(activeChatPeer?.id!==peer)return;
-        renderChatMessages(data||[]);
+        renderChatMessages(data||[]);await markChatMessagesRead(peer);
       }
       async function openChat(profile) {
         const relation=relationForFriend(profile.id);
@@ -3417,6 +3432,7 @@ button.addEventListener("click", () => {
       elements.profileButton.addEventListener("click",()=>void openProfile());
       document.getElementById("friendsActivity").addEventListener("click",openFriends);
       document.getElementById("friendsFindTab").addEventListener("click",()=>setFriendsTab("find"));
+      document.getElementById("friendsYourTab").addEventListener("click",()=>setFriendsTab("your"));
       document.getElementById("friendsRequestsTab").addEventListener("click",()=>{setFriendsTab("requests");void loadFriendsHub(document.getElementById("friendSearchInput").value.trim());});
       document.getElementById("chatClose").addEventListener("click",closeChat);
       document.getElementById("chatBackdrop").addEventListener("click",event=>{if(event.target===event.currentTarget)closeChat();});

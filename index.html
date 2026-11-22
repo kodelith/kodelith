@@ -2079,7 +2079,10 @@ async function sendAiMessage(event) {
         button.style.cssText="margin-left:14px;border:0;background:transparent;color:#0067b8;font-weight:700;cursor:pointer";button.addEventListener("click",undoOrbit);elements.toast.append(button);elements.toast.hidden=false;
         window.clearTimeout(toastTimer);toastTimer=window.setTimeout(()=>{elements.toast.hidden=true;},6000);
       }
+      let cssColorPickerOpen = false;
       function renderCssColorDecorations(source) {
+        // Do not replace the active color input while its native picker is open.
+        if (cssColorPickerOpen) return;
         const layer=elements.cssColorDecorations;
         layer.replaceChildren();
         if(fileKind(currentProject()?.activeFile||"")!=="css") return;
@@ -2108,6 +2111,8 @@ async function sendAiMessage(event) {
             const picker=document.createElement("input");
             picker.type="color";picker.value=CSS.supports("color",value) ? (function(){const probe=document.createElement("span");probe.style.color=value;document.body.append(probe);const computed=getComputedStyle(probe).color;probe.remove();const nums=computed.match(/\d+/g);return nums&&nums.length>=3?"#"+nums.slice(0,3).map(n=>Number(n).toString(16).padStart(2,"0")).join(""):"#000000";})() : "#000000";
             picker.setAttribute("aria-label","Choose replacement color");
+            picker.addEventListener("focus",()=>{cssColorPickerOpen=true;});
+            picker.addEventListener("blur",()=>{cssColorPickerOpen=false;renderCssColorDecorations(elements.editor.value);});
             picker.addEventListener("change",()=>{
               const start=lineOffset+tokenIndex;
               const end=start+value.length;
@@ -2131,6 +2136,8 @@ async function sendAiMessage(event) {
               const picker=document.createElement("input");
               picker.type="color";picker.value="#000000";
               picker.setAttribute("aria-label","Choose CSS color");
+              picker.addEventListener("focus",()=>{cssColorPickerOpen=true;});
+              picker.addEventListener("blur",()=>{cssColorPickerOpen=false;renderCssColorDecorations(elements.editor.value);});
               picker.addEventListener("change",()=>{
                 elements.editor.setRangeText(picker.value,insertAt,insertAt,"end");
                 elements.editor.focus();saveEditorValue();

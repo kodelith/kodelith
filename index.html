@@ -3997,7 +3997,7 @@ async function sendAiMessage(event) {
       const previewLayoutStorageKey="orbit-preview-layout-v1";
       let savedPreviewLayout={};try{savedPreviewLayout=JSON.parse(localStorage.getItem(previewLayoutStorageKey)||"{}")||{};}catch(error){savedPreviewLayout={};}
       let previewZoom=Math.max(.25,Math.min(1.5,Number(savedPreviewLayout.zoom)||1));
-      const savePreviewLayout=()=>{try{localStorage.setItem(previewLayoutStorageKey,JSON.stringify({...savedPreviewLayout,zoom:previewZoom,device:elements.previewDevice.value}));}catch(error){}};
+      const savePreviewLayout=()=>{savedPreviewLayout={...savedPreviewLayout,zoom:previewZoom,device:elements.previewDevice.value};try{localStorage.setItem(previewLayoutStorageKey,JSON.stringify(savedPreviewLayout));}catch(error){}};
       const applyPreviewZoom=()=>{const selected=elements.previewDevice.value;const [w,h]=selected.split("x").map(Number);const naturalWidth=w||390,naturalHeight=h||844;elements.preview.style.width=naturalWidth+"px";elements.preview.style.maxWidth="none";elements.preview.style.height=naturalHeight+"px";elements.preview.style.transformOrigin="top left";elements.preview.style.transform=`scale(${previewZoom})`;elements.preview.style.marginRight=(naturalWidth*(previewZoom-1))+"px";elements.preview.style.marginBottom=(naturalHeight*(previewZoom-1))+"px";zoomInput.value=String(Math.round(previewZoom*100));zoomValue.textContent=Math.round(previewZoom*100)+"%";elements.previewDimensions.textContent=`Preview viewport: ${naturalWidth} × ${naturalHeight} px · ${Math.round(previewZoom*100)}% zoom`;};
       const updatePreviewDimensions=()=>{applyPreviewZoom();};
       const setPreviewZoom=value=>{previewZoom=Math.max(.25,Math.min(1.5,Number(value)||1));applyPreviewZoom();savePreviewLayout();};
@@ -4016,7 +4016,7 @@ async function sendAiMessage(event) {
       const stopBottomDrag=event=>{if(bottomDrag===event.pointerId){bottomDrag=null;bottomSplitter.classList.remove("dragging");}};bottomSplitter.addEventListener("pointerup",stopBottomDrag);bottomSplitter.addEventListener("pointercancel",stopBottomDrag);
       bottomSplitter.addEventListener("keydown",event=>{if(event.key==="ArrowUp"||event.key==="ArrowDown"){event.preventDefault();const r=bottomSplitter.getBoundingClientRect();setMobilePreviewSplit(r.top+(event.key==="ArrowUp"?-30:30));}});
       const deviceStorageKey="orbit-preview-devices-v1";
-       const loadSavedPreviewDevices=()=>{let saved=[];try{saved=JSON.parse(localStorage.getItem(deviceStorageKey)||"[]");if(!Array.isArray(saved))saved=[];}catch(error){}const size=Math.max(200,Math.min(3000,window.innerWidth))+"x"+Math.max(200,Math.min(3000,window.innerHeight));saved=saved.filter(d=>String(d.name||"").toLowerCase()!=="this device");saved.unshift({name:"This device",size});try{localStorage.setItem(deviceStorageKey,JSON.stringify(saved));}catch(error){}saved.forEach(d=>{if(!d||typeof d.name!=="string"||!/^\d{2,4}x\d{2,4}$/.test(d.size||""))return;const option=document.createElement("option");option.value=d.size;option.textContent=d.name+" · "+d.size.replace("x"," × ")+" px";option.dataset.savedDevice="true";elements.previewDevice.insertBefore(option,elements.previewDevice.querySelector('[value="add-device"]'));});elements.previewDevice.value=size;};
+       const loadSavedPreviewDevices=()=>{let saved=[];try{saved=JSON.parse(localStorage.getItem(deviceStorageKey)||"[]");if(!Array.isArray(saved))saved=[];}catch(error){}const size=Math.max(200,Math.min(3000,window.innerWidth))+"x"+Math.max(200,Math.min(3000,window.innerHeight));saved=saved.filter(d=>String(d.name||"").toLowerCase()!=="this device");saved.unshift({name:"This device",size});try{localStorage.setItem(deviceStorageKey,JSON.stringify(saved));}catch(error){}saved.forEach(d=>{if(!d||typeof d.name!=="string"||!/^\d{2,4}x\d{2,4}$/.test(d.size||""))return;const option=document.createElement("option");option.value=d.size;option.textContent=d.name+" · "+d.size.replace("x"," × ")+" px";option.dataset.savedDevice="true";elements.previewDevice.insertBefore(option,elements.previewDevice.querySelector('[value="add-device"]'));});const preferred=savedPreviewLayout.device&&Array.from(elements.previewDevice.options).some(option=>option.value===savedPreviewLayout.device)?savedPreviewLayout.device:size;elements.previewDevice.value=preferred;};
        loadSavedPreviewDevices();
        elements.previewDevice.addEventListener("change", () => {
         if(elements.previewDevice.value==="add-device"){
@@ -4075,11 +4075,12 @@ async function sendAiMessage(event) {
         if (!previewDrag || (event && previewDrag.pointerId !== event.pointerId)) return;
         previewDrag = null;
         previewSplitter.classList.remove("dragging");
+        persistPreviewSplit();
       };
       const persistPreviewSplit=()=>{const bounds=mainArea.getBoundingClientRect();const width=mainArea.querySelector(".editor-surface").getBoundingClientRect().width;const percent=Math.max(25,Math.min(75,width/bounds.width*100));try{localStorage.setItem(previewLayoutStorageKey,JSON.stringify({...savedPreviewLayout,zoom:previewZoom,device:elements.previewDevice.value,splitPercent:percent}));savedPreviewLayout.splitPercent=percent;}catch(error){}};
       if(Number.isFinite(Number(savedPreviewLayout.splitPercent))){const bounds=mainArea.getBoundingClientRect();const width=Math.max(320,Math.min(bounds.width-280,bounds.width*Number(savedPreviewLayout.splitPercent)/100));mainArea.style.gridTemplateColumns=`${width}px 6px minmax(280px, 1fr)`;}
-      previewSplitter.addEventListener("pointerup",event=>{stopPreviewDrag(event);persistPreviewSplit();});
-      previewSplitter.addEventListener("pointercancel",event=>{stopPreviewDrag(event);persistPreviewSplit();});
+      previewSplitter.addEventListener("pointerup",stopPreviewDrag);
+      previewSplitter.addEventListener("pointercancel",stopPreviewDrag);
       previewSplitter.addEventListener("lostpointercapture", stopPreviewDrag);
       previewSplitter.addEventListener("keydown", event => {
         if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
@@ -4089,6 +4090,7 @@ async function sendAiMessage(event) {
         const next = Math.max(320, Math.min(bounds.width - 280, current + (event.key === "ArrowRight" ? 24 : -24)));
         mainArea.style.gridTemplateColumns = `${next}px 6px minmax(280px, 1fr)`;
         previewSplitter.setAttribute("aria-valuenow", String(Math.round(next / bounds.width * 100)));
+        persistPreviewSplit();
       });
       // Keep the live preview visible by default on every device size.
       elements.previewArea.hidden = false;

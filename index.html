@@ -2095,9 +2095,9 @@ async function sendAiMessage(event) {
           let match;
           colorPattern.lastIndex=0;
           while((match=colorPattern.exec(masked))){
-            const value=match[0];
+            const value=match[0], tokenIndex=match.index, lineOffset=offset;
             if(!window.CSS || !CSS.supports("color",value)) continue;
-            const prefix=line.slice(0,match.index);
+            const prefix=line.slice(0,tokenIndex);
             const x=leftPadding+ctx.measureText(prefix).width-16;
             const y=topPadding+lineIndex*lineHeight-elements.editor.scrollTop;
             if(y < -lineHeight || y > elements.editor.clientHeight) continue;
@@ -2109,7 +2109,7 @@ async function sendAiMessage(event) {
             picker.type="color";picker.value=CSS.supports("color",value) ? (function(){const probe=document.createElement("span");probe.style.color=value;document.body.append(probe);const computed=getComputedStyle(probe).color;probe.remove();const nums=computed.match(/\d+/g);return nums&&nums.length>=3?"#"+nums.slice(0,3).map(n=>Number(n).toString(16).padStart(2,"0")).join(""):"#000000";})() : "#000000";
             picker.setAttribute("aria-label","Choose replacement color");
             picker.addEventListener("input",()=>{
-              const start=offset+match.index;
+              const start=lineOffset+tokenIndex;
               const end=start+value.length;
               elements.editor.setRangeText(picker.value,start,end,"end");
               elements.editor.focus();saveEditorValue();
@@ -3883,7 +3883,7 @@ async function sendAiMessage(event) {
       elements.editor.addEventListener("keyup", updateHtmlSuggestions);
       elements.editor.addEventListener("click", updateHtmlSuggestions);
       if (codeMirror) codeMirror.on("cursorActivity", updateHtmlSuggestions);
-      elements.editor.addEventListener("scroll", () => { elements.gutter.scrollTop=elements.editor.scrollTop; elements.highlightLayer.scrollTop=elements.editor.scrollTop; elements.highlightLayer.scrollLeft=elements.editor.scrollLeft; }); elements.cssColorDecorations.style.transform="translateY("+(-elements.editor.scrollTop)+"px)";
+      elements.editor.addEventListener("scroll", () => { elements.gutter.scrollTop=elements.editor.scrollTop; elements.highlightLayer.scrollTop=elements.editor.scrollTop; elements.highlightLayer.scrollLeft=elements.editor.scrollLeft; }); renderCssColorDecorations(elements.editor.value);
       elements.editor.addEventListener("click", updateCursorPosition);
       elements.editor.addEventListener("keyup", updateCursorPosition);
       elements.editor.addEventListener("keydown", event => {

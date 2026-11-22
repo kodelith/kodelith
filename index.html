@@ -2108,7 +2108,7 @@ async function sendAiMessage(event) {
             const picker=document.createElement("input");
             picker.type="color";picker.value=CSS.supports("color",value) ? (function(){const probe=document.createElement("span");probe.style.color=value;document.body.append(probe);const computed=getComputedStyle(probe).color;probe.remove();const nums=computed.match(/\d+/g);return nums&&nums.length>=3?"#"+nums.slice(0,3).map(n=>Number(n).toString(16).padStart(2,"0")).join(""):"#000000";})() : "#000000";
             picker.setAttribute("aria-label","Choose replacement color");
-            picker.addEventListener("input",()=>{
+            picker.addEventListener("change",()=>{
               const start=lineOffset+tokenIndex;
               const end=start+value.length;
               elements.editor.setRangeText(picker.value,start,end,"end");
@@ -2131,7 +2131,7 @@ async function sendAiMessage(event) {
               const picker=document.createElement("input");
               picker.type="color";picker.value="#000000";
               picker.setAttribute("aria-label","Choose CSS color");
-              picker.addEventListener("input",()=>{
+              picker.addEventListener("change",()=>{
                 elements.editor.setRangeText(picker.value,insertAt,insertAt,"end");
                 elements.editor.focus();saveEditorValue();
               });
@@ -3986,10 +3986,16 @@ async function sendAiMessage(event) {
         buildPreview();
         showToast("Preview refreshed.");
       });
-      const zoomInput=document.getElementById("previewZoom"),zoomValue=document.getElementById("previewZoomValue");let previewZoom=1;
+      const zoomInput=document.getElementById("previewZoom"),zoomValue=document.getElementById("previewZoomValue");
+      const previewLayoutStorageKey="orbit-preview-layout-v1";
+      let savedPreviewLayout={};try{savedPreviewLayout=JSON.parse(localStorage.getItem(previewLayoutStorageKey)||"{}")||{};}catch(error){savedPreviewLayout={};}
+      let previewZoom=Math.max(.25,Math.min(1.5,Number(savedPreviewLayout.zoom)||1));
+      const savePreviewLayout=()=>{try{localStorage.setItem(previewLayoutStorageKey,JSON.stringify({...savedPreviewLayout,zoom:previewZoom,device:elements.previewDevice.value}));}catch(error){}};
       const applyPreviewZoom=()=>{const selected=elements.previewDevice.value;const [w,h]=selected.split("x").map(Number);const naturalWidth=w||390,naturalHeight=h||844;elements.preview.style.width=naturalWidth+"px";elements.preview.style.maxWidth="none";elements.preview.style.height=naturalHeight+"px";elements.preview.style.transformOrigin="top left";elements.preview.style.transform=`scale(${previewZoom})`;elements.preview.style.marginRight=(naturalWidth*(previewZoom-1))+"px";elements.preview.style.marginBottom=(naturalHeight*(previewZoom-1))+"px";zoomInput.value=String(Math.round(previewZoom*100));zoomValue.textContent=Math.round(previewZoom*100)+"%";elements.previewDimensions.textContent=`Preview viewport: ${naturalWidth} × ${naturalHeight} px · ${Math.round(previewZoom*100)}% zoom`;};
       const updatePreviewDimensions=()=>{applyPreviewZoom();};
-      const setPreviewZoom=value=>{previewZoom=Math.max(.25,Math.min(1.5,Number(value)||1));applyPreviewZoom();};
+      const setPreviewZoom=value=>{previewZoom=Math.max(.25,Math.min(1.5,Number(value)||1));applyPreviewZoom();savePreviewLayout();};
+      if(savedPreviewLayout.device && Array.from(elements.previewDevice.options).some(option=>option.value===savedPreviewLayout.device))elements.previewDevice.value=savedPreviewLayout.device;
+      elements.previewDevice.addEventListener("change",()=>{applyPreviewZoom();savePreviewLayout();});
       zoomInput.addEventListener("input",()=>setPreviewZoom(Number(zoomInput.value)/100));
       document.getElementById("previewZoomOut").addEventListener("click",()=>setPreviewZoom(previewZoom-.1));
       document.getElementById("previewZoomIn").addEventListener("click",()=>setPreviewZoom(previewZoom+.1));
@@ -4063,8 +4069,10 @@ async function sendAiMessage(event) {
         previewDrag = null;
         previewSplitter.classList.remove("dragging");
       };
-      previewSplitter.addEventListener("pointerup", stopPreviewDrag);
-      previewSplitter.addEventListener("pointercancel", stopPreviewDrag);
+      const persistPreviewSplit=()=>{const bounds=mainArea.getBoundingClientRect();const width=mainArea.querySelector(".editor-surface").getBoundingClientRect().width;const percent=Math.max(25,Math.min(75,width/bounds.width*100));try{localStorage.setItem(previewLayoutStorageKey,JSON.stringify({...savedPreviewLayout,zoom:previewZoom,device:elements.previewDevice.value,splitPercent:percent}));savedPreviewLayout.splitPercent=percent;}catch(error){}};
+      if(Number.isFinite(Number(savedPreviewLayout.splitPercent))){const bounds=mainArea.getBoundingClientRect();const width=Math.max(320,Math.min(bounds.width-280,bounds.width*Number(savedPreviewLayout.splitPercent)/100));mainArea.style.gridTemplateColumns=`${width}px 6px minmax(280px, 1fr)`;}
+      previewSplitter.addEventListener("pointerup",event=>{stopPreviewDrag(event);persistPreviewSplit();});
+      previewSplitter.addEventListener("pointercancel",event=>{stopPreviewDrag(event);persistPreviewSplit();});
       previewSplitter.addEventListener("lostpointercapture", stopPreviewDrag);
       previewSplitter.addEventListener("keydown", event => {
         if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;

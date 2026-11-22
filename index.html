@@ -2117,7 +2117,7 @@ async function sendAiMessage(event) {
             button.append(picker);layer.append(button);
           }
           // Offer a picker even when a color property has an empty value (for example: color: ;)
-          const emptyColorMatch=/\\b(?:color|background-color|border-color|border-top-color|border-right-color|border-bottom-color|border-left-color|outline-color|text-decoration-color|fill|stroke)\\s*:\\s*(?=;|$)/i.exec(masked);
+          const emptyColorMatch=/\b(?:color|background-color|border-color|border-top-color|border-right-color|border-bottom-color|border-left-color|outline-color|text-decoration-color|fill|stroke)\\s*:\\s*(?=;|$)/i.exec(masked);
           if(emptyColorMatch){
             const insertAt=offset+emptyColorMatch.index+emptyColorMatch[0].length;
             const prefix=line.slice(0,emptyColorMatch.index+emptyColorMatch[0].length);

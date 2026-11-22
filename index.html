@@ -2225,9 +2225,9 @@ async function sendAiMessage(event) {
         const lineStart = before.lastIndexOf("\n") + 1;
         const linePrefix = before.slice(lineStart);
         const bareMatch = linePrefix.match(/(?:^|[>\s])([a-z][a-z0-9-]*)$/i);
-        // Allow bare tag completion after existing markup on the same line,
-        // without suggesting tags for ordinary prose in plain text lines.
-        if (bareMatch && /<\/?[a-z][^>]*>/i.test(linePrefix)) {
+        // Offer tag names even when the user starts a fresh HTML line with a
+        // bare prefix (for example "d" -> div). Also support after markup.
+        if (bareMatch) {
           return { prefix:bareMatch[1].toLowerCase(), start:cursor-bareMatch[1].length, mode:"bare" };
         }
         return null;
@@ -2279,9 +2279,15 @@ async function sendAiMessage(event) {
           candidates = dot ? jsSuggestions.filter(item => !jsKeywords.has(item)) : jsSuggestions;
         } else { hideHtmlSuggestions(); return; }
         const prefix = context.prefix || "";
+        const popularHtmlTags = ["div","p","span","a","img","button","h1","h2","h3","section","header","footer","nav","main","ul","li","input","form","label","article","video","table","script","style"];
         htmlSuggestionMatches = [...new Set(candidates)].filter(item => item.toLowerCase().startsWith(prefix)).sort((a,b) => {
-          const aExact = a.toLowerCase()===prefix, bExact=b.toLowerCase()===prefix;
-          return aExact===bExact ? a.localeCompare(b) : aExact ? -1 : 1;
+          const aExact = a.toLowerCase()===prefix, bExact = b.toLowerCase()===prefix;
+          if (aExact !== bExact) return aExact ? -1 : 1;
+          if (kind === "html" && mode !== "attribute") {
+            const ai=popularHtmlTags.indexOf(a.toLowerCase()), bi=popularHtmlTags.indexOf(b.toLowerCase());
+            if (ai !== bi) return (ai < 0 ? 999 : ai) - (bi < 0 ? 999 : bi);
+          }
+          return a.localeCompare(b);
         }).slice(0,35);
         if (!htmlSuggestionMatches.length) { hideHtmlSuggestions(); return; }
         htmlSuggestionIndex = 0;
@@ -2297,9 +2303,9 @@ async function sendAiMessage(event) {
           elements.htmlSuggestionItems.append(row);
         });
         elements.htmlSuggestions.classList.add("visible");
-        const lineTop=16+(before.split("\n").length-1)*21-elements.editor.scrollTop;
         const popupHeight=Math.min(250,elements.editor.clientHeight-28,htmlSuggestionMatches.length*33+8);
-        elements.htmlSuggestions.style.top=(lineTop+22+popupHeight>elements.editor.clientHeight?Math.max(8,lineTop-popupHeight-5):Math.min(elements.editor.clientHeight-popupHeight-8,lineTop+25))+"px";
+        // Keep completion suggestions in a predictable strip at the top of the editor.
+        elements.htmlSuggestions.style.top="12px";
       }
 
             function acceptHtmlSuggestion() {

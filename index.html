@@ -240,7 +240,7 @@
     .preview-heading { color: #333333; font-size: 10px; font-weight: 700; letter-spacing: .09em; }
     .preview-url { flex: 1; max-width: 370px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 5px 9px; border: 1px solid #d4d4d4; border-radius: 5px; color: #616161; font: 10px "SFMono-Regular", Consolas, monospace; }
     .preview-message { color: var(--muted); font-size: 10px; }
-    .preview-frame-wrap { flex: 1; min-height: 0; padding: 12px 14px 14px; display:flex; justify-content:center; align-items:flex-start; background: #e8e8e8; overflow:auto; position:relative; }
+    .preview-frame-wrap { flex: 1; min-height: 0; padding: 12px 14px 14px; display:flex; justify-content:flex-start; align-items:flex-start; background: #e8e8e8; overflow:auto; position:relative; }
     .preview-frame { width: 100%; max-width:100%; height: 100%; flex:0 0 auto; border: 0; border-radius: 7px; background: white; box-shadow:0 2px 12px #00000012; transform-origin:top center; transition:width .18s ease,transform .12s ease; }
     .preview-bottom-splitter { display:none; height:7px; flex:0 0 7px; cursor:row-resize; touch-action:none; background:var(--line); position:relative; z-index:6; }\n    .preview-bottom-splitter:hover,.preview-bottom-splitter.dragging,.preview-bottom-splitter:focus { background:var(--accent); outline:none; }\n    .preview-dimensions { flex:0 0 auto; padding:5px 12px 8px; color:var(--muted); background:#e8e8e8; text-align:center; font:10px "SFMono-Regular",Consolas,monospace; }
     .preview-device { width:104px; height:25px; padding:0 6px; border:1px solid var(--line); border-radius:6px; background:var(--panel-raised); color:var(--text); font-size:10px; }
@@ -705,7 +705,7 @@
               <option value="1440x900">Desktop · 1440 × 900</option>
               <option value="768x1024">Tablet · 768 × 1024</option>
               <option value="390x844">Mobile · 390 × 844</option>
-              <option value="custom">Custom size…</option>
+              <option value="add-device">＋ Add device size…</option>
             </select>
             <button class="mini-button" id="refreshButton" type="button" title="Refresh preview" aria-label="Refresh preview">↻</button>
           </div>
@@ -3798,7 +3798,7 @@ button.addEventListener("click", () => {
         buildPreview();
         showToast("Preview refreshed.");
       });
-      const updatePreviewDimensions=()=>{const wrap=elements.preview.parentElement;const box=wrap.getBoundingClientRect();const selected=elements.previewDevice.value==="custom"?(elements.preview.dataset.customSize||"390x844"):elements.previewDevice.value;const [width,height]=selected.split("x").map(Number);const naturalWidth=width||Math.max(1,box.width-28);const naturalHeight=height||900;const scale=Math.min(1,(box.width-28)/naturalWidth);elements.preview.style.width=naturalWidth+"px";elements.preview.style.maxWidth="none";elements.preview.style.height=naturalHeight+"px";elements.preview.style.transform=`scale(${scale})`;elements.preview.style.marginBottom=`-${naturalHeight*(1-scale)}px`;elements.previewDimensions.textContent=`Preview: ${naturalWidth} × ${naturalHeight} px · ${Math.round(scale*100)}%`;};
+      const updatePreviewDimensions=()=>{const selected=elements.previewDevice.value;const [width,height]=selected.split("x").map(Number);const naturalWidth=width||390;const naturalHeight=height||844;elements.preview.style.width=naturalWidth+"px";elements.preview.style.maxWidth="none";elements.preview.style.height=naturalHeight+"px";elements.preview.style.transform="none";elements.preview.style.marginBottom="0";elements.previewDimensions.textContent=`Preview viewport: ${naturalWidth} × ${naturalHeight} px · 100% scale (scroll to view wider devices)`;};
       if(window.ResizeObserver)new ResizeObserver(updatePreviewDimensions).observe(elements.preview);
       window.addEventListener("resize",updatePreviewDimensions);
       const bottomSplitter=document.getElementById("previewBottomSplitter");let bottomDrag=null;
@@ -3807,8 +3807,20 @@ button.addEventListener("click", () => {
       bottomSplitter.addEventListener("pointermove",event=>{if(bottomDrag===event.pointerId)setMobilePreviewSplit(event.clientY);});
       const stopBottomDrag=event=>{if(bottomDrag===event.pointerId){bottomDrag=null;bottomSplitter.classList.remove("dragging");}};bottomSplitter.addEventListener("pointerup",stopBottomDrag);bottomSplitter.addEventListener("pointercancel",stopBottomDrag);
       bottomSplitter.addEventListener("keydown",event=>{if(event.key==="ArrowUp"||event.key==="ArrowDown"){event.preventDefault();const r=bottomSplitter.getBoundingClientRect();setMobilePreviewSplit(r.top+(event.key==="ArrowUp"?-30:30));}});
+      const deviceStorageKey="orbit-preview-devices-v1";
+      const loadSavedPreviewDevices=()=>{try{const saved=JSON.parse(localStorage.getItem(deviceStorageKey)||"[]");if(Array.isArray(saved))saved.filter(d=>d&&typeof d.name==="string"&&/^\\d{2,4}x\\d{2,4}$/.test(d.size||"")).forEach(d=>{const option=document.createElement("option");option.value=d.size;option.textContent=d.name+" · "+d.size.replace("x"," × ")+" px";option.dataset.savedDevice="true";elements.previewDevice.insertBefore(option,elements.previewDevice.querySelector('[value="add-device"]'));});}catch(error){console.warn("Could not load saved preview sizes",error);}};
+      loadSavedPreviewDevices();
       elements.previewDevice.addEventListener("change", () => {
-        let width=elements.previewDevice.value;if(width==="custom"){const answer=prompt("Enter preview size as WIDTHxHEIGHT (example 412x915):",elements.preview.dataset.customSize||"390x844");if(answer===null){elements.previewDevice.value="390x844";return;}const match=answer.trim().match(/^(d{2,4})s*[x×]s*(d{2,4})$/);if(!match||+match[1]<200||+match[1]>3000||+match[2]<200||+match[2]>3000){showToast("Enter dimensions between 200 and 3000 pixels.");elements.previewDevice.value="390x844";return;}width=match[1]+"x"+match[2];elements.preview.dataset.customSize=width;}updatePreviewDimensions();showToast("Preview set to "+width.replace("x"," × ")+" px.");
+        if(elements.previewDevice.value==="add-device"){
+          const name=prompt("Name this device size (example: My Laptop):");if(name===null||!name.trim()){elements.previewDevice.value="390x844";return;}
+          const width=prompt("Enter viewport width in pixels:", "1280");if(width===null){elements.previewDevice.value="390x844";return;}
+          const height=prompt("Enter viewport height in pixels:", "800");if(height===null){elements.previewDevice.value="390x844";return;}
+          const w=Number(width.trim()),h=Number(height.trim());if(!Number.isInteger(w)||!Number.isInteger(h)||w<200||w>3000||h<200||h>3000){showToast("Width and height must be whole numbers from 200 to 3000 px.");elements.previewDevice.value="390x844";return;}
+          const size=w+"x"+h;const label=name.trim().slice(0,32);let saved=[];try{saved=JSON.parse(localStorage.getItem(deviceStorageKey)||"[]");if(!Array.isArray(saved))saved=[];}catch(error){saved=[];}
+          saved=saved.filter(d=>d&&d.size!==size&&String(d.name||"").toLowerCase()!==label.toLowerCase());saved.push({name:label,size});try{localStorage.setItem(deviceStorageKey,JSON.stringify(saved));}catch(error){showToast("Could not save this device size on this browser.");}
+          let option=Array.from(elements.previewDevice.options).find(o=>o.value===size);if(!option){option=document.createElement("option");option.value=size;elements.previewDevice.insertBefore(option,elements.previewDevice.querySelector('[value="add-device"]'));}option.textContent=label+" · "+w+" × "+h+" px";option.dataset.savedDevice="true";elements.previewDevice.value=size;showToast("Saved device size: "+label);
+        }
+        updatePreviewDimensions();
       });
       document.getElementById("checkProjectButton").addEventListener("click", runProjectChecks);
       document.getElementById("closeDiagnostics").addEventListener("click", closeDiagnostics);

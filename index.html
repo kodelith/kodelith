@@ -185,7 +185,7 @@
     @media (max-width: 900px) { .editor-toolbar { width: 100%; } .tabs { flex: 1 1 100%; } }
     .toolbar-button { height: 28px; display: inline-flex; align-items: center; gap: 6px; padding: 0 9px; border: 1px solid transparent; border-radius: 6px; background: transparent; color: #424242; cursor: pointer; font-size: 10px; }
     .toolbar-button.active { border-color: #b3d8f1; background: #e6f3fb; color: #005a9e; }
-    .main-area { display:grid; grid-template-columns:minmax(320px,58%) 6px minmax(280px,42%); grid-template-rows:44px minmax(0,1fr); min-height:0; }
+    .main-area { display:grid; grid-template-columns:minmax(320px,58%) 6px minmax(280px,42%); grid-template-rows:auto minmax(0,1fr) 0; min-height:0; }
     .preview-splitter { grid-column:2; grid-row:2; position:relative; z-index:5; cursor:col-resize; background:var(--line); touch-action:none; outline:none; }
     .preview-splitter::after { content:""; position:absolute; top:0; bottom:0; left:1px; width:4px; background:transparent; }
     .preview-splitter:hover, .preview-splitter:focus, .preview-splitter.dragging { background:var(--accent); }
@@ -318,12 +318,12 @@
       .workspace { min-height: calc(100vh - 76px); }
       .editor-toolbar { padding: 0 5px; gap: 2px; }
       .toolbar-button { padding: 0 6px; }
-      .main-area { grid-template-columns:minmax(0,1fr); grid-template-rows:44px minmax(260px,1fr) minmax(220px,42vh); }
+      .main-area { grid-template-columns:minmax(0,1fr); grid-template-rows:auto minmax(260px,1fr) minmax(220px,42vh); }
       .editor-top { grid-column:1; grid-row:1; }
       .editor-surface { grid-column:1; grid-row:2; }
       .preview-area { grid-column:1; grid-row:3; border-left:0; border-top:1px solid var(--line); }
       .preview-splitter { display:none; }
-      .main-area.preview-hidden { grid-template-rows:44px minmax(260px,1fr) 0; }
+      .main-area.preview-hidden { grid-template-rows:auto minmax(260px,1fr) 0; }
       .preview-toolbar { gap: 7px; padding: 0 9px; }
       .preview-message { display: none; }
       .preview-frame-wrap { padding: 8px; }
@@ -447,8 +447,8 @@
     body.dark-theme .statusbar {background:#005a9e}
     @media(max-width:650px){body.dark-theme .topbar{background:var(--panel)}}
     .terminal-panel{grid-column:1/-1;grid-row:3;min-height:0;display:flex;flex-direction:column;border-top:1px solid var(--line);background:#1e1e1e;color:#d4d4d4;font:12px/1.5 ui-monospace,SFMono-Regular,Consolas,monospace}
-    .main-area{grid-template-rows:44px minmax(0,1fr) 0}
-    .main-area.terminal-open{grid-template-rows:44px minmax(160px,1fr) 230px}
+    .main-area{grid-template-rows:auto minmax(0,1fr) 0}
+    .main-area.terminal-open{grid-template-rows:auto minmax(160px,1fr) 230px}
     .terminal-header{height:34px;flex:0 0 34px;display:flex;align-items:center;gap:14px;padding:0 12px;border-bottom:1px solid #3c3c3c;background:#252526}
     .terminal-tabs{display:flex;align-items:stretch;height:100%;gap:15px}
     .terminal-tab{padding:0 2px;border:0;border-bottom:1px solid transparent;background:transparent;color:#a0a0a0;font:10px system-ui,sans-serif;letter-spacing:.08em;cursor:pointer}
@@ -471,7 +471,7 @@
     body.dark-theme .profile-modal textarea{border-color:#555;background:#1e1e1e;color:var(--text)}
     body.dark-theme .terminal-panel{border-color:#3c3c3c}
     @media(max-width:850px){.editor-toolbar{gap:2px;padding:0 5px}.editor-toolbar .toolbar-button{padding:0 6px;font-size:9px}}
-    @media(max-width:650px){.main-area.terminal-open{grid-template-rows:44px minmax(140px,1fr) 210px}.terminal-mode{display:none}}
+    @media(max-width:650px){.main-area.terminal-open{grid-template-rows:auto minmax(140px,1fr) 210px}.terminal-mode{display:none}}
 
     .profile-view-modal{position:relative;width:min(440px,100%);max-height:min(86vh,760px);overflow:auto;padding:0!important;border:1px solid var(--line);border-radius:20px;background:var(--panel);box-shadow:0 24px 80px #0004}
     .profile-view-cover{height:112px;background:linear-gradient(125deg,#2563eb 0%,#6366f1 52%,#a855f7 100%);border-radius:19px 19px 0 0}
@@ -641,7 +641,6 @@
     <div class="workspace">
       <nav class="activity-bar" aria-label="Workspace tools">
         <button class="activity-button active" type="button" title="Explorer" aria-label="Explorer">▤</button>
-        <button class="activity-button" id="newFileActivity" type="button" title="New file" aria-label="New file">＋</button>
         <div class="activity-bottom"></div>
         <button class="activity-button" id="importActivity" type="button" title="Import project" aria-label="Import project">↥</button>
         <button class="activity-button" id="settingsActivity" type="button" title="Settings" aria-label="Settings">⚙</button>
@@ -661,7 +660,6 @@
           <span>EXPLORER</span>
           <div class="sidebar-controls">
             <button class="mini-button" id="newFileButton" type="button" title="New file" aria-label="New file">＋</button>
-            <button class="mini-button" id="downloadButton" type="button" title="Export project" aria-label="Export project">⇩</button>
           </div>
         </div>
         <div class="project-folder"><span class="folder-caret">⌄</span><span aria-hidden="true">▰</span><span id="folderName">MY FIRST PROJECT</span></div>
@@ -708,7 +706,6 @@
               <option value="390x844">Mobile · 390 × 844</option>
               <option value="add-device">＋ Add device size…</option>
             </select>
-            <button class="mini-button" id="refreshButton" type="button" title="Refresh preview" aria-label="Refresh preview">↻</button>
           </div>
           <div class="preview-frame-wrap">
             <iframe class="preview-frame" id="previewFrame" title="Live project preview" sandbox="allow-scripts"></iframe>
@@ -3623,7 +3620,6 @@ async function sendAiMessage(event) {
         placeholder: "e.g. about.html",
         action: createFile
       }));
-      document.getElementById("newFileActivity").addEventListener("click", () => document.getElementById("newFileButton").click());
       document.getElementById("exportButton").addEventListener("click", exportProject);
       document.getElementById("deployButton").addEventListener("click",()=>void openDeployModal());
       document.getElementById("previewUrl").addEventListener("click",event=>{if(event.currentTarget.dataset.published!=="true"){event.preventDefault();void openDeployModal();}});
@@ -3633,7 +3629,6 @@ async function sendAiMessage(event) {
       document.getElementById("deployBackdrop").addEventListener("click",event=>{if(event.target===event.currentTarget)event.currentTarget.hidden=true;});
       document.getElementById("deployUnpublish").addEventListener("click",()=>void unpublishCurrentProject());
       document.getElementById("deployCopyUrl").addEventListener("click",async()=>{const url=document.getElementById("deployPublicUrl").href;if(!url||url==="#")return;try{await navigator.clipboard.writeText(url);showToast("Website link copied.");}catch{const field=document.getElementById("deployPublicUrl");const range=document.createRange();range.selectNodeContents(field);const selection=window.getSelection();selection.removeAllRanges();selection.addRange(range);showToast("Select and copy the website link.");}});
-      document.getElementById("downloadButton").addEventListener("click", exportProject);
       document.getElementById("importActivity").addEventListener("click", () => elements.importInput.click());
       elements.importInput.addEventListener("change", async () => {
         if (elements.importInput.files && elements.importInput.files[0]) {
@@ -3835,7 +3830,6 @@ async function sendAiMessage(event) {
           if (first) first.click();
         }
       });
-      document.getElementById("refreshButton").addEventListener("click", () => buildPreview());
       window.addEventListener("message", event => {
         if (event.source !== elements.preview.contentWindow) return;
         const data = event.data;

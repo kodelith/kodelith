@@ -2837,7 +2837,7 @@ async function sendAiMessage(event) {
         if(/<\/head\s*>/i.test(html))html=html.replace(/<\/head\s*>/i,styleTag+"</head>");
         else html=styleTag+html;
         if(scriptTag){if(/<\/body\s*>/i.test(html))html=html.replace(/<\/body\s*>/i,scriptTag+"</body>");else html+=scriptTag;}
-        const previewSize=elements.previewDevice?.value;if(previewSize&&/^\\d{2,4}x\\d{2,4}$/.test(previewSize)){const previewMeta='<meta name="orbit-preview-size" content="'+previewSize+'">';html=html.replace("</head>",previewMeta+"</head>");}
+        const previewSize=elements.previewDevice?.value;if(previewSize&&/^\d{2,4}x\d{2,4}$/.test(previewSize)){const previewMeta='<meta name="orbit-preview-size" content="'+previewSize+'">';html=html.replace("</head>",previewMeta+"</head>");}
         return html.slice(0,180000);
       }
       async function syncProfileWebsitePreviews(projectIds) {
@@ -2856,7 +2856,7 @@ async function sendAiMessage(event) {
       function openFriendWebsitePreview(item) {
         document.getElementById("friendPreviewTitle").textContent=item.project_name||"Website preview";
         const frame=document.getElementById("friendPreviewFrame"),modal=frame.parentElement,html=item.preview_html||"<!doctype html><html><body></body></html>";
-        const match=html.match(/orbit-preview-size["'] content=["'](\\d{2,4})x(\\d{2,4})/i);
+        const match=html.match(/orbit-preview-size["'] content=["'](\d{2,4})x(\d{2,4})/i);
         frame.style.width=match?match[1]+"px":"100%";frame.style.height=match?match[2]+"px":"100%";frame.style.flex="0 0 auto";frame.style.maxWidth="none";frame.style.transform="none";frame.style.transformOrigin="top left";frame.srcdoc=html;document.getElementById("friendPreviewBackdrop").hidden=false;
         requestAnimationFrame(()=>{if(!match)return;const w=+match[1],h=+match[2],scale=Math.min(1,(modal.clientWidth-24)/w,(modal.clientHeight-72)/h);frame.style.transform="scale("+scale+")";frame.style.marginRight=(-w*(1-scale))+"px";frame.style.marginBottom=(-h*(1-scale))+"px";});
       }
@@ -3807,7 +3807,7 @@ async function sendAiMessage(event) {
       const stopBottomDrag=event=>{if(bottomDrag===event.pointerId){bottomDrag=null;bottomSplitter.classList.remove("dragging");}};bottomSplitter.addEventListener("pointerup",stopBottomDrag);bottomSplitter.addEventListener("pointercancel",stopBottomDrag);
       bottomSplitter.addEventListener("keydown",event=>{if(event.key==="ArrowUp"||event.key==="ArrowDown"){event.preventDefault();const r=bottomSplitter.getBoundingClientRect();setMobilePreviewSplit(r.top+(event.key==="ArrowUp"?-30:30));}});
       const deviceStorageKey="orbit-preview-devices-v1";
-       const loadSavedPreviewDevices=()=>{let saved=[];try{saved=JSON.parse(localStorage.getItem(deviceStorageKey)||"[]");if(!Array.isArray(saved))saved=[];}catch(error){}const size=Math.max(200,Math.min(3000,window.innerWidth))+"x"+Math.max(200,Math.min(3000,window.innerHeight));saved=saved.filter(d=>String(d.name||"").toLowerCase()!=="this device");saved.unshift({name:"This device",size});try{localStorage.setItem(deviceStorageKey,JSON.stringify(saved));}catch(error){}saved.forEach(d=>{if(!d||typeof d.name!=="string"||!/^\\d{2,4}x\\d{2,4}$/.test(d.size||""))return;const option=document.createElement("option");option.value=d.size;option.textContent=d.name+" · "+d.size.replace("x"," × ")+" px";option.dataset.savedDevice="true";elements.previewDevice.insertBefore(option,elements.previewDevice.querySelector('[value="add-device"]'));});elements.previewDevice.value=size;};
+       const loadSavedPreviewDevices=()=>{let saved=[];try{saved=JSON.parse(localStorage.getItem(deviceStorageKey)||"[]");if(!Array.isArray(saved))saved=[];}catch(error){}const size=Math.max(200,Math.min(3000,window.innerWidth))+"x"+Math.max(200,Math.min(3000,window.innerHeight));saved=saved.filter(d=>String(d.name||"").toLowerCase()!=="this device");saved.unshift({name:"This device",size});try{localStorage.setItem(deviceStorageKey,JSON.stringify(saved));}catch(error){}saved.forEach(d=>{if(!d||typeof d.name!=="string"||!/^\d{2,4}x\d{2,4}$/.test(d.size||""))return;const option=document.createElement("option");option.value=d.size;option.textContent=d.name+" · "+d.size.replace("x"," × ")+" px";option.dataset.savedDevice="true";elements.previewDevice.insertBefore(option,elements.previewDevice.querySelector('[value="add-device"]'));});elements.previewDevice.value=size;};
        loadSavedPreviewDevices();
        elements.previewDevice.addEventListener("change", () => {
         if(elements.previewDevice.value==="add-device"){

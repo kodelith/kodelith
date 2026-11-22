@@ -649,7 +649,21 @@
       .preview-bottom-splitter{display:block;flex:0 0 7px}
       .preview-frame{height:auto;max-width:none}
     @media(max-width:430px){.brand-mark{width:25px;height:25px}.brand-name{font-size:12px}.project-switcher{max-width:38vw}.preview-message{display:none}.preview-url{font-size:9px}.editor-toolbar .toolbar-button{padding:0 7px;font-size:9px}}
-  </style>
+      /* Live preview layout safety: keep the pane measurable and visible unless explicitly toggled off. */
+    .main-area:not(.preview-hidden) > .preview-area { display:flex !important; visibility:visible !important; min-width:0; min-height:180px; }
+    .main-area.preview-hidden > .preview-area { display:none !important; }
+    @media (min-width:761px) {
+      .main-area:not(.preview-hidden) { grid-template-columns:minmax(280px,58%) 6px minmax(260px,42%); grid-template-rows:auto minmax(220px,1fr) 0; }
+      .main-area:not(.preview-hidden) > .editor-surface { grid-column:1; grid-row:2; min-height:180px; }
+      .main-area:not(.preview-hidden) > .preview-splitter { display:block; grid-column:2; grid-row:2; }
+      .main-area:not(.preview-hidden) > .preview-area { grid-column:3; grid-row:2; }
+    }
+    @media (max-width:760px) {
+      .main-area:not(.preview-hidden) { display:flex; flex-direction:column; min-height:0; }
+      .main-area:not(.preview-hidden) > .editor-surface { flex:1 1 50%; min-height:140px; }
+      .main-area:not(.preview-hidden) > .preview-area { flex:1 1 50%; min-height:180px; }
+    }
+</style>
 </head>
 <body>
   <div class="app">
@@ -3951,6 +3965,11 @@ async function sendAiMessage(event) {
         mainArea.style.gridTemplateColumns = `${next}px 6px minmax(280px, 1fr)`;
         previewSplitter.setAttribute("aria-valuenow", String(Math.round(next / bounds.width * 100)));
       });
+      // Keep the live preview visible by default on every device size.
+      elements.previewArea.hidden = false;
+      elements.previewArea.closest(".main-area").classList.remove("preview-hidden");
+      document.getElementById("previewToggle").classList.add("active");
+      document.getElementById("previewToggle").setAttribute("aria-pressed","true");
       document.getElementById("previewToggle").addEventListener("click", event => {
         const button = event.currentTarget;
         const isVisible = !elements.previewArea.hidden;

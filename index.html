@@ -3908,7 +3908,7 @@ async function sendAiMessage(event) {
         const source=editor.value;
         const start=editor.selectionStart;
         const end=editor.selectionEnd;
-        const colorToken=/(#[0-9a-f]{3,8}\\b|rgba?\\([^)]*\\)|hsla?\\([^)]*\\)|\\b[a-z]+\\b)/gi;
+        const colorToken=/(#[0-9a-f]{3,8}\b|rgba?\([^)]*\)|hsla?\([^)]*\)|\b[a-z]+\b)/gi;
         let replaceStart=start,replaceEnd=end;
         let selected=source.slice(start,end).trim();
         if(!selected || !window.CSS || !CSS.supports("color",selected)){

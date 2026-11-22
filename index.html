@@ -183,6 +183,10 @@
     .editor-toolbar { flex-wrap: wrap; min-width: 0; max-width: 100%; margin-left: 0; padding: 6px 12px; row-gap: 5px; }
     .toolbar-button { flex: 0 0 auto; white-space: nowrap; }
     @media (max-width: 900px) { .editor-toolbar { width: 100%; } .tabs { flex: 1 1 100%; } }
+    .css-color-picker { position:relative; height:28px; display:inline-flex; align-items:center; gap:7px; padding:0 9px; border:1px solid var(--line); border-radius:6px; background:var(--panel-raised); color:var(--text); cursor:pointer; font-size:10px; }
+    .css-color-picker:hover { border-color:var(--accent); background:var(--panel-soft); }
+    .css-color-picker-swatch { width:13px; height:13px; flex:0 0 13px; border:1px solid #7778; border-radius:3px; background:var(--picked-css-color,#ff0000); }
+    .css-color-picker input { position:absolute; inset:0; width:100%; height:100%; opacity:0; cursor:pointer; }
     .toolbar-button { height: 28px; display: inline-flex; align-items: center; gap: 6px; padding: 0 9px; border: 1px solid transparent; border-radius: 6px; background: transparent; color: #424242; cursor: pointer; font-size: 10px; }
     .toolbar-button.active { border-color: #b3d8f1; background: #e6f3fb; color: #005a9e; }
     .main-area { display:grid; grid-template-columns:minmax(320px,58%) 6px minmax(280px,42%); grid-template-rows:auto minmax(0,1fr) 0; min-height:0; }
@@ -737,6 +741,11 @@
             <button class="toolbar-button" id="undoButton" type="button" title="Undo">↶ Undo</button>
             <button class="toolbar-button" id="redoButton" type="button" title="Redo">↷ Redo</button>
             <button class="toolbar-button" id="formatButton" type="button" title="Format code"><span aria-hidden="true">⌘</span><span>Format</span></button>
+            <label class="css-color-picker" id="cssColorPickerControl" title="Choose a CSS color and replace the color at your cursor">
+              <span class="css-color-picker-swatch" id="cssColorPickerSwatch" aria-hidden="true"></span>
+              <span>Color</span>
+              <input id="cssColorPicker" type="color" value="#ff0000" aria-label="Choose CSS color">
+            </label>
             <button class="toolbar-button" id="checkProjectButton" type="button" title="Check project for common problems">✓ Check</button>
           <button class="toolbar-button" id="terminalToggle" type="button" title="Toggle terminal (Control/Command + backtick)">⌘ Terminal</button>
           <button class="toolbar-button" id="runButton" type="button" title="Run preview (Ctrl+Enter)"><span aria-hidden="true">▶</span><span>Run</span></button>
@@ -3890,7 +3899,36 @@ async function sendAiMessage(event) {
           saveEditorValue();
         }
       });
-            document.getElementById("formatButton").addEventListener("click",formatCurrentCode);
+            const cssColorPicker=document.getElementById("cssColorPicker");
+      const cssColorPickerSwatch=document.getElementById("cssColorPickerSwatch");
+      cssColorPicker.addEventListener("input",()=>{
+        const kind=fileKind(currentProject()?.activeFile||"");
+        if(kind!=="css"){showToast("Open a .css file to use the CSS color picker.");return;}
+        const editor=elements.editor;
+        const source=editor.value;
+        const start=editor.selectionStart;
+        const end=editor.selectionEnd;
+        const colorToken=/(#[0-9a-f]{3,8}\\b|rgba?\\([^)]*\\)|hsla?\\([^)]*\\)|\\b[a-z]+\\b)/gi;
+        let replaceStart=start,replaceEnd=end;
+        let selected=source.slice(start,end).trim();
+        if(!selected || !window.CSS || !CSS.supports("color",selected)){
+          let match;
+          let found=null;
+          while((match=colorToken.exec(source))){
+            const tokenStart=match.index,tokenEnd=tokenStart+match[0].length;
+            if((start===end && start>=tokenStart && start<=tokenEnd) || (start<tokenEnd && end>tokenStart)){
+              if(CSS.supports("color",match[0])){found={start:tokenStart,end:tokenEnd};break;}
+            }
+          }
+          if(found){replaceStart=found.start;replaceEnd=found.end;}
+        }
+        editor.setRangeText(cssColorPicker.value,replaceStart,replaceEnd,"end");
+        editor.focus();
+        saveEditorValue();
+        cssColorPickerSwatch.style.setProperty("--picked-css-color",cssColorPicker.value);
+      });
+      cssColorPickerSwatch.style.setProperty("--picked-css-color",cssColorPicker.value);
+      document.getElementById("formatButton").addEventListener("click",formatCurrentCode);
       document.getElementById("undoButton").addEventListener("click",undoOrbit);
       document.getElementById("redoButton").addEventListener("click",redoOrbit);
       elements.aiToggle.addEventListener("click", () => elements.aiPanel.hidden ? showAiPanel() : (elements.aiPanel.hidden = true, elements.aiToggle.classList.remove("active")));

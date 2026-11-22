@@ -2344,7 +2344,7 @@ async function sendAiMessage(event) {
         const project = currentProject();
         if (!project) return;
         const files = project.files || {};
-        const htmlFiles = Object.keys(files).filter(name => /\\.html?$/i.test(name));
+        const htmlFiles = Object.keys(files).filter(name => /\.html?$/i.test(name));
         if (!Object.keys(files).length) {
           currentPreviewFile = "";
           project.previewFile = "";

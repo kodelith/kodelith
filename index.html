@@ -2338,17 +2338,40 @@ async function sendAiMessage(event) {
         schedulePreview();
       }
 
-      let currentPreviewFile = "index.html";
+      let currentPreviewFile = "";
 
-      function buildPreview(fileName = currentPreviewFile || "index.html", anchor = "") {
-        if (typeof fileName !== "string") fileName = currentPreviewFile || "index.html";
+      function buildPreview(fileName, anchor = "") {
         const project = currentProject();
-        if (!Object.keys(project.files).length) { currentPreviewFile = ""; elements.previewUrl.textContent = "orbit://preview/empty"; elements.preview.srcdoc = "<!doctype html><html><head><meta charset=utf-8></head><body></body></html>"; return; }
+        if (!project) return;
+        const files = project.files || {};
+        const htmlFiles = Object.keys(files).filter(name => /\\.html?$/i.test(name));
+        if (!Object.keys(files).length) {
+          currentPreviewFile = "";
+          project.previewFile = "";
+          elements.previewUrl.textContent = "orbit://preview/empty";
+          updatePreviewAddress();
+          elements.preview.srcdoc = "<!doctype html><html><head><meta charset=utf-8></head><body style='font:14px system-ui;padding:24px;color:#777'>This project is empty. Create an HTML file to see its preview.</body></html>";
+          return;
+        }
+        if (typeof fileName !== "string") {
+          fileName = typeof project.previewFile === "string" && typeof files[project.previewFile] === "string"
+            ? project.previewFile
+            : typeof files["index.html"] === "string" ? "index.html" : htmlFiles[0] || "";
+        }
+        if (typeof files[fileName] !== "string") {
+          fileName = typeof files["index.html"] === "string" ? "index.html" : htmlFiles[0] || "";
+        }
+        if (!fileName) {
+          currentPreviewFile = "";
+          project.previewFile = "";
+          elements.previewUrl.textContent = "orbit://preview/no-html-file";
+          updatePreviewAddress();
+          elements.preview.srcdoc = "<!doctype html><html><head><meta charset=utf-8></head><body style='font:14px system-ui;padding:24px;color:#777'>No HTML file in this project yet. Create index.html (or another .html file) to preview it.</body></html>";
+          return;
+        }
         currentPreviewFile = fileName;
-        let html = project.files[fileName];
-        // Ignore links to project files that do not exist yet. Keep the current
-        // preview visible instead of replacing it with an Orbit-generated 404 page.
-        if (typeof html !== "string") return;
+        project.previewFile = fileName;
+        let html = files[fileName];
         elements.previewUrl.textContent = "orbit://preview/" + fileName; updatePreviewAddress();
         const css = project.files["style.css"] || "";
         const js = project.files["script.js"] || "";
@@ -3382,7 +3405,10 @@ async function sendAiMessage(event) {
 
       function selectProject(projectId) {
         if (!Object.hasOwn(state.projects, projectId) || projectId === state.activeProject) return;
+        saveEditorValue();
+        window.clearTimeout(previewTimer);
         state.activeProject = projectId;
+        currentPreviewFile = "";
         elements.editor.dataset.file = "";
         render();
         scheduleSave();
@@ -3395,8 +3421,11 @@ async function sendAiMessage(event) {
           showToast("Create another project to switch between projects.");
           return;
         }
+        saveEditorValue();
+        window.clearTimeout(previewTimer);
         const currentIndex = projects.findIndex(([id]) => id === state.activeProject);
         state.activeProject = projects[(currentIndex + 1) % projects.length][0];
+        currentPreviewFile = "";
         elements.editor.dataset.file = "";
         render();
         scheduleSave();

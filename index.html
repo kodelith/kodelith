@@ -240,9 +240,9 @@
     .preview-heading { color: #333333; font-size: 10px; font-weight: 700; letter-spacing: .09em; }
     .preview-url { flex: 1; max-width: 370px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 5px 9px; border: 1px solid #d4d4d4; border-radius: 5px; color: #616161; font: 10px "SFMono-Regular", Consolas, monospace; }
     .preview-message { color: var(--muted); font-size: 10px; }
-    .preview-frame-wrap { flex: 1; min-height: 0; padding: 12px 14px 14px; display:flex; justify-content:center; background: #e8e8e8; overflow:auto; }
-    .preview-frame { width: 100%; max-width:100%; height: 100%; flex:0 0 auto; border: 0; border-radius: 7px; background: white; box-shadow:0 2px 12px #00000012; transition:width .18s ease; }
-    .preview-dimensions { flex:0 0 auto; padding:5px 12px 8px; color:var(--muted); background:#e8e8e8; text-align:center; font:10px "SFMono-Regular",Consolas,monospace; }
+    .preview-frame-wrap { flex: 1; min-height: 0; padding: 12px 14px 14px; display:flex; justify-content:center; align-items:flex-start; background: #e8e8e8; overflow:auto; position:relative; }
+    .preview-frame { width: 100%; max-width:100%; height: 100%; flex:0 0 auto; border: 0; border-radius: 7px; background: white; box-shadow:0 2px 12px #00000012; transform-origin:top center; transition:width .18s ease,transform .12s ease; }
+    .preview-bottom-splitter { display:none; height:7px; flex:0 0 7px; cursor:row-resize; touch-action:none; background:var(--line); position:relative; z-index:6; }\n    .preview-bottom-splitter:hover,.preview-bottom-splitter.dragging,.preview-bottom-splitter:focus { background:var(--accent); outline:none; }\n    .preview-dimensions { flex:0 0 auto; padding:5px 12px 8px; color:var(--muted); background:#e8e8e8; text-align:center; font:10px "SFMono-Regular",Consolas,monospace; }
     .preview-device { width:104px; height:25px; padding:0 6px; border:1px solid var(--line); border-radius:6px; background:var(--panel-raised); color:var(--text); font-size:10px; }
     .command-backdrop { position:fixed; inset:0; z-index:100; display:flex; justify-content:center; align-items:flex-start; padding: min(15vh,110px) 16px 20px; background:#10182880; backdrop-filter:blur(3px); }
     .command-palette { width:min(560px,100%); max-height:min(560px,75vh); display:flex; flex-direction:column; overflow:hidden; border:1px solid var(--line); border-radius:12px; background:var(--panel-raised); color:var(--text); box-shadow:0 24px 80px #0005; }
@@ -603,6 +603,11 @@
       .terminal-panel{max-height:40vh}.modal{width:min(94vw,520px);max-height:88vh;overflow:auto}
       .friends-modal,.profile-modal{width:96vw}
     }
+      .main-area{grid-template-rows:auto minmax(140px,1fr) 7px minmax(180px,42vh)}
+      .editor-surface{grid-row:2}
+      .preview-bottom-splitter{display:block;grid-column:1;grid-row:3}
+      .preview-area{grid-row:4}
+      .preview-frame{height:auto;max-width:none}
     @media(max-width:430px){.brand-mark{width:25px;height:25px}.brand-name{font-size:12px}.project-switcher{max-width:38vw}.preview-message{display:none}.preview-url{font-size:9px}.editor-toolbar .toolbar-button{padding:0 7px;font-size:9px}}
   </style>
 </head>
@@ -693,6 +698,7 @@
           <div class="empty-editor" id="emptyEditor">No files yet. Choose + in Explorer to create your first file.</div>
         </section>
         <div class="preview-splitter" id="previewSplitter" role="separator" aria-label="Resize editor and preview" aria-orientation="vertical" aria-valuemin="25" aria-valuemax="75" aria-valuenow="58" tabindex="0" title="Drag to resize editor and preview"></div>
+        <div class="preview-bottom-splitter" id="previewBottomSplitter" role="separator" aria-label="Resize editor and preview height" aria-orientation="horizontal" aria-valuemin="20" aria-valuemax="80" aria-valuenow="58" tabindex="0" title="Drag to make the preview taller or shorter"></div>
         <section class="preview-area" id="previewArea" aria-label="Live preview">
           <div class="preview-toolbar">
             <span class="preview-heading">LIVE PREVIEW</span>
@@ -3786,13 +3792,17 @@ button.addEventListener("click", () => {
         buildPreview();
         showToast("Preview refreshed.");
       });
-      const updatePreviewDimensions=()=>{const r=elements.preview.getBoundingClientRect();elements.previewDimensions.textContent=`Preview size: ${Math.round(r.width)} × ${Math.round(r.height)} px`;};
+      const updatePreviewDimensions=()=>{const wrap=elements.preview.parentElement;const box=wrap.getBoundingClientRect();const selected=elements.previewDevice.value;const naturalWidth=selected==="100%"?Math.max(1,box.width-28):parseFloat(selected)||box.width;const naturalHeight=Math.max(1,box.height-28);const scale=Math.min(1,(box.width-28)/naturalWidth);elements.preview.style.width=naturalWidth+"px";elements.preview.style.maxWidth="none";elements.preview.style.height=naturalHeight+"px";elements.preview.style.transform=`scale(${scale})`;elements.preview.style.marginBottom=`-${naturalHeight*(1-scale)}px`;elements.previewDimensions.textContent=`Preview: ${Math.round(naturalWidth)} × ${Math.round(naturalHeight)} px · ${Math.round(scale*100)}%`;};
       if(window.ResizeObserver)new ResizeObserver(updatePreviewDimensions).observe(elements.preview);
       window.addEventListener("resize",updatePreviewDimensions);
+      const bottomSplitter=document.getElementById("previewBottomSplitter");let bottomDrag=null;
+      const setMobilePreviewSplit=clientY=>{const area=bottomSplitter.closest(".main-area");const rect=area.getBoundingClientRect();const topHeight=clientY-rect.top;const available=rect.height-44-7;const editorHeight=Math.max(140,Math.min(available-180,topHeight-44));const previewHeight=Math.max(180,available-editorHeight);area.style.gridTemplateRows=`44px ${editorHeight}px 7px ${previewHeight}px`;bottomSplitter.setAttribute("aria-valuenow",String(Math.round(previewHeight/available*100)));requestAnimationFrame(updatePreviewDimensions);};
+      bottomSplitter.addEventListener("pointerdown",event=>{bottomDrag=event.pointerId;bottomSplitter.classList.add("dragging");bottomSplitter.setPointerCapture(event.pointerId);setMobilePreviewSplit(event.clientY);});
+      bottomSplitter.addEventListener("pointermove",event=>{if(bottomDrag===event.pointerId)setMobilePreviewSplit(event.clientY);});
+      const stopBottomDrag=event=>{if(bottomDrag===event.pointerId){bottomDrag=null;bottomSplitter.classList.remove("dragging");}};bottomSplitter.addEventListener("pointerup",stopBottomDrag);bottomSplitter.addEventListener("pointercancel",stopBottomDrag);
+      bottomSplitter.addEventListener("keydown",event=>{if(event.key==="ArrowUp"||event.key==="ArrowDown"){event.preventDefault();const r=bottomSplitter.getBoundingClientRect();setMobilePreviewSplit(r.top+(event.key==="ArrowUp"?-30:30));}});
       elements.previewDevice.addEventListener("change", () => {
         const width = elements.previewDevice.value;
-        elements.preview.style.width = width;
-        elements.preview.style.maxWidth = "100%";
         updatePreviewDimensions();
         showToast(width === "100%" ? "Desktop preview enabled." : width + " responsive preview enabled.");
       });

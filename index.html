@@ -70,8 +70,8 @@
 
     .workspace { flex: 1; min-height: 0; display: flex; }
     .activity-bar {
-      width: 48px; flex: 0 0 48px; display: flex; flex-direction: column; align-items: center;
-      gap: 10px; padding: 14px 0; border-right: 1px solid var(--line); background: #f3f3f3;
+      width: 48px; flex: 0 0 48px; height:100%; min-height:0; overflow:hidden; display:flex; flex-direction:column; align-items:center;
+      gap:10px; padding:10px 0; border-right:1px solid var(--line); background:#f3f3f3;
     }
     .activity-button {
       width: 36px; height: 36px; display: grid; place-items: center; border: 0; border-left: 2px solid transparent;
@@ -79,7 +79,7 @@
     }
     .activity-button:hover, .activity-button.active { color: var(--text); }
     .activity-button.active { border-left-color: var(--accent); }
-    .activity-bottom { flex: 1; }
+    .activity-bottom { flex:1 1 auto; min-height:0; }
     .profile-activity { position:relative; margin-top:4px; border-top:1px solid var(--line); padding-top:7px; width:36px; height:36px; border-radius:50%; overflow:visible; border:2px solid var(--line-strong); padding:0; }
     #friendsActivity { position:relative; }
     .friends-unread-dot { position:absolute; top:3px; right:3px; width:10px; height:10px; border:2px solid #f3f3f3; border-radius:50%; background:#e02424; box-shadow:0 0 0 1px #fff; }
@@ -240,7 +240,11 @@
     .preview-heading { color: #333333; font-size: 10px; font-weight: 700; letter-spacing: .09em; }
     .preview-url { flex: 1; max-width: 370px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 5px 9px; border: 1px solid #d4d4d4; border-radius: 5px; color: #616161; font: 10px "SFMono-Regular", Consolas, monospace; }
     .preview-message { color: var(--muted); font-size: 10px; }
-    .preview-frame-wrap { flex: 1; min-height: 0; padding: 12px 14px 14px; display:flex; justify-content:flex-start; align-items:flex-start; background: #e8e8e8; overflow:auto; position:relative; }
+    .preview-frame-wrap { flex:1; min-height:0; padding:12px 14px 14px; display:flex; justify-content:flex-start; align-items:flex-start; background:#e8e8e8; overflow:auto; position:relative; }
+    .preview-zoom-controls{position:sticky;float:right;align-self:flex-end;flex:0 0 auto;display:flex;align-items:center;gap:6px;margin:0 8px 8px auto;padding:6px 8px;border:1px solid #c9cdd2;border-radius:9px;background:rgba(255,255,255,.94);box-shadow:0 2px 10px #0002;z-index:5;color:#222;font:11px system-ui;}
+    .preview-zoom-controls input{width:86px;accent-color:var(--accent);}
+    .preview-zoom-controls button{border:1px solid #d1d5db;border-radius:6px;background:#fff;padding:4px 7px;color:#222;cursor:pointer;font:inherit;}
+    .preview-zoom-controls output{min-width:34px;text-align:center;font-variant-numeric:tabular-nums;}
     .preview-frame { width: 100%; max-width:100%; height: 100%; flex:0 0 auto; border: 0; border-radius: 7px; background: white; box-shadow:0 2px 12px #00000012; transform-origin:top center; transition:width .18s ease,transform .12s ease; }
     .preview-bottom-splitter { display:none; height:7px; flex:0 0 7px; cursor:row-resize; touch-action:none; background:var(--line); position:relative; z-index:6; }\n    .preview-bottom-splitter:hover,.preview-bottom-splitter.dragging,.preview-bottom-splitter:focus { background:var(--accent); outline:none; }\n    .preview-dimensions { flex:0 0 auto; padding:5px 12px 8px; color:var(--muted); background:#e8e8e8; text-align:center; font:10px "SFMono-Regular",Consolas,monospace; }
     .preview-device { width:104px; height:25px; padding:0 6px; border:1px solid var(--line); border-radius:6px; background:var(--panel-raised); color:var(--text); font-size:10px; }
@@ -600,7 +604,7 @@
       .preview-splitter{display:none}
       .preview-area{flex:1 1 50%;min-width:0;min-height:180px;border-top:1px solid var(--line);border-left:0}
       .preview-header{min-height:38px;padding:5px 7px;gap:5px}.preview-url{min-width:0;max-width:none;flex:1}
-      .preview-frame-wrap{padding:7px}.preview-device{width:88px}.sidebar-bottom{display:none}
+      .preview-frame-wrap{padding:7px}.preview-device{width:88px}.preview-zoom-controls{position:sticky;gap:4px;padding:4px 6px;margin:0 4px 4px auto}.preview-zoom-controls input{width:58px}.sidebar-bottom{display:none}
       .terminal-panel{max-height:40vh}.modal{width:min(94vw,520px);max-height:88vh;overflow:auto}
       .friends-modal,.profile-modal{width:96vw}
     }
@@ -709,6 +713,13 @@
           </div>
           <div class="preview-frame-wrap">
             <iframe class="preview-frame" id="previewFrame" title="Live project preview" sandbox="allow-scripts"></iframe>
+            <div class="preview-zoom-controls" id="previewZoomControls" aria-label="Preview zoom controls">
+              <button type="button" id="previewZoomOut" title="Zoom out" aria-label="Zoom out">−</button>
+              <input type="range" id="previewZoom" min="25" max="150" step="5" value="100" aria-label="Preview zoom">
+              <output id="previewZoomValue" for="previewZoom">100%</output>
+              <button type="button" id="previewZoomIn" title="Zoom in" aria-label="Zoom in">＋</button>
+              <button type="button" id="previewZoomFit" title="Fit entire website in preview">Fit</button>
+            </div>
           </div>
           <div class="preview-dimensions" id="previewDimensions" aria-live="polite">Preview size: — × — px</div>
         </section>
@@ -1618,11 +1629,8 @@ button.addEventListener("click", () => {
             event.stopPropagation();
             deleteFile(file);
           });
-          const rename = document.createElement("button");
-          rename.className = "file-delete file-rename"; rename.type = "button"; rename.title = `Rename ${file}`; rename.setAttribute("aria-label", `Rename ${file}`); rename.textContent = "✎"; rename.style.display = "block";
-          rename.addEventListener("click", event => { event.stopPropagation(); openNameModal({title:"Rename file",description:"Choose a new file name, including its extension.",button:"Rename file",placeholder:file,action:value=>renameProjectFile(file,value)}); elements.nameInput.value=file; elements.nameInput.select(); });
           row.addEventListener("contextmenu",event=>{event.preventDefault();showFileContextMenu(event.clientX,event.clientY,file);});
-          row.append(icon, label, rename, remove);
+          row.append(icon, label, remove);
           row.addEventListener("click", () => activateFile(file));
           row.addEventListener("keydown", event => {
             if (event.key === "Enter" || event.key === " ") {
@@ -3792,8 +3800,15 @@ async function sendAiMessage(event) {
         buildPreview();
         showToast("Preview refreshed.");
       });
-      const updatePreviewDimensions=()=>{const selected=elements.previewDevice.value;const [width,height]=selected.split("x").map(Number);const naturalWidth=width||390;const naturalHeight=height||844;elements.preview.style.width=naturalWidth+"px";elements.preview.style.maxWidth="none";elements.preview.style.height=naturalHeight+"px";elements.preview.style.transform="none";elements.preview.style.marginBottom="0";elements.previewDimensions.textContent=`Preview viewport: ${naturalWidth} × ${naturalHeight} px · 100% scale (scroll to view wider devices)`;};
-      if(window.ResizeObserver)new ResizeObserver(updatePreviewDimensions).observe(elements.preview);
+      const zoomInput=document.getElementById("previewZoom"),zoomValue=document.getElementById("previewZoomValue");let previewZoom=1;
+      const applyPreviewZoom=()=>{const selected=elements.previewDevice.value;const [w,h]=selected.split("x").map(Number);const naturalWidth=w||390,naturalHeight=h||844;elements.preview.style.width=naturalWidth+"px";elements.preview.style.maxWidth="none";elements.preview.style.height=naturalHeight+"px";elements.preview.style.transformOrigin="top left";elements.preview.style.transform=`scale(${previewZoom})`;elements.preview.style.marginRight=(naturalWidth*(previewZoom-1))+"px";elements.preview.style.marginBottom=(naturalHeight*(previewZoom-1))+"px";zoomInput.value=String(Math.round(previewZoom*100));zoomValue.textContent=Math.round(previewZoom*100)+"%";elements.previewDimensions.textContent=`Preview viewport: ${naturalWidth} × ${naturalHeight} px · ${Math.round(previewZoom*100)}% zoom`;};
+      const updatePreviewDimensions=()=>{applyPreviewZoom();};
+      const setPreviewZoom=value=>{previewZoom=Math.max(.25,Math.min(1.5,Number(value)||1));applyPreviewZoom();};
+      zoomInput.addEventListener("input",()=>setPreviewZoom(Number(zoomInput.value)/100));
+      document.getElementById("previewZoomOut").addEventListener("click",()=>setPreviewZoom(previewZoom-.1));
+      document.getElementById("previewZoomIn").addEventListener("click",()=>setPreviewZoom(previewZoom+.1));
+      document.getElementById("previewZoomFit").addEventListener("click",()=>{const selected=elements.previewDevice.value;const [w,h]=selected.split("x").map(Number);const wrap=document.querySelector(".preview-frame-wrap");const availableW=Math.max(100,wrap.clientWidth-30),availableH=Math.max(100,wrap.clientHeight-35);setPreviewZoom(Math.min(1,availableW/(w||390),availableH/(h||844)));});
+      if(window.ResizeObserver)new ResizeObserver(updatePreviewDimensions).observe(document.querySelector(".preview-frame-wrap"));
       window.addEventListener("resize",updatePreviewDimensions);
       const bottomSplitter=document.getElementById("previewBottomSplitter");let bottomDrag=null;
       const setMobilePreviewSplit=clientY=>{const area=bottomSplitter.closest(".main-area");const rect=area.getBoundingClientRect();const topHeight=clientY-rect.top;const available=rect.height-44-7;const editorHeight=Math.max(140,Math.min(available-180,topHeight-44));const previewHeight=Math.max(180,available-editorHeight);area.querySelector(".editor-surface").style.flex=`0 0 ${editorHeight}px`;area.querySelector(".preview-area").style.flex=`0 0 ${previewHeight}px`;bottomSplitter.setAttribute("aria-valuenow",String(Math.round(previewHeight/available*100)));requestAnimationFrame(updatePreviewDimensions);};

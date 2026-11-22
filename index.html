@@ -2122,7 +2122,7 @@ async function sendAiMessage(event) {
             const insertAt=offset+emptyColorMatch.index+emptyColorMatch[0].length;
             const prefix=line.slice(0,emptyColorMatch.index+emptyColorMatch[0].length);
             const x=leftPadding+ctx.measureText(prefix).width-16;
-            const y=topPadding+lineIndex*lineHeight-elements.editor.scrollTop;
+            const y=topPadding+lineIndex*lineHeight+4-elements.editor.scrollTop;
             if(y>=-lineHeight && y<=elements.editor.clientHeight){
               const button=document.createElement("button");
               button.type="button";button.className="css-color-decoration";

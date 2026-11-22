@@ -705,9 +705,9 @@
             <a class="preview-url" id="previewUrl" href="#" target="_blank" rel="noopener noreferrer" title="Open the published website">orbit://preview/index.html</a>
             <span class="preview-message">Live</span>
             <select class="preview-device" id="previewDevice" aria-label="Preview device size" title="Preview device size">
-              <option value="100%">Desktop</option>
-              <option value="768px">Tablet</option>
-              <option value="390px">Mobile</option>
+              <option value="1440x900">Desktop · 1440 × 900</option>
+              <option value="768x1024">Tablet · 768 × 1024</option>
+              <option value="390x844">Mobile · 390 × 844</option>
             </select>
             <button class="mini-button" id="refreshButton" type="button" title="Refresh preview" aria-label="Refresh preview">↻</button>
           </div>
@@ -3792,7 +3792,7 @@ button.addEventListener("click", () => {
         buildPreview();
         showToast("Preview refreshed.");
       });
-      const updatePreviewDimensions=()=>{const wrap=elements.preview.parentElement;const box=wrap.getBoundingClientRect();const selected=elements.previewDevice.value;const naturalWidth=selected==="100%"?Math.max(1,box.width-28):parseFloat(selected)||box.width;const naturalHeight=selected==="390px"?844:selected==="768px"?1024:900;const scale=Math.min(1,(box.width-28)/naturalWidth);elements.preview.style.width=naturalWidth+"px";elements.preview.style.maxWidth="none";elements.preview.style.height=naturalHeight+"px";elements.preview.style.transform=`scale(${scale})`;elements.preview.style.marginBottom=`-${naturalHeight*(1-scale)}px`;elements.previewDimensions.textContent=`Preview: ${Math.round(naturalWidth)} × ${Math.round(naturalHeight)} px · ${Math.round(scale*100)}%`;};
+      const updatePreviewDimensions=()=>{const wrap=elements.preview.parentElement;const box=wrap.getBoundingClientRect();const selected=elements.previewDevice.value;const [width,height]=selected.split("x").map(Number);const naturalWidth=width||Math.max(1,box.width-28);const naturalHeight=height||900;const scale=Math.min(1,(box.width-28)/naturalWidth);elements.preview.style.width=naturalWidth+"px";elements.preview.style.maxWidth="none";elements.preview.style.height=naturalHeight+"px";elements.preview.style.transform=`scale(${scale})`;elements.preview.style.marginBottom=`-${naturalHeight*(1-scale)}px`;elements.previewDimensions.textContent=`Preview: ${naturalWidth} × ${naturalHeight} px · ${Math.round(scale*100)}%`;};
       if(window.ResizeObserver)new ResizeObserver(updatePreviewDimensions).observe(elements.preview);
       window.addEventListener("resize",updatePreviewDimensions);
       const bottomSplitter=document.getElementById("previewBottomSplitter");let bottomDrag=null;
@@ -3804,7 +3804,7 @@ button.addEventListener("click", () => {
       elements.previewDevice.addEventListener("change", () => {
         const width = elements.previewDevice.value;
         updatePreviewDimensions();
-        showToast(width === "100%" ? "Desktop preview enabled." : width + " responsive preview enabled.");
+        showToast("Preview set to " + width.replace("x"," × ") + " px.");
       });
       document.getElementById("checkProjectButton").addEventListener("click", runProjectChecks);
       document.getElementById("closeDiagnostics").addEventListener("click", closeDiagnostics);

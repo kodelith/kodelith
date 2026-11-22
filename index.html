@@ -2116,6 +2116,28 @@ async function sendAiMessage(event) {
             });
             button.append(picker);layer.append(button);
           }
+          // Offer a picker even when a color property has an empty value (for example: color: ;)
+          const emptyColorMatch=/\\b(?:color|background-color|border-color|border-top-color|border-right-color|border-bottom-color|border-left-color|outline-color|text-decoration-color|fill|stroke)\\s*:\\s*(?=;|$)/i.exec(masked);
+          if(emptyColorMatch){
+            const insertAt=offset+emptyColorMatch.index+emptyColorMatch[0].length;
+            const prefix=line.slice(0,emptyColorMatch.index+emptyColorMatch[0].length);
+            const x=leftPadding+ctx.measureText(prefix).width-16;
+            const y=topPadding+lineIndex*lineHeight-elements.editor.scrollTop;
+            if(y>=-lineHeight && y<=elements.editor.clientHeight){
+              const button=document.createElement("button");
+              button.type="button";button.className="css-color-decoration";
+              button.style.left=Math.max(54,x)+"px";button.style.top=y+"px";button.style.setProperty("--css-swatch","#000000");
+              button.title="Choose a CSS color";button.setAttribute("aria-label","Choose a CSS color");
+              const picker=document.createElement("input");
+              picker.type="color";picker.value="#000000";
+              picker.setAttribute("aria-label","Choose CSS color");
+              picker.addEventListener("input",()=>{
+                elements.editor.setRangeText(picker.value,insertAt,insertAt,"end");
+                elements.editor.focus();saveEditorValue();
+              });
+              button.append(picker);layer.append(button);
+            }
+          }
           offset+=line.length+1;
         });
       }

@@ -242,6 +242,7 @@
     .preview-message { color: var(--muted); font-size: 10px; }
     .preview-frame-wrap { flex: 1; min-height: 0; padding: 12px 14px 14px; display:flex; justify-content:center; background: #e8e8e8; overflow:auto; }
     .preview-frame { width: 100%; max-width:100%; height: 100%; flex:0 0 auto; border: 0; border-radius: 7px; background: white; box-shadow:0 2px 12px #00000012; transition:width .18s ease; }
+    .preview-dimensions { flex:0 0 auto; padding:5px 12px 8px; color:var(--muted); background:#e8e8e8; text-align:center; font:10px "SFMono-Regular",Consolas,monospace; }
     .preview-device { width:104px; height:25px; padding:0 6px; border:1px solid var(--line); border-radius:6px; background:var(--panel-raised); color:var(--text); font-size:10px; }
     .command-backdrop { position:fixed; inset:0; z-index:100; display:flex; justify-content:center; align-items:flex-start; padding: min(15vh,110px) 16px 20px; background:#10182880; backdrop-filter:blur(3px); }
     .command-palette { width:min(560px,100%); max-height:min(560px,75vh); display:flex; flex-direction:column; overflow:hidden; border:1px solid var(--line); border-radius:12px; background:var(--panel-raised); color:var(--text); box-shadow:0 24px 80px #0005; }
@@ -583,6 +584,27 @@
     @media(max-width:520px){.deploy-modal{padding:17px}.deploy-url-panel{align-items:flex-start;flex-direction:column}.deploy-url-panel a{max-width:100%}}
 .preview-url{color:var(--muted);text-decoration:none;cursor:pointer}.preview-url:hover{color:var(--accent);text-decoration:underline}
     </style>
+  <style>
+    @media (max-width:760px) {
+      html,body,.app{min-height:100%;height:100%;overflow:hidden}
+      .topbar{height:auto;min-height:50px;flex:0 0 auto;padding:7px 9px;gap:7px;flex-wrap:wrap}
+      .brand{min-width:0;gap:6px}.brand-caption{display:none}.brand-name{font-size:13px}
+      .project-switcher{min-width:0;max-width:42vw;flex:1 1 120px}.topbar-spacer{display:none}
+      .workspace{min-height:0;flex:1}.sidebar{width:min(78vw,280px);flex:0 0 min(78vw,280px)}
+      .main-area{grid-template-columns:minmax(0,1fr);grid-template-rows:auto minmax(220px,1fr) minmax(180px,42vh);overflow:hidden}
+      .editor-top{grid-column:1;grid-row:1;flex-wrap:wrap;min-width:0}
+      .tabs{flex:1 1 100%;max-width:100%;min-height:38px}
+      .editor-toolbar{width:100%;overflow-x:auto;flex-wrap:nowrap;padding:5px 7px}
+      .editor-surface{grid-column:1;grid-row:2;min-height:180px}
+      .preview-splitter{display:none}
+      .preview-area{grid-column:1;grid-row:3;min-width:0;min-height:180px;border-top:1px solid var(--line)}
+      .preview-header{min-height:38px;padding:5px 7px;gap:5px}.preview-url{min-width:0;max-width:none;flex:1}
+      .preview-frame-wrap{padding:7px}.preview-device{width:88px}.sidebar-bottom{display:none}
+      .terminal-panel{max-height:40vh}.modal{width:min(94vw,520px);max-height:88vh;overflow:auto}
+      .friends-modal,.profile-modal{width:96vw}
+    }
+    @media(max-width:430px){.brand-mark{width:25px;height:25px}.brand-name{font-size:12px}.project-switcher{max-width:38vw}.preview-message{display:none}.preview-url{font-size:9px}.editor-toolbar .toolbar-button{padding:0 7px;font-size:9px}}
+  </style>
 </head>
 <body>
   <div class="app">
@@ -686,6 +708,7 @@
           <div class="preview-frame-wrap">
             <iframe class="preview-frame" id="previewFrame" title="Live project preview" sandbox="allow-scripts"></iframe>
           </div>
+          <div class="preview-dimensions" id="previewDimensions" aria-live="polite">Preview size: — × — px</div>
         </section>
         <section class="terminal-panel" id="terminalPanel" hidden aria-label="Terminal panel">
           <div class="terminal-header">
@@ -918,6 +941,7 @@
   <script src="https://cdn.jsdelivr.net/npm/codemirror@5.65.21/lib/codemirror.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/codemirror@5.65.21/mode/xml/xml.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/codemirror@5.65.21/mode/javascript/javascript.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/codemirror@5.65.21/mode/clike/clike.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/codemirror@5.65.21/mode/css/css.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/codemirror@5.65.21/mode/htmlmixed/htmlmixed.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/codemirror@5.65.21/addon/edit/closebrackets.js"></script>
@@ -1018,6 +1042,7 @@ button.addEventListener("click", () => {
         previewUrl: document.getElementById("previewUrl"),
         previewArea: document.getElementById("previewArea"),
         previewDevice: document.getElementById("previewDevice"),
+        previewDimensions: document.getElementById("previewDimensions"),
         commandPaletteBackdrop: document.getElementById("commandPaletteBackdrop"),
         commandSearch: document.getElementById("commandSearch"),
         commandResults: document.getElementById("commandResults"),
@@ -1535,7 +1560,7 @@ button.addEventListener("click", () => {
 
       function fileKind(file) {
         const extension = file.split(".").pop().toLowerCase();
-        return extension === "html" || extension === "htm" ? "html" : extension === "css" ? "css" : extension === "js" ? "js" : "other";
+        return extension === "html" || extension === "htm" ? "html" : extension === "css" ? "css" : extension === "js" || extension === "mjs" ? "js" : ["c","h","cc","cpp","cxx","hpp"].includes(extension) ? "c" : "other";
       }
 
       function render() {
@@ -1577,7 +1602,7 @@ button.addEventListener("click", () => {
           row.setAttribute("aria-label", `Open ${file}`);
           const icon = document.createElement("span");
           icon.className = `file-icon ${fileKind(file)}`;
-          icon.textContent = fileKind(file) === "html" ? "5" : fileKind(file) === "css" ? "#" : fileKind(file) === "js" ? "JS" : "◇";
+          icon.textContent = fileKind(file) === "html" ? "5" : fileKind(file) === "css" ? "#" : fileKind(file) === "js" ? "JS" : fileKind(file) === "c" ? "C" : "◇";
           const label = document.createElement("span");
           label.className = "file-name";
           label.textContent = file;
@@ -1591,7 +1616,10 @@ button.addEventListener("click", () => {
             event.stopPropagation();
             deleteFile(file);
           });
-          row.append(icon, label, remove);
+          const rename = document.createElement("button");
+          rename.className = "file-delete file-rename"; rename.type = "button"; rename.title = `Rename ${file}`; rename.setAttribute("aria-label", `Rename ${file}`); rename.textContent = "✎"; rename.style.display = "block";
+          rename.addEventListener("click", event => { event.stopPropagation(); openNameModal({title:"Rename file",description:"Choose a new file name, including its extension.",button:"Rename file",placeholder:file,action:value=>renameProjectFile(file,value)}); elements.nameInput.value=file; elements.nameInput.select(); });
+          row.append(icon, label, rename, remove);
           row.addEventListener("click", () => activateFile(file));
           row.addEventListener("keydown", event => {
             if (event.key === "Enter" || event.key === " ") {
@@ -1680,7 +1708,7 @@ button.addEventListener("click", () => {
           elements.editor.dataset.file = activeFile;
           if (codeMirror) {
             const kind = fileKind(activeFile);
-            codeMirror.setOption("mode", kind === "html" ? "text/html" : kind === "css" ? "text/css" : kind === "js" ? "text/javascript" : "text/plain");
+            codeMirror.setOption("mode", kind === "html" ? "text/html" : kind === "css" ? "text/css" : kind === "js" ? "text/javascript" : kind === "c" ? "text/x-csrc" : "text/plain");
             codeMirror.setOption("autoCloseTags", kind === "html");
           }
           elements.editor.scrollTop = 0;
@@ -2121,6 +2149,7 @@ button.addEventListener("click", () => {
         if (bareMatch) return { prefix:bareMatch[2].toLowerCase(), start:cursor-bareMatch[2].length, mode:"bare" };
         return null;
       }
+      const cSuggestions = ["auto","break","case","char","const","continue","default","do","double","else","enum","extern","float","for","goto","if","inline","int","long","register","restrict","return","short","signed","sizeof","static","struct","switch","typedef","union","unsigned","void","volatile","while","printf","scanf","malloc","calloc","realloc","free","strlen","strcmp","strcpy","memcpy","fopen","fclose","fread","fwrite","NULL","size_t","FILE","bool","true","false"];
       const htmlExtraAttributes = ["accept","action","async","autoplay","charset","checked","cols","colspan","controls","defer","disabled","download","for","height","href","hreflang","http-equiv","integrity","label","loop","max","maxlength","media","method","min","multiple","muted","name","open","pattern","placeholder","poster","preload","readonly","rel","required","rows","rowspan","selected","src","srcset","step","target","type","value","width","onclick","onchange","onsubmit","oninput","onload","onerror","onkeydown","onkeyup","onmouseover","onfocus","onblur","aria-label","aria-hidden","aria-expanded","aria-controls","aria-describedby","data-testid"];
       const cssProperties = ("accent-color align-content align-items align-self all animation animation-delay animation-direction animation-duration animation-fill-mode animation-iteration-count animation-name animation-play-state animation-timing-function appearance aspect-ratio backdrop-filter backface-visibility background background-attachment background-blend-mode background-clip background-color background-image background-position background-repeat background-size block-size border border-block border-bottom border-collapse border-color border-image border-left border-radius border-right border-spacing border-style border-top border-width bottom box-shadow box-sizing break-inside caption-side caret-color clear clip-path color column-count column-gap columns contain content cursor direction display empty-cells filter flex flex-basis flex-direction flex-flow flex-grow flex-shrink flex-wrap float font font-family font-feature-settings font-size font-style font-variant font-weight gap grid grid-area grid-auto-columns grid-auto-flow grid-auto-rows grid-column grid-column-gap grid-row grid-row-gap grid-template grid-template-areas grid-template-columns grid-template-rows height hyphens inset isolation justify-content justify-items justify-self left letter-spacing line-break line-height list-style margin margin-block margin-bottom margin-inline margin-left margin-right margin-top max-height max-width min-height min-width object-fit object-position opacity order outline overflow overflow-x overflow-y padding padding-block padding-bottom padding-inline padding-left padding-right padding-top perspective place-content place-items pointer-events position resize right rotate row-gap scroll-behavior scroll-margin scroll-padding scroll-snap-align scroll-snap-type shape-outside tab-size table-layout text-align text-decoration text-overflow text-shadow text-transform top transform transform-origin transform-style transition transition-delay transition-duration transition-property transition-timing-function translate user-select vertical-align visibility white-space width word-break word-spacing writing-mode z-index").split(" ");
       const cssValues = ["auto","none","normal","inherit","initial","unset","revert","block","inline","inline-block","flex","inline-flex","grid","inline-grid","contents","hidden","visible","relative","absolute","fixed","sticky","static","center","start","end","space-between","space-around","space-evenly","stretch","baseline","solid","dashed","dotted","transparent","currentColor","cover","contain","repeat","no-repeat","pointer","default","not-allowed","wrap","nowrap","column","row","bold","italic","uppercase","lowercase","capitalize","border-box","content-box"];
@@ -2153,6 +2182,11 @@ button.addEventListener("click", () => {
             context = {prefix,start:cursor-token[0].length,mode:"css-selector"};
             candidates = ["*","html","body",":root",":hover",":focus",":active",":before",":after",":first-child",":last-child",":nth-child","@media","@keyframes","@supports","@import","@font-face","div","section","main","header","footer","nav","button","input","a","img","ul","li"];
           }
+        } else if (kind === "c") {
+          const token = before.match(/[A-Za-z_][A-Za-z0-9_]*$/);
+          if (!token) { hideHtmlSuggestions(); return; }
+          context = {prefix:token[0].toLowerCase(),start:cursor-token[0].length,mode:"c-word"};
+          candidates = cSuggestions;
         } else if (kind === "js") {
           const dot = before.match(/\.([A-Za-z_$][\w$]*)?$/);
           const token = before.match(/[A-Za-z_$][\w$]*$/);
@@ -3194,6 +3228,19 @@ button.addEventListener("click", () => {
         modalAction = null;
       }
 
+      function renameProjectFile(oldName,value) {
+        const nextName=value.trim();
+        if(!nextName||/[\\/:*?"<>|]/.test(nextName)){showToast("Enter a valid file name without slashes or special characters.");return false;}
+        const project=currentProject(); if(!Object.hasOwn(project.files,oldName))return false;
+        if(nextName!==oldName&&Object.hasOwn(project.files,nextName)){showToast("A file with that name already exists.");return false;}
+        if(nextName===oldName)return true;
+        project.files[nextName]=project.files[oldName];delete project.files[oldName];
+        project.openFiles=project.openFiles.map(name=>name===oldName?nextName:name);
+        if(project.activeFile===oldName)project.activeFile=nextName;
+        if(elements.editor.dataset.file===oldName)elements.editor.dataset.file=nextName;
+        render();scheduleSave();showToast("File renamed.");return true;
+      }
+
       function createFile(name) {
         const file = name.trim();
         if (!file || /[\\/:*?"<>|]/.test(file)) {
@@ -3658,6 +3705,9 @@ button.addEventListener("click", () => {
       window.addEventListener("resize", hideTabContextMenu);
       elements.editor.addEventListener("input", saveEditorValue);
       elements.editor.addEventListener("input", updateHtmlSuggestions);
+      elements.editor.addEventListener("keyup", updateHtmlSuggestions);
+      elements.editor.addEventListener("click", updateHtmlSuggestions);
+      if (codeMirror) codeMirror.on("cursorActivity", updateHtmlSuggestions);
       elements.editor.addEventListener("scroll", () => { elements.gutter.scrollTop=elements.editor.scrollTop; elements.highlightLayer.scrollTop=elements.editor.scrollTop; elements.highlightLayer.scrollLeft=elements.editor.scrollLeft; });
       elements.editor.addEventListener("click", updateCursorPosition);
       elements.editor.addEventListener("keyup", updateCursorPosition);
@@ -3736,10 +3786,14 @@ button.addEventListener("click", () => {
         buildPreview();
         showToast("Preview refreshed.");
       });
+      const updatePreviewDimensions=()=>{const r=elements.preview.getBoundingClientRect();elements.previewDimensions.textContent=`Preview size: ${Math.round(r.width)} × ${Math.round(r.height)} px`;};
+      if(window.ResizeObserver)new ResizeObserver(updatePreviewDimensions).observe(elements.preview);
+      window.addEventListener("resize",updatePreviewDimensions);
       elements.previewDevice.addEventListener("change", () => {
         const width = elements.previewDevice.value;
         elements.preview.style.width = width;
         elements.preview.style.maxWidth = "100%";
+        updatePreviewDimensions();
         showToast(width === "100%" ? "Desktop preview enabled." : width + " responsive preview enabled.");
       });
       document.getElementById("checkProjectButton").addEventListener("click", runProjectChecks);

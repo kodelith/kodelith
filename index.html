@@ -2112,12 +2112,12 @@ async function sendAiMessage(event) {
             picker.type="color";picker.value=CSS.supports("color",value) ? (function(){const probe=document.createElement("span");probe.style.color=value;document.body.append(probe);const computed=getComputedStyle(probe).color;probe.remove();const nums=computed.match(/\d+/g);return nums&&nums.length>=3?"#"+nums.slice(0,3).map(n=>Number(n).toString(16).padStart(2,"0")).join(""):"#000000";})() : "#000000";
             picker.setAttribute("aria-label","Choose replacement color");
             picker.addEventListener("focus",()=>{cssColorPickerOpen=true;});
-            picker.addEventListener("blur",()=>{cssColorPickerOpen=false;renderCssColorDecorations(elements.editor.value);});
+            // Keep the decoration layer mounted while the native macOS color panel is open. Blur is not a reliable close signal for native color panels.
             picker.addEventListener("change",()=>{
               const start=lineOffset+tokenIndex;
               const end=start+value.length;
               elements.editor.setRangeText(picker.value,start,end,"end");
-              elements.editor.focus();saveEditorValue();
+              cssColorPickerOpen=false;elements.editor.focus();saveEditorValue();renderCssColorDecorations(elements.editor.value);
             });
             button.append(picker);layer.append(button);
           }
@@ -2137,10 +2137,10 @@ async function sendAiMessage(event) {
               picker.type="color";picker.value="#000000";
               picker.setAttribute("aria-label","Choose CSS color");
               picker.addEventListener("focus",()=>{cssColorPickerOpen=true;});
-              picker.addEventListener("blur",()=>{cssColorPickerOpen=false;renderCssColorDecorations(elements.editor.value);});
+              // Keep the decoration layer mounted while the native macOS color panel is open. Blur is not a reliable close signal for native color panels.
               picker.addEventListener("change",()=>{
                 elements.editor.setRangeText(picker.value,insertAt,insertAt,"end");
-                elements.editor.focus();saveEditorValue();
+                cssColorPickerOpen=false;elements.editor.focus();saveEditorValue();renderCssColorDecorations(elements.editor.value);
               });
               button.append(picker);layer.append(button);
             }

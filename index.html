@@ -350,6 +350,7 @@
     .ai-send:disabled{opacity:.55;cursor:wait}
     .ai-update-card{border:1px solid #9fc8ed;border-radius:9px;padding:11px;background:#f2f8ff;color:#1f3952;font-size:12px}
     .ai-update-card strong{display:block;margin-bottom:7px}.ai-review-note{margin:0 0 9px;color:#4b5563;font-size:11px;line-height:1.45}.ai-update-files{margin:0 0 10px;padding-left:18px}.ai-update-actions{display:flex;gap:7px;flex-wrap:wrap}.ai-update-card button{border:0;border-radius:6px;padding:7px 11px;background:#0874c9;color:#fff;font-weight:600;cursor:pointer}.ai-update-card button.ai-discard{background:transparent;border:1px solid #b8c6d4;color:#34495e}.ai-file-preview{margin:7px 0;border-top:1px solid #d6e4f0;padding-top:7px}.ai-file-preview summary{cursor:pointer;font-weight:600}.ai-file-preview pre{max-height:220px;overflow:auto;margin:7px 0 0;padding:9px;border-radius:6px;background:#fff;color:#263445;font:11px/1.5 ui-monospace,monospace;white-space:pre;tab-size:2}
+.ai-diff{max-height:360px;overflow:auto;margin-top:8px;border:1px solid #d5dde7;border-radius:7px;background:#fff;color:#263445;font:11px/1.55 ui-monospace,SFMono-Regular,monospace;white-space:pre}.ai-diff-line{display:block;min-height:17px;padding:0 9px;white-space:pre;tab-size:2}.ai-diff-line.add{background:#e6ffed;color:#176b32}.ai-diff-line.remove{background:#ffebe9;color:#a12622}.ai-diff-line.context{color:#64748b}.ai-diff-legend{margin-top:6px;font-size:10px;color:var(--muted)}body.dark-theme .ai-diff{background:#111827;color:#d1d5db;border-color:#374151}body.dark-theme .ai-diff-line.add{background:#123522;color:#9be9a8}body.dark-theme .ai-diff-line.remove{background:#48201f;color:#ffaaa5}
     @media(max-width:650px){.ai-panel{top:50px;bottom:24px;width:min(100vw,420px)}}
   </style>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/codemirror@5.65.21/lib/codemirror.css">
@@ -1854,7 +1855,8 @@ button.addEventListener("click", () => {
         elements.aiPrompt.focus();
       }
 
-      async function sendAiMessage(event) {
+      function renderAiCodeDiff(container,beforeText,afterText){const a=String(beforeText||"").split("\n"),b=String(afterText||"").split("\n");const put=(k,t)=>{const e=document.createElement("div");e.className="ai-diff-line "+k;e.textContent=(k==="add"?"+ ":k==="remove"?"− ":"  ")+t;container.append(e);};if(!beforeText){b.slice(0,1500).forEach(t=>put("add",t));return;}if(a.length*b.length>360000){let p=0;while(p<a.length&&p<b.length&&a[p]===b[p])p++;let z=0;while(z<a.length-p&&z<b.length-p&&a[a.length-1-z]===b[b.length-1-z])z++;a.slice(0,p).forEach(t=>put("context",t));a.slice(p,a.length-z).forEach(t=>put("remove",t));b.slice(p,b.length-z).forEach(t=>put("add",t));if(z)a.slice(-z).forEach(t=>put("context",t));return;}const w=b.length+1,d=new Uint32Array((a.length+1)*w);for(let i=a.length-1;i>=0;i--)for(let j=b.length-1;j>=0;j--)d[i*w+j]=a[i]===b[j]?1+d[(i+1)*w+j+1]:Math.max(d[(i+1)*w+j],d[i*w+j+1]);let i=0,j=0,o=[];while(i<a.length||j<b.length){if(i<a.length&&j<b.length&&a[i]===b[j]){o.push(["context",a[i++]]);j++;}else if(j<b.length&&(i===a.length||d[i*w+j+1]>=d[(i+1)*w+j]))o.push(["add",b[j++]]);else o.push(["remove",a[i++]]);}let first=o.findIndex(x=>x[0]!=="context");if(first<0){put("context","No changes");return;}let last=o.length-1;while(last>first&&o[last][0]==="context")last--;const from=Math.max(0,first-3),to=Math.min(o.length,last+4);if(from)put("context","… unchanged lines …");o.slice(from,to).forEach(x=>put(x[0],x[1]));if(to<o.length)put("context","… unchanged lines …");}
+async function sendAiMessage(event) {
         event?.preventDefault();
         const prompt = elements.aiPrompt.value.trim();
         if (!prompt || aiBusy) return;
@@ -1920,16 +1922,10 @@ button.addEventListener("click", () => {
               const li = document.createElement("li");
               li.textContent = update.file + (Object.hasOwn(project.files, update.file) ? " · update" : " · new file");
               list.append(li);
-              const details = document.createElement("details");
-              details.className = "ai-file-preview";
-              const summary = document.createElement("summary");
-              summary.textContent = "Preview " + update.file;
-              const code = document.createElement("pre");
-              code.textContent = update.content.length > 5000
-                ? update.content.slice(0,5000) + "\n… preview shortened; the full file will be applied."
-                : update.content;
-              details.append(summary,code);
-              previews.append(details);
+              const details=document.createElement("details");details.className="ai-file-preview";details.open=true;
+              const summary=document.createElement("summary");summary.textContent="Review diff · "+update.file;
+              const diff=document.createElement("div");diff.className="ai-diff";renderAiCodeDiff(diff,Object.hasOwn(baseFiles,update.file)?String(baseFiles[update.file]):"",update.content);
+              const legend=document.createElement("div");legend.className="ai-diff-legend";legend.textContent="＋ Added lines are green · − Removed lines are red";details.append(summary,diff,legend);previews.append(details);
             });
             const reviewNote = document.createElement("p");
             reviewNote.className = "ai-review-note";
@@ -2841,6 +2837,7 @@ button.addEventListener("click", () => {
         if(/<\/head\s*>/i.test(html))html=html.replace(/<\/head\s*>/i,styleTag+"</head>");
         else html=styleTag+html;
         if(scriptTag){if(/<\/body\s*>/i.test(html))html=html.replace(/<\/body\s*>/i,scriptTag+"</body>");else html+=scriptTag;}
+        const previewSize=elements.previewDevice?.value;if(previewSize&&/^\\d{2,4}x\\d{2,4}$/.test(previewSize)){const previewMeta='<meta name="orbit-preview-size" content="'+previewSize+'">';html=html.replace("</head>",previewMeta+"</head>");}
         return html.slice(0,180000);
       }
       async function syncProfileWebsitePreviews(projectIds) {
@@ -2858,8 +2855,10 @@ button.addEventListener("click", () => {
       }
       function openFriendWebsitePreview(item) {
         document.getElementById("friendPreviewTitle").textContent=item.project_name||"Website preview";
-        document.getElementById("friendPreviewFrame").srcdoc=item.preview_html||"<!doctype html><html><body></body></html>";
-        document.getElementById("friendPreviewBackdrop").hidden=false;
+        const frame=document.getElementById("friendPreviewFrame"),modal=frame.parentElement,html=item.preview_html||"<!doctype html><html><body></body></html>";
+        const match=html.match(/orbit-preview-size["'] content=["'](\\d{2,4})x(\\d{2,4})/i);
+        frame.style.width=match?match[1]+"px":"100%";frame.style.height=match?match[2]+"px":"100%";frame.style.flex="0 0 auto";frame.style.maxWidth="none";frame.style.transform="none";frame.style.transformOrigin="top left";frame.srcdoc=html;document.getElementById("friendPreviewBackdrop").hidden=false;
+        requestAnimationFrame(()=>{if(!match)return;const w=+match[1],h=+match[2],scale=Math.min(1,(modal.clientWidth-24)/w,(modal.clientHeight-72)/h);frame.style.transform="scale("+scale+")";frame.style.marginRight=(-w*(1-scale))+"px";frame.style.marginBottom=(-h*(1-scale))+"px";});
       }
       function friendDisplayName(profile){return String(profile.display_name||profile.username||"Orbit creator");}
       function makeFriendPersonCard(profile,relation,kind="person") {
@@ -3808,9 +3807,9 @@ button.addEventListener("click", () => {
       const stopBottomDrag=event=>{if(bottomDrag===event.pointerId){bottomDrag=null;bottomSplitter.classList.remove("dragging");}};bottomSplitter.addEventListener("pointerup",stopBottomDrag);bottomSplitter.addEventListener("pointercancel",stopBottomDrag);
       bottomSplitter.addEventListener("keydown",event=>{if(event.key==="ArrowUp"||event.key==="ArrowDown"){event.preventDefault();const r=bottomSplitter.getBoundingClientRect();setMobilePreviewSplit(r.top+(event.key==="ArrowUp"?-30:30));}});
       const deviceStorageKey="orbit-preview-devices-v1";
-      const loadSavedPreviewDevices=()=>{try{const saved=JSON.parse(localStorage.getItem(deviceStorageKey)||"[]");if(Array.isArray(saved))saved.filter(d=>d&&typeof d.name==="string"&&/^\\d{2,4}x\\d{2,4}$/.test(d.size||"")).forEach(d=>{const option=document.createElement("option");option.value=d.size;option.textContent=d.name+" · "+d.size.replace("x"," × ")+" px";option.dataset.savedDevice="true";elements.previewDevice.insertBefore(option,elements.previewDevice.querySelector('[value="add-device"]'));});}catch(error){console.warn("Could not load saved preview sizes",error);}};
-      loadSavedPreviewDevices();
-      elements.previewDevice.addEventListener("change", () => {
+       const loadSavedPreviewDevices=()=>{let saved=[];try{saved=JSON.parse(localStorage.getItem(deviceStorageKey)||"[]");if(!Array.isArray(saved))saved=[];}catch(error){}const size=Math.max(200,Math.min(3000,window.innerWidth))+"x"+Math.max(200,Math.min(3000,window.innerHeight));saved=saved.filter(d=>String(d.name||"").toLowerCase()!=="this device");saved.unshift({name:"This device",size});try{localStorage.setItem(deviceStorageKey,JSON.stringify(saved));}catch(error){}saved.forEach(d=>{if(!d||typeof d.name!=="string"||!/^\\d{2,4}x\\d{2,4}$/.test(d.size||""))return;const option=document.createElement("option");option.value=d.size;option.textContent=d.name+" · "+d.size.replace("x"," × ")+" px";option.dataset.savedDevice="true";elements.previewDevice.insertBefore(option,elements.previewDevice.querySelector('[value="add-device"]'));});elements.previewDevice.value=size;};
+       loadSavedPreviewDevices();
+       elements.previewDevice.addEventListener("change", () => {
         if(elements.previewDevice.value==="add-device"){
           const formMarkup='<div class="device-size-form" style="display:grid;gap:12px;min-width:280px"><label style="display:grid;gap:5px;font-size:13px">Device name<input id="orbitDeviceName" type="text" maxlength="32" placeholder="My Laptop" style="padding:9px;border:1px solid var(--line);border-radius:6px;background:var(--panel);color:var(--text)"></label><div style="display:grid;grid-template-columns:1fr 1fr;gap:10px"><label style="display:grid;gap:5px;font-size:13px">Width (px)<input id="orbitDeviceWidth" type="number" min="200" max="3000" step="1" value="1280" style="width:100%;padding:9px;border:1px solid var(--line);border-radius:6px;background:var(--panel);color:var(--text)"></label><label style="display:grid;gap:5px;font-size:13px">Height (px)<input id="orbitDeviceHeight" type="number" min="200" max="3000" step="1" value="800" style="width:100%;padding:9px;border:1px solid var(--line);border-radius:6px;background:var(--panel);color:var(--text)"></label></div><div style="display:flex;justify-content:flex-end;gap:8px"><button type="button" id="orbitDeviceCancel" class="secondary-button">Cancel</button><button type="button" id="orbitDeviceSave" class="primary-button">Save device</button></div></div>';
           const modal=document.createElement("div");modal.className="command-backdrop";modal.style.zIndex="250";modal.innerHTML='<section class="command-palette" role="dialog" aria-modal="true" aria-labelledby="orbitDeviceTitle" style="padding:18px;gap:12px"><h3 id="orbitDeviceTitle" style="margin:0;font-size:16px">Add preview device</h3><p style="margin:0;color:var(--muted);font-size:12px">Choose a name and viewport dimensions.</p>'+formMarkup+'</section>';document.body.append(modal);

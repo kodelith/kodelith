@@ -355,7 +355,45 @@
     .ai-update-card{border:1px solid #9fc8ed;border-radius:9px;padding:11px;background:#f2f8ff;color:#1f3952;font-size:12px}
     .ai-update-card strong{display:block;margin-bottom:7px}.ai-review-note{margin:0 0 9px;color:#4b5563;font-size:11px;line-height:1.45}.ai-update-files{margin:0 0 10px;padding-left:18px}.ai-update-actions{display:flex;gap:7px;flex-wrap:wrap}.ai-update-card button{border:0;border-radius:6px;padding:7px 11px;background:#0874c9;color:#fff;font-weight:600;cursor:pointer}.ai-update-card button.ai-discard{background:transparent;border:1px solid #b8c6d4;color:#34495e}.ai-file-preview{margin:7px 0;border-top:1px solid #d6e4f0;padding-top:7px}.ai-file-preview summary{cursor:pointer;font-weight:600}.ai-file-preview pre{max-height:220px;overflow:auto;margin:7px 0 0;padding:9px;border-radius:6px;background:#fff;color:#263445;font:11px/1.5 ui-monospace,monospace;white-space:pre;tab-size:2}
 .ai-diff{max-height:360px;overflow:auto;margin-top:8px;border:1px solid #d5dde7;border-radius:7px;background:#fff;color:#263445;font:11px/1.55 ui-monospace,SFMono-Regular,monospace;white-space:pre}.ai-diff-line{display:block;min-height:17px;padding:0 9px;white-space:pre;tab-size:2}.ai-diff-line.add{background:#e6ffed;color:#176b32}.ai-diff-line.remove{background:#ffebe9;color:#a12622}.ai-diff-line.context{color:#64748b}.ai-diff-legend{margin-top:6px;font-size:10px;color:var(--muted)}body.dark-theme .ai-diff{background:#111827;color:#d1d5db;border-color:#374151}body.dark-theme .ai-diff-line.add{background:#123522;color:#9be9a8}body.dark-theme .ai-diff-line.remove{background:#48201f;color:#ffaaa5}
-    @media(max-width:650px){.ai-panel{top:50px;bottom:24px;width:min(100vw,420px)}}
+    .ai-panel{top:58px;bottom:24px;width:min(440px,96vw);border-left:1px solid var(--line);box-shadow:-18px 0 55px #0002}
+    .ai-head{height:64px;padding:0 17px;background:var(--panel-raised)}
+    .ai-brand{gap:11px}.ai-brand-mark{width:34px;height:34px;border-radius:11px;background:linear-gradient(145deg,#e7f2ff,#d7eaff);color:#0874c9;box-shadow:0 3px 12px #0874c91c}
+    .ai-model{font-size:10px;letter-spacing:.01em}
+    .ai-head-actions{display:flex;align-items:center;gap:7px}
+    .ai-online{display:flex;align-items:center;gap:6px;padding:5px 8px;border:1px solid var(--line);border-radius:20px;color:var(--muted);font-size:10px}
+    .ai-online i{width:6px;height:6px;border-radius:50%;background:#20a464;box-shadow:0 0 0 3px #20a4641c}
+    .ai-clear{width:30px;height:30px;border:1px solid var(--line);border-radius:8px;background:transparent;color:var(--muted);font-size:15px;cursor:pointer}
+    .ai-clear:hover{background:var(--panel-soft);color:var(--text)}
+    .ai-contextbar{height:34px;flex:none;display:flex;align-items:center;gap:7px;padding:0 16px;border-bottom:1px solid var(--line);background:var(--panel);color:var(--muted);font-size:10px}
+    .ai-contextbar>span:first-child{color:var(--accent);font-size:13px;font-weight:800}
+    .ai-context-files{margin-left:auto;padding:3px 7px;border-radius:20px;background:var(--panel-soft);font-variant-numeric:tabular-nums}
+    .ai-messages{padding:18px 16px;gap:14px;scroll-behavior:smooth;background:var(--bg)}
+    .ai-welcome{margin:auto 0;display:flex;flex-direction:column;align-items:center;text-align:center;padding:12px 2px 18px}
+    .ai-welcome-icon{width:52px;height:52px;display:grid;place-items:center;border-radius:17px;background:linear-gradient(145deg,#e8f3ff,#d7eaff);color:#0874c9;font-size:27px;box-shadow:0 8px 24px #0874c91c}
+    .ai-welcome h3{margin:16px 0 7px;font-size:19px;letter-spacing:-.5px;color:var(--text)}
+    .ai-welcome>p{max-width:310px;margin:0 0 18px;color:var(--muted);font-size:12px;line-height:1.6}
+    .ai-quick-prompts{width:100%;display:grid;grid-template-columns:1fr 1fr;gap:8px;text-align:left}
+    .ai-quick-prompts button{min-width:0;display:flex;align-items:center;gap:9px;padding:10px;border:1px solid var(--line);border-radius:10px;background:var(--panel-raised);color:var(--text);text-align:left;cursor:pointer;transition:border-color .15s,transform .15s,background .15s}
+    .ai-quick-prompts button:hover{border-color:var(--accent);background:var(--panel);transform:translateY(-1px)}
+    .ai-quick-prompts button>b{width:28px;height:28px;flex:none;display:grid;place-items:center;border-radius:8px;background:var(--panel-soft);color:var(--accent);font-size:16px}
+    .ai-quick-prompts button span{min-width:0;display:grid;gap:3px}
+    .ai-quick-prompts strong{font-size:10px;line-height:1.3}.ai-quick-prompts small{font-size:9px;line-height:1.35;color:var(--muted)}
+    .ai-message{padding:12px 13px;border-radius:13px;font-size:12px;line-height:1.65}
+    .ai-message.assistant{background:var(--panel-raised);border:1px solid var(--line);border-top-left-radius:4px;box-shadow:0 2px 8px #00000008}
+    .ai-message.user{background:#e7f2ff;color:#153e65;border:1px solid #cfe5fa;border-bottom-right-radius:4px;max-width:91%}
+    .ai-composer{padding:12px 14px 14px;border-top:1px solid var(--line);background:var(--panel-raised)}
+    .ai-composer textarea{min-height:68px;max-height:160px;padding:11px 12px;border-radius:11px;background:var(--bg);font-size:12px;resize:none}
+    .ai-compose-row{margin-top:8px}.ai-hint{font-size:9px;line-height:1.4}
+    .ai-send{min-width:76px;display:inline-flex;align-items:center;justify-content:center;gap:7px;border-radius:9px;padding:9px 13px;box-shadow:0 3px 10px #007acc25}
+    .ai-send span{font-size:11px}.ai-update-card{border-radius:12px;box-shadow:0 3px 12px #0000000a}
+    body.dark-theme .ai-welcome-icon{background:linear-gradient(145deg,#183b59,#203c55);color:#8cc7ff}
+    body.dark-theme .ai-quick-prompts button{background:#252526;color:var(--text)}
+    body.dark-theme .ai-quick-prompts button>b{background:#183b59;color:#8cc7ff}
+    body.dark-theme .ai-message.assistant{background:#252526;border-color:#454545}
+    body.dark-theme .ai-message.user{background:#193650;color:#d5eaff;border-color:#315a7e}
+    body.dark-theme .ai-contextbar{background:#252526;border-color:#454545}
+    body.dark-theme .ai-online,body.dark-theme .ai-clear{border-color:#454545}
+    @media(max-width:650px){.ai-panel{top:50px;bottom:24px;width:min(100vw,440px)}.ai-welcome{padding:8px 0 14px}.ai-composer{padding:10px}.ai-hint{max-width:220px}}
   </style>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/codemirror@5.65.21/lib/codemirror.css">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/codemirror@5.65.21/theme/eclipse.css">
@@ -756,15 +794,25 @@
 
   <aside class="ai-panel" id="aiPanel" aria-label="Orbit AI assistant" hidden>
     <div class="ai-head">
-      <div class="ai-brand"><span class="ai-brand-mark">✦</span><span>Orbit AI<span class="ai-model">Groq · GPT-OSS 120B · Project agent</span></span></div>
-      <button class="ai-close" id="aiClose" type="button" aria-label="Close AI panel">×</button>
+      <div class="ai-brand"><span class="ai-brand-mark">✦</span><span>Orbit AI<span class="ai-model">Qwen3-Coder · Project agent</span></span></div>
+      <div class="ai-head-actions"><span class="ai-online"><i></i> Ready</span><button class="ai-clear" id="aiClear" type="button" title="Clear conversation" aria-label="Clear conversation">⌫</button><button class="ai-close" id="aiClose" type="button" aria-label="Close AI panel">×</button></div>
     </div>
+    <div class="ai-contextbar"><span>⌘</span><span id="aiProjectContext">Project context · current workspace</span><span class="ai-context-files" id="aiContextFiles">0 files</span></div>
     <div class="ai-messages" id="aiMessages" aria-live="polite">
-      <div class="ai-message assistant">Hi! I can explain your code, find bugs, build features, and edit your project. I can see the files in your current project. Ask me what you'd like to do.</div>
+      <div class="ai-welcome" id="aiWelcome">
+        <div class="ai-welcome-icon">✦</div><h3>What are we building?</h3>
+        <p>Qwen can inspect your project, plan changes, fix bugs and prepare complete files for review.</p>
+        <div class="ai-quick-prompts">
+          <button type="button" data-ai-prompt="Inspect this project and suggest the most important improvements. Do not change files yet."><b>⌕</b><span><strong>Review my project</strong><small>Find issues and improvements</small></span></button>
+          <button type="button" data-ai-prompt="Find and fix bugs in my current project. Preserve all existing features."><b>⚒</b><span><strong>Fix bugs</strong><small>Debug without breaking features</small></span></button>
+          <button type="button" data-ai-prompt="Improve the UI and responsiveness of my project while preserving its existing functionality."><b>◫</b><span><strong>Improve the UI</strong><small>Polish layout and responsiveness</small></span></button>
+          <button type="button" data-ai-prompt="Explain how this project works, including its main files and how they connect."><b>⌘</b><span><strong>Explain this code</strong><small>Understand the project structure</small></span></button>
+        </div>
+      </div>
     </div>
     <form class="ai-composer" id="aiForm">
-      <textarea id="aiPrompt" maxlength="6000" placeholder="Ask Orbit AI to explain, fix, or build something…" aria-label="Message Orbit AI"></textarea>
-      <div class="ai-compose-row"><span class="ai-hint">Project-aware · multi-file edits · review before apply</span><button class="ai-send" id="aiSend" type="submit">Send ↑</button></div>
+      <textarea id="aiPrompt" maxlength="6000" rows="2" placeholder="Message Orbit AI… (Enter to send, Shift + Enter for new line)" aria-label="Message Orbit AI"></textarea>
+      <div class="ai-compose-row"><span class="ai-hint">Qwen3-Coder · project-aware · review before apply</span><button class="ai-send" id="aiSend" type="submit"><span>Send</span> ↑</button></div>
     </form>
   </aside>
 
@@ -1857,7 +1905,18 @@ button.addEventListener("click", () => {
       function showAiPanel() {
         elements.aiPanel.hidden = false;
         elements.aiToggle.classList.add("active");
+        const project=currentProject(),count=project?Object.keys(project.files||{}).length:0;
+        const context=document.getElementById("aiProjectContext"),filesLabel=document.getElementById("aiContextFiles");
+        if(context)context.textContent=project?("Project · "+project.name):"No active project";
+        if(filesLabel)filesLabel.textContent=count+" file"+(count===1?"":"s");
         elements.aiPrompt.focus();
+      }
+      function clearAiConversation(){
+        if(aiBusy){showToast("Wait for the current AI response to finish.");return;}
+        elements.aiMessages.replaceChildren();
+        const welcome=document.createElement("div");welcome.className="ai-welcome";welcome.id="aiWelcome";
+        welcome.innerHTML='<div class="ai-welcome-icon">✦</div><h3>What are we building?</h3><p>Qwen can inspect your project, plan changes, fix bugs and prepare complete files for review.</p><div class="ai-quick-prompts"><button type="button" data-ai-prompt="Inspect this project and suggest the most important improvements. Do not change files yet."><b>⌕</b><span><strong>Review my project</strong><small>Find issues and improvements</small></span></button><button type="button" data-ai-prompt="Find and fix bugs in my current project. Preserve all existing features."><b>⚒</b><span><strong>Fix bugs</strong><small>Debug without breaking features</small></span></button><button type="button" data-ai-prompt="Improve the UI and responsiveness of my project while preserving its existing functionality."><b>◫</b><span><strong>Improve the UI</strong><small>Polish layout and responsiveness</small></span></button><button type="button" data-ai-prompt="Explain how this project works, including its main files and how they connect."><b>⌘</b><span><strong>Explain this code</strong><small>Understand the project structure</small></span></button></div>';
+        elements.aiMessages.append(welcome);
       }
 
       function renderAiCodeDiff(container,beforeText,afterText){const a=String(beforeText||"").split("\n"),b=String(afterText||"").split("\n");const put=(k,t)=>{const e=document.createElement("div");e.className="ai-diff-line "+k;e.textContent=(k==="add"?"+ ":k==="remove"?"− ":"  ")+t;container.append(e);};if(!beforeText){b.slice(0,1500).forEach(t=>put("add",t));return;}if(a.length*b.length>360000){let p=0;while(p<a.length&&p<b.length&&a[p]===b[p])p++;let z=0;while(z<a.length-p&&z<b.length-p&&a[a.length-1-z]===b[b.length-1-z])z++;a.slice(0,p).forEach(t=>put("context",t));a.slice(p,a.length-z).forEach(t=>put("remove",t));b.slice(p,b.length-z).forEach(t=>put("add",t));if(z)a.slice(-z).forEach(t=>put("context",t));return;}const w=b.length+1,d=new Uint32Array((a.length+1)*w);for(let i=a.length-1;i>=0;i--)for(let j=b.length-1;j>=0;j--)d[i*w+j]=a[i]===b[j]?1+d[(i+1)*w+j+1]:Math.max(d[(i+1)*w+j],d[i*w+j+1]);let i=0,j=0,o=[];while(i<a.length||j<b.length){if(i<a.length&&j<b.length&&a[i]===b[j]){o.push(["context",a[i++]]);j++;}else if(j<b.length&&(i===a.length||d[i*w+j+1]>=d[(i+1)*w+j]))o.push(["add",b[j++]]);else o.push(["remove",a[i++]]);}let first=o.findIndex(x=>x[0]!=="context");if(first<0){put("context","No changes");return;}let last=o.length-1;while(last>first&&o[last][0]==="context")last--;const from=Math.max(0,first-3),to=Math.min(o.length,last+4);if(from)put("context","… unchanged lines …");o.slice(from,to).forEach(x=>put(x[0],x[1]));if(to<o.length)put("context","… unchanged lines …");}
@@ -1890,10 +1949,10 @@ async function sendAiMessage(event) {
           ? `Project has ${fileManifest.length} files. Context includes ${Object.keys(files).length}; omitted: ${omittedFiles.join(", ")}.`
           : `Project has ${fileManifest.length} files; all filenames are included.`;
         addAiMessage("user", prompt);
-        elements.aiPrompt.value = "";
+        elements.aiPrompt.value = ""; elements.aiPrompt.style.height = "auto";
         aiBusy = true;
         elements.aiSend.disabled = true;
-        elements.aiSend.textContent = "Thinking…";
+        elements.aiSend.innerHTML = "<span>Working</span> …";
         const waiting = addAiMessage("assistant", "Working on your project…");
         try {
           const { data, error } = await supabaseClient.functions.invoke("orbit-ai", {
@@ -1989,7 +2048,7 @@ async function sendAiMessage(event) {
         } finally {
           aiBusy = false;
           elements.aiSend.disabled = false;
-          elements.aiSend.textContent = "Send ↑";
+          elements.aiSend.innerHTML = "<span>Send</span> ↑";
           elements.aiPrompt.focus();
         }
       }
@@ -3784,6 +3843,9 @@ async function sendAiMessage(event) {
       elements.aiToggle.addEventListener("click", () => elements.aiPanel.hidden ? showAiPanel() : (elements.aiPanel.hidden = true, elements.aiToggle.classList.remove("active")));
       elements.aiClose.addEventListener("click", () => { elements.aiPanel.hidden = true; elements.aiToggle.classList.remove("active"); });
       elements.aiForm.addEventListener("submit", sendAiMessage);
+      document.getElementById("aiClear").addEventListener("click",clearAiConversation);
+      elements.aiMessages.addEventListener("click",event=>{const button=event.target.closest("[data-ai-prompt]");if(!button)return;elements.aiPrompt.value=button.dataset.aiPrompt||"";elements.aiPrompt.focus();elements.aiForm.requestSubmit();});
+      elements.aiPrompt.addEventListener("input",()=>{elements.aiPrompt.style.height="auto";elements.aiPrompt.style.height=Math.min(elements.aiPrompt.scrollHeight,160)+"px";});
       elements.aiPrompt.addEventListener("keydown", event => {
         if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); elements.aiForm.requestSubmit(); }
       });

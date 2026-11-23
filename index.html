@@ -2162,69 +2162,103 @@ async function sendAiMessage(event) {
       function renderCssColorDecorations(source) {
         // Do not replace the active color input while its native picker is open.
         if (cssColorPickerOpen) return;
-        const layer=elements.cssColorDecorations;
+        const layer = elements.cssColorDecorations;
         layer.replaceChildren();
-        if(fileKind(currentProject()?.activeFile||"")!=="css") return;
-        const lineHeight=21, topPadding=16, leftPadding=70;
-        const canvas=document.createElement("canvas");
-        const ctx=canvas.getContext("2d");
-        ctx.font='12px "SFMono-Regular",Consolas,monospace';
-        const lines=source.split("\n");
-        const colorPattern=/#(?:[0-9a-f]{3,4}|[0-9a-f]{6}|[0-9a-f]{8})\b|\b(?:rgba?|hsla?)\([^)]*\)|\b[a-zA-Z]+\b/gi;
-        let offset=0;
-        lines.forEach((line,lineIndex)=>{
-          const masked=line.replace(/\/\*[\s\S]*?\*\/|(["'])(?:\\.|(?!\1)[^\\])*?\1/g,match=>" ".repeat(match.length));
-          let match;
-          colorPattern.lastIndex=0;
-          while((match=colorPattern.exec(masked))){
-            const value=match[0], tokenIndex=match.index, lineOffset=offset;
-            if(!window.CSS || !CSS.supports("color",value)) continue;
-            const prefix=line.slice(0,tokenIndex);
-            const x=leftPadding+ctx.measureText(prefix).width-16;
-            const y=topPadding+lineIndex*lineHeight+4-elements.editor.scrollTop;
-            if(y < -lineHeight || y > elements.editor.clientHeight) continue;
-            const button=document.createElement("button");
-            button.type="button";button.className="css-color-decoration";
-            button.style.left=Math.max(54,x)+"px";button.style.top=y+"px";button.style.setProperty("--css-swatch",value);
-            button.title="Change CSS color: "+value;button.setAttribute("aria-label","Change CSS color "+value);
-            const picker=document.createElement("input");
-            picker.type="color";picker.value=CSS.supports("color",value) ? (function(){const probe=document.createElement("span");probe.style.color=value;document.body.append(probe);const computed=getComputedStyle(probe).color;probe.remove();const nums=computed.match(/\d+/g);return nums&&nums.length>=3?"#"+nums.slice(0,3).map(n=>Number(n).toString(16).padStart(2,"0")).join(""):"#000000";})() : "#000000";
-            picker.setAttribute("aria-label","Choose replacement color");
-            picker.addEventListener("focus",()=>{cssColorPickerOpen=true;});
-            // Keep the decoration layer mounted while the native macOS color panel is open. Blur is not a reliable close signal for native color panels.
-            picker.addEventListener("change",()=>{
-              const start=lineOffset+tokenIndex;
-              const end=start+value.length;
-              elements.editor.setRangeText(picker.value,start,end,"end");
-              cssColorPickerOpen=false;elements.editor.focus();saveEditorValue();renderCssColorDecorations(elements.editor.value);
-            });
-            button.append(picker);layer.append(button);
+        if (fileKind(currentProject()?.activeFile || "") !== "css") return;
+
+        const lines = source.split("\n");
+        const colorPattern = /#(?:[0-9a-f]{3,4}|[0-9a-f]{6}|[0-9a-f]{8})\b|\b(?:rgba?|hsla?)\([^)]*\)|\b[a-zA-Z]+\b/gi;
+        const layerRect = layer.getBoundingClientRect();
+        const wrapper = codeMirror?.getWrapperElement();
+        const wrapperRect = wrapper?.getBoundingClientRect();
+        const scrollerRect = codeMirror?.getScrollerElement().getBoundingClientRect();
+        const canvas = document.createElement("canvas");
+        const ctx = canvas.getContext("2d");
+        ctx.font = '12px "SFMono-Regular",Consolas,monospace';
+        const lineHeight = 21;
+        let offset = 0;
+
+        const positionFor = (lineIndex, column, line) => {
+          if (codeMirror && wrapperRect) {
+            const coords = codeMirror.charCoords({ line: lineIndex, ch: column }, "page");
+            const x = coords.left - (layerRect.left + window.scrollX) - 16;
+            const y = coords.top - (layerRect.top + window.scrollY) + 4;
+            const top = scrollerRect ? scrollerRect.top + window.scrollY : layerRect.top + window.scrollY;
+            const bottom = scrollerRect ? scrollerRect.bottom + window.scrollY : top + elements.editor.clientHeight;
+            if (coords.bottom < top || coords.top > bottom) return null;
+            return { x, y };
           }
-          // Offer a picker even when a color property has an empty value (for example: color: ;)
-          const emptyColorMatch=/\b(?:color|background-color|border-color|border-top-color|border-right-color|border-bottom-color|border-left-color|outline-color|text-decoration-color|fill|stroke)\\s*:\\s*(?=;|$)/i.exec(masked);
-          if(emptyColorMatch){
-            const insertAt=offset+emptyColorMatch.index+emptyColorMatch[0].length;
-            const prefix=line.slice(0,emptyColorMatch.index+emptyColorMatch[0].length);
-            const x=leftPadding+ctx.measureText(prefix).width-16;
-            const y=topPadding+lineIndex*lineHeight+4-elements.editor.scrollTop;
-            if(y>=-lineHeight && y<=elements.editor.clientHeight){
-              const button=document.createElement("button");
-              button.type="button";button.className="css-color-decoration";
-              button.style.left=Math.max(54,x)+"px";button.style.top=y+"px";button.style.setProperty("--css-swatch","#000000");
-              button.title="Choose a CSS color";button.setAttribute("aria-label","Choose a CSS color");
-              const picker=document.createElement("input");
-              picker.type="color";picker.value="#000000";
-              picker.setAttribute("aria-label","Choose CSS color");
-              picker.addEventListener("focus",()=>{cssColorPickerOpen=true;});
-              // Keep the decoration layer mounted while the native macOS color panel is open. Blur is not a reliable close signal for native color panels.
-              picker.addEventListener("change",()=>{
-                elements.editor.setRangeText(picker.value,insertAt,insertAt,"end");
-                cssColorPickerOpen=false;elements.editor.focus();saveEditorValue();renderCssColorDecorations(elements.editor.value);
-              });
-              button.append(picker);layer.append(button);
+          const x = 70 + ctx.measureText(line.slice(0, column)).width - 16;
+          const y = 16 + lineIndex * lineHeight + 4 - elements.editor.scrollTop;
+          if (y < -lineHeight || y > elements.editor.clientHeight) return null;
+          return { x, y };
+        };
+
+        const makePicker = (value, start, end, label) => {
+          const button = document.createElement("button");
+          button.type = "button";
+          button.className = "css-color-decoration";
+          button.style.setProperty("--css-swatch", value || "#000000");
+          button.title = label;
+          button.setAttribute("aria-label", label);
+          const picker = document.createElement("input");
+          picker.type = "color";
+          picker.value = (() => {
+            const probe = document.createElement("span");
+            probe.style.color = value || "#000000";
+            document.body.append(probe);
+            const computed = getComputedStyle(probe).color;
+            probe.remove();
+            const nums = computed.match(/\d+/g);
+            return nums && nums.length >= 3
+              ? "#" + nums.slice(0, 3).map(n => Number(n).toString(16).padStart(2, "0")).join("")
+              : "#000000";
+          })();
+          picker.setAttribute("aria-label", "Choose replacement color");
+          picker.addEventListener("focus", () => { cssColorPickerOpen = true; });
+          picker.addEventListener("change", () => {
+            elements.editor.setRangeText(picker.value, start, end, "end");
+            cssColorPickerOpen = false;
+            elements.editor.focus();
+            saveEditorValue();
+            renderCssColorDecorations(elements.editor.value);
+          });
+          button.append(picker);
+          return button;
+        };
+
+        lines.forEach((line, lineIndex) => {
+          const masked = line.replace(/\/\*[\s\S]*?\*\/|(["'])(?:\\.|(?!\1)[^\\])*?\1/g, match => " ".repeat(match.length));
+          let match;
+          colorPattern.lastIndex = 0;
+          while ((match = colorPattern.exec(masked))) {
+            const value = match[0];
+            const tokenIndex = match.index;
+            if (!window.CSS || !CSS.supports("color", value)) continue;
+            // Only decorate actual color values, not arbitrary CSS words.
+            const before = masked.slice(0, tokenIndex);
+            if (!/(?:^|:)\s*$/.test(before) && !/(?:color|fill|stroke)\s*:\s*[^;]*$/.test(before)) continue;
+            const position = positionFor(lineIndex, tokenIndex, line);
+            if (!position) continue;
+            const button = makePicker(value, offset + tokenIndex, offset + tokenIndex + value.length, "Change CSS color: " + value);
+            button.style.left = Math.max(54, position.x) + "px";
+            button.style.top = position.y + "px";
+            layer.append(button);
+          }
+
+          // Offer a picker for an empty color property value.
+          const emptyColorMatch = /\b(?:color|background-color|border-color|border-top-color|border-right-color|border-bottom-color|border-left-color|outline-color|text-decoration-color|fill|stroke)\s*:\s*(?=;|$)/i.exec(masked);
+          if (emptyColorMatch) {
+            const insertAt = offset + emptyColorMatch.index + emptyColorMatch[0].length;
+            const position = positionFor(lineIndex, emptyColorMatch.index + emptyColorMatch[0].length, line);
+            if (position) {
+              const button = makePicker("#000000", insertAt, insertAt, "Choose a CSS color");
+              button.style.left = Math.max(54, position.x) + "px";
+              button.style.top = position.y + "px";
+              layer.append(button);
             }
           }
-          offset+=line.length+1;
+          offset += line.length + 1;
         });
       }
 

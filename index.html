@@ -351,6 +351,8 @@
     }
 
     .ai-panel{position:fixed;z-index:90;top:54px;right:0;bottom:28px;width:min(390px,94vw);display:flex;flex-direction:column;background:var(--panel-raised);border-left:1px solid var(--line);box-shadow:-14px 0 38px #0002}
+    .ai-embed-frame{display:block;flex:1 1 auto;width:100%;min-height:0;border:0;background:#fff}
+    .ai-panel .ai-contextbar,.ai-panel .ai-messages,.ai-panel .ai-composer{display:none!important}
     @media(max-width:650px){.ai-panel{top:0;bottom:0;width:100%;border-left:0}}
     .ai-panel[hidden]{display:none}
     .ai-head{height:58px;flex:none;display:flex;align-items:center;justify-content:space-between;padding:0 15px;border-bottom:1px solid var(--line)}
@@ -898,6 +900,7 @@
       <div class="ai-head-actions"><span class="ai-online"><i></i> Ready</span><button class="ai-clear" id="aiClear" type="button" title="Clear conversation" aria-label="Clear conversation">⌫</button><button class="ai-close" id="aiClose" type="button" aria-label="Close AI panel">×</button></div>
     </div>
     <div class="ai-contextbar"><span>⌘</span><span id="aiProjectContext">Project context · current workspace</span><span class="ai-context-files" id="aiContextFiles">0 files</span></div>
+    <iframe class="ai-embed-frame" src="https://sunny-hello-greeting-09.lovable.app" title="Orbit AI" loading="lazy" referrerpolicy="strict-origin-when-cross-origin" allow="clipboard-read; clipboard-write"></iframe>
     <div class="ai-messages" id="aiMessages" aria-live="polite">
       <div class="ai-welcome" id="aiWelcome">
         <div class="ai-welcome-icon">✦</div><h3>What are we building?</h3>

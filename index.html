@@ -4,7 +4,18 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#f3f3f3">
-  <title>Orbit — Code anywhere</title>
+  <meta name="description" content="Orbit is a free online HTML, CSS and JavaScript code editor. Write code in your browser, preview websites live, manage projects and use AI coding assistance — no installation required.">
+  <meta name="robots" content="index, follow, max-image-preview:large">
+  <link rel="canonical" href="https://save-codes.github.io/my-code/">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Orbit">
+  <meta property="og:title" content="Orbit — Free Online HTML, CSS & JavaScript Code Editor">
+  <meta property="og:description" content="Write HTML, CSS and JavaScript in your browser with live preview, project tools and AI coding assistance.">
+  <meta property="og:url" content="https://save-codes.github.io/my-code/">
+  <meta name="twitter:card" content="summary">
+  <meta name="twitter:title" content="Orbit — Free Online Code Editor">
+  <meta name="twitter:description" content="A free browser-based HTML, CSS and JavaScript editor with live preview and AI assistance.">
+  <title>Orbit — Free Online HTML, CSS &amp; JavaScript Code Editor</title>
   <style>
     :root {
       color-scheme: light;
@@ -630,11 +641,52 @@
     body.dark-theme .deploy-url-panel button{background:#213a2b;color:#a7e3b8;border-color:#456a50}
     @media(max-width:520px){.deploy-modal{padding:17px}.deploy-url-panel{align-items:flex-start;flex-direction:column}.deploy-url-panel a{max-width:100%}}
 .preview-url{color:var(--muted);text-decoration:none;cursor:pointer}.preview-url:hover{color:var(--accent);text-decoration:underline}
-    </style>
+    
+    /* Public, crawlable product information below the editor */
+    .seo-content { max-width: 1040px; margin: 0 auto; padding: 64px 28px 76px; color: #252a33; line-height: 1.7; }
+    .seo-content h1 { max-width: 820px; margin: 0 0 16px; color: #151a22; font-size: clamp(30px,5vw,48px); line-height: 1.12; letter-spacing: -.045em; }
+    .seo-content h2 { margin: 34px 0 12px; color: #151a22; font-size: 24px; letter-spacing: -.025em; }
+    .seo-content p { max-width: 820px; margin: 0 0 14px; color: #4c5563; font-size: 15px; }
+    .seo-content .seo-lead { font-size: 18px; }
+    .seo-cta { display: inline-flex; align-items: center; margin: 10px 0 4px; padding: 11px 17px; border-radius: 8px; background: #007acc; color: #fff; font-size: 14px; font-weight: 700; text-decoration: none; }
+    .seo-cta:hover { background: #006bb3; }
+    .seo-feature-grid { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 14px; margin-top: 18px; }
+    .seo-feature { padding: 17px; border: 1px solid #e0e4e9; border-radius: 12px; background: #fff; }
+    .seo-feature h3 { margin: 0 0 7px; color: #202631; font-size: 15px; }
+    .seo-feature p { margin: 0; font-size: 13px; }
+    .seo-steps { padding-left: 22px; color: #4c5563; }
+    .seo-steps li { padding: 4px 0 7px; }
+    .seo-faq { max-width: 850px; border-top: 1px solid #e0e4e9; }
+    .seo-faq details { padding: 14px 0; border-bottom: 1px solid #e0e4e9; }
+    .seo-faq summary { color: #202631; font-size: 15px; font-weight: 700; cursor: pointer; }
+    .seo-faq details p { margin: 9px 0 0; font-size: 14px; }
+    @media (max-width: 700px) { .seo-content { padding: 42px 20px 54px; } .seo-feature-grid { grid-template-columns: 1fr; } .seo-content .seo-lead { font-size: 16px; } }
+</style>
   <style>
     @media (max-width:760px) {
       html,body,.app{min-height:100%;height:100%;overflow:hidden}
-      .topbar{height:auto;min-height:50px;flex:0 0 auto;padding:7px 9px;gap:7px;flex-wrap:wrap}
+       <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    "name": "Orbit",
+    "alternateName": "Orbit Online Code Editor",
+    "applicationCategory": "DeveloperApplication",
+    "operatingSystem": "Any",
+    "url": "https://save-codes.github.io/my-code/",
+    "description": "A free browser-based HTML, CSS and JavaScript code editor with live preview, project management and AI coding assistance.",
+    "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+    "featureList": [
+      "Online HTML, CSS and JavaScript editing",
+      "Live website preview",
+      "Project and file management",
+      "AI coding assistance",
+      "Responsive device preview",
+      "CSS color picker and HTML tag suggestions"
+    ]
+  }
+  </script>
+ .topbar{height:auto;min-height:50px;flex:0 0 auto;padding:7px 9px;gap:7px;flex-wrap:wrap}
       .brand{min-width:0;gap:6px}.brand-caption{display:none}.brand-name{font-size:13px}
       .project-switcher{min-width:0;max-width:42vw;flex:1 1 120px}.topbar-spacer{display:none}
       .workspace{min-height:0;flex:1}.sidebar{width:min(78vw,280px);flex:0 0 min(78vw,280px)}
@@ -811,6 +863,32 @@
       <span class="status-muted" id="cursorPosition">Ln 1, Col 1</span>
     </footer>
   </div>
+
+  <section class="seo-content" aria-labelledby="seo-title">
+    <h1 id="seo-title">Free Online HTML, CSS &amp; JavaScript Code Editor</h1>
+    <p class="seo-lead">Orbit is a browser-based code editor for building and testing websites. Write HTML, style pages with CSS, add JavaScript, and see your changes in a live preview — without installing a desktop editor.</p>
+    <a class="seo-cta" href="#codeEditor">Start coding in Orbit</a>
+    <h2>A simple online editor for building websites</h2>
+    <p>Use Orbit as an online HTML editor, CSS editor and JavaScript editor in one workspace. Create projects, organize files, edit your code and preview the result beside the editor. Your workspace runs in the browser, so you can get started without setting up a local development environment.</p>
+    <div class="seo-feature-grid">
+      <article class="seo-feature"><h3>HTML, CSS and JavaScript</h3><p>Work with the core web languages in one browser-based coding workspace.</p></article>
+      <article class="seo-feature"><h3>Live website preview</h3><p>Run your page and check how your HTML, styles and scripts work together.</p></article>
+      <article class="seo-feature"><h3>AI coding assistance</h3><p>Ask Orbit AI to review a project, explain code, find bugs or prepare changes for your review.</p></article>
+      <article class="seo-feature"><h3>Project and file management</h3><p>Keep website files organized into projects and export your work when you need it.</p></article>
+      <article class="seo-feature"><h3>Responsive preview</h3><p>Preview your pages at desktop, tablet and mobile dimensions.</p></article>
+      <article class="seo-feature"><h3>Helpful editing tools</h3><p>Use HTML tag suggestions, CSS color selection, formatting and familiar editor shortcuts.</p></article>
+    </div>
+    <h2>How to use the Orbit online code editor</h2>
+    <ol class="seo-steps"><li>Open the editor and create a project.</li><li>Create or open an HTML, CSS or JavaScript file and write your code.</li><li>Use Live Preview to run your page and check the result.</li></ol>
+    <h2>Frequently asked questions</h2>
+    <div class="seo-faq">
+      <details><summary>Is Orbit a free online code editor?</summary><p>Yes. Orbit is currently available as a free browser-based workspace for writing and previewing HTML, CSS and JavaScript.</p></details>
+      <details><summary>Can I write HTML, CSS and JavaScript in Orbit?</summary><p>Yes. Orbit brings HTML, CSS and JavaScript editing together with a live website preview.</p></details>
+      <details><summary>Do I need to install a code editor?</summary><p>No desktop installation is required to use Orbit. Open the website in a modern browser and start a project.</p></details>
+      <details><summary>Can I preview a website while coding?</summary><p>Yes. Orbit includes a live preview panel and device-size options for checking your website as you work.</p></details>
+      <details><summary>Does Orbit include AI coding help?</summary><p>Yes. Orbit includes an AI assistant that can inspect project files, explain code and prepare suggested changes for you to review.</p></details>
+    </div>
+  </section>
 
   <aside class="ai-panel" id="aiPanel" aria-label="Orbit AI assistant" hidden>
     <div class="ai-head">

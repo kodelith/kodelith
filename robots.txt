@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://save-codes.github.io/my-code/sitemap.xml

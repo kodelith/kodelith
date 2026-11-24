@@ -132,13 +132,18 @@
     .projects-add { width:23px; height:23px; border:0; border-radius:6px; background:transparent; color:var(--muted); cursor:pointer; font-size:17px; line-height:1; }
     .projects-add:hover { background:var(--panel-soft); color:var(--text); }
     .projects-list { display:flex; flex-direction:column; gap:3px; max-height:190px; overflow-y:auto; }
+    .delete-confirm-controls { margin-top:10px; padding:10px; border:1px solid var(--line); border-radius:8px; background:var(--panel); }
+    .delete-confirm-check { display:flex; align-items:center; gap:8px; font-size:12px; }
+    .delete-confirm-check input { accent-color:var(--accent); }
+    .delete-confirm-timer { margin:8px 0 0; color:var(--muted); font-size:11px; }
+    .export-picker { width:min(520px,94vw); max-height:min(80vh,680px); overflow:auto; }
+    .export-picker-list { display:grid; gap:5px; max-height:42vh; overflow:auto; margin:14px 0; }
+    .export-picker-row { display:flex; align-items:center; gap:9px; padding:7px 9px; border:1px solid var(--line); border-radius:7px; font:12px ui-monospace,monospace; overflow-wrap:anywhere; }
+    .export-picker-row input { accent-color:var(--accent); }
+    .export-picker-actions { display:flex; gap:7px; margin-top:10px; }
+    .export-picker-actions button { padding:6px 9px; border:1px solid var(--line); border-radius:6px; background:var(--panel); font-size:11px; cursor:pointer; }
     .project-row { display:flex;align-items:center;gap:2px;min-width:0; }
     .project-row .project-item { flex:1;width:auto; }
-    .project-row-actions { display:flex;gap:1px;opacity:.6; }
-    .project-row:hover .project-row-actions,.project-row:focus-within .project-row-actions { opacity:1; }
-    .project-row-actions button { width:22px;height:24px;border:0;border-radius:5px;background:transparent;color:var(--muted);cursor:pointer; }
-    .project-row-actions button:hover { background:var(--panel-soft);color:var(--text); }
-    .project-row-actions .project-remove:hover { background:#fee2e2;color:#b91c1c; }
     .project-item { width:100%; min-width:0; display:flex; align-items:center; gap:8px; padding:7px 8px; border:1px solid transparent; border-radius:7px; background:transparent; color:var(--text); text-align:left; cursor:pointer; font:inherit; font-size:11px; }
     .project-item:hover { background:var(--panel-soft); }
     .project-item.active { border-color:color-mix(in srgb,var(--accent) 22%,transparent); background:color-mix(in srgb,var(--accent) 9%,transparent); color:var(--accent); }
@@ -900,7 +905,7 @@
       <div class="ai-head-actions"><span class="ai-online"><i></i> Ready</span><button class="ai-clear" id="aiClear" type="button" title="Clear conversation" aria-label="Clear conversation">⌫</button><button class="ai-close" id="aiClose" type="button" aria-label="Close AI panel">×</button></div>
     </div>
     <div class="ai-contextbar"><span>⌘</span><span id="aiProjectContext">Project context · current workspace</span><span class="ai-context-files" id="aiContextFiles">0 files</span></div>
-    <iframe class="ai-embed-frame" src="https://sunny-hello-greeting-09.lovable.app" title="Orbit AI" loading="lazy" referrerpolicy="strict-origin-when-cross-origin" allow="clipboard-read; clipboard-write"></iframe>
+    <iframe id="orbitAiFrame" class="ai-embed-frame" src="https://sunny-hello-greeting-09.lovable.app" title="Orbit AI" loading="lazy" referrerpolicy="strict-origin-when-cross-origin" allow="clipboard-read; clipboard-write"></iframe>
     <div class="ai-messages" id="aiMessages" aria-live="polite">
       <div class="ai-welcome" id="aiWelcome">
         <div class="ai-welcome-icon">✦</div><h3>What are we building?</h3>
@@ -1752,11 +1757,11 @@ button.addEventListener("click", () => {
           const name=document.createElement("span"); name.className="project-item-name"; name.textContent=projectData.name; item.append(icon,name);
           if(projectId===state.activeProject){const check=document.createElement("span");check.className="project-item-check";check.textContent="✓";item.append(check);}
           item.addEventListener("click",()=>selectProject(projectId));
-          const actions=document.createElement("span");actions.className="project-row-actions";
-          const rename=document.createElement("button");rename.type="button";rename.title="Rename project";rename.textContent="✎";
-          rename.addEventListener("click",()=>openNameModal({title:"Rename project",description:"Choose a name for this project.",button:"Save name",placeholder:projectData.name,action:value=>renameProject(projectId,value)}));
-          const remove=document.createElement("button");remove.type="button";remove.className="project-remove";remove.title="Delete project";remove.textContent="×";remove.addEventListener("click",()=>deleteProject(projectId));
-          actions.append(rename,remove);row.append(item,actions);elements.projectsList.append(row);
+          row.addEventListener("contextmenu", event => {
+            event.preventDefault();
+            showProjectContextMenu(event.clientX, event.clientY, projectId);
+          });
+          elements.projectsList.append(row);
         }
         elements.fileList.replaceChildren();
         for (const file of Object.keys(project.files)) {
@@ -1941,7 +1946,7 @@ button.addEventListener("click", () => {
       async function deleteFile(file) {
         const project=currentProject();
         if(Object.keys(project.files).length===1){showToast("Keep at least one file in your project.");return;}
-        const ok=await askForConfirmation({title:"Delete this file?",description:`Delete "${file}" from this project?`,note:"Undo it immediately, or restore the backup from Settings → Bin for 7 days.",confirmText:"Delete file"});
+        const ok=await askForConfirmation({title:"Delete this file?",description:`Delete "${file}" from this project?`,note:"This moves the file to Settings → Bin. You can restore it later.",confirmText:"Delete file",destructive:true});
         if(!ok||!Object.hasOwn(project.files,file))return;
         try { await addTrashItem({kind:"file",project_id:state.activeProject,project_name:project.name,file_name:file,content:project.files[file]}); } catch(error) { showToast("The file was not deleted because its Bin backup could not be saved."); return; }
         fileDeletionUndo.push({projectId:state.activeProject,file,content:project.files[file],openFiles:[...project.openFiles],activeFile:project.activeFile});fileDeletionRedo.length=0;
@@ -2145,7 +2150,7 @@ async function sendAiMessage(event) {
             card.append(heading,reviewNote,list,previews,actions);
             elements.aiMessages.append(card);
             elements.aiMessages.scrollTop = elements.aiMessages.scrollHeight;
-            apply.click();
+            // Approval is explicit: never apply generated code automatically.
           }
         } catch (error) {
           waiting.remove();
@@ -3502,15 +3507,83 @@ async function sendAiMessage(event) {
         }
       }
 
-      function askForConfirmation({ title, description, note, confirmText = "Confirm" }) {
+      let destructiveConfirmTimer = 0;
+      let destructiveConfirmRemaining = 0;
+      let destructiveConfirmRequired = false;
+      function askForConfirmation({ title, description, note, confirmText = "Confirm", destructive = false }) {
         const backdrop = document.getElementById("confirmDialogBackdrop");
+        const accept = document.getElementById("acceptConfirmDialog");
+        const noteNode = backdrop.querySelector(".dialog-note");
         document.getElementById("confirmDialogTitle").textContent = title;
         document.getElementById("confirmDialogDescription").textContent = description;
-        backdrop.querySelector(".dialog-note").textContent = note || "";
-        document.getElementById("acceptConfirmDialog").textContent = confirmText;
+        noteNode.textContent = note || "";
+        accept.textContent = confirmText;
+        const oldControls = document.getElementById("deleteConfirmControls");
+        if (oldControls) oldControls.remove();
+        window.clearInterval(destructiveConfirmTimer);
+        destructiveConfirmTimer = 0;
+        destructiveConfirmRequired = false;
+        if (destructive) {
+          let count = 0;
+          try { count = Number(localStorage.getItem("orbit.delete.confirm.count") || 0); } catch {}
+          const firstTwo = count < 2;
+          const controls = document.createElement("div");
+          controls.id = "deleteConfirmControls";
+          controls.className = "delete-confirm-controls";
+          const label = document.createElement("label");
+          label.className = "delete-confirm-check";
+          const checkbox = document.createElement("input");
+          checkbox.type = "checkbox";
+          checkbox.id = "deleteConfirmAware";
+          checkbox.checked = false;
+          checkbox.hidden = !firstTwo;
+          const text = document.createElement("span");
+          text.textContent = "I know about Bin";
+          text.hidden = !firstTwo;
+          label.append(checkbox, text);
+          const timer = document.createElement("p");
+          timer.className = "delete-confirm-timer";
+          controls.append(label, timer);
+          noteNode.after(controls);
+          destructiveConfirmRequired = firstTwo;
+          destructiveConfirmRemaining = firstTwo ? 10 : 5;
+          accept.disabled = true;
+          const update = () => {
+            if (firstTwo && checkbox.checked) {
+              window.clearInterval(destructiveConfirmTimer);
+              destructiveConfirmRemaining = 0;
+              timer.textContent = "Bin backup understood. You can continue.";
+              accept.disabled = false;
+              return;
+            }
+            timer.textContent = `Please review this warning: ${destructiveConfirmRemaining}s`;
+            accept.disabled = destructiveConfirmRemaining > 0;
+          };
+          checkbox.addEventListener("change", update);
+          update();
+          destructiveConfirmTimer = window.setInterval(() => {
+            if (firstTwo && checkbox.checked) return;
+            destructiveConfirmRemaining = Math.max(0, destructiveConfirmRemaining - 1);
+            update();
+            if (destructiveConfirmRemaining === 0) window.clearInterval(destructiveConfirmTimer);
+          }, 1000);
+          const previousResolve = confirmDialogResolver;
+          void previousResolve;
+        } else {
+          accept.disabled = false;
+        }
         backdrop.hidden = false;
         document.getElementById("cancelConfirmDialog").focus();
-        return new Promise(resolve => { confirmDialogResolver = resolve; });
+        return new Promise(resolve => { confirmDialogResolver = accepted => {
+          window.clearInterval(destructiveConfirmTimer);
+          accept.disabled = false;
+          const controls = document.getElementById("deleteConfirmControls");
+          if (controls) controls.remove();
+          if (accepted && destructive) {
+            try { localStorage.setItem("orbit.delete.confirm.count", String(Number(localStorage.getItem("orbit.delete.confirm.count") || 0) + 1)); } catch {}
+          }
+          resolve(accepted);
+        }; });
       }
 
       function finishConfirmation(accepted) {
@@ -3537,6 +3610,15 @@ async function sendAiMessage(event) {
       function closeNameModal() {
         elements.modalBackdrop.hidden = true;
         modalAction = null;
+      }
+
+      function showProjectContextMenu(x,y,projectId) {
+        const old=document.getElementById("projectContextMenu");if(old)old.remove();
+        const p=state.projects[projectId];if(!p)return;
+        const menu=document.createElement("div");menu.id="projectContextMenu";menu.className="tab-context-menu";
+        menu.style.position="fixed";menu.style.left=Math.max(6,Math.min(x,window.innerWidth-190))+"px";menu.style.top=Math.max(6,Math.min(y,window.innerHeight-120))+"px";menu.style.zIndex="999";
+        [["Open",()=>selectProject(projectId)],["Rename",()=>openNameModal({title:"Rename project",description:"Choose a new project name.",button:"Save name",placeholder:p.name,action:value=>renameProject(projectId,value)})],["Delete",()=>void deleteProject(projectId)]].forEach(([label,action])=>{const b=document.createElement("button");b.type="button";b.textContent=label;b.addEventListener("click",()=>{menu.remove();action();});menu.append(b);});
+        document.body.append(menu);const close=e=>{if(!menu.contains(e.target)){menu.remove();document.removeEventListener("pointerdown",close);}};setTimeout(()=>document.addEventListener("pointerdown",close),0);
       }
 
       function showFileContextMenu(x,y,file){
@@ -3602,7 +3684,7 @@ async function sendAiMessage(event) {
       }
       async function deleteProject(id) {
         const p=state.projects[id];if(!p)return;if(Object.keys(state.projects).length<=1){showToast("Keep at least one project in Orbit.");return;}
-        const ok=await askForConfirmation({title:"Delete project?",description:`Delete "${p.name}" and all its files?`,note:"A backup will stay in your Bin for 7 days, then expire automatically.",confirmText:"Delete project"});
+        const ok=await askForConfirmation({title:"Delete project?",description:`Delete "${p.name}" and all its files?`,note:"This moves the project to Settings → Bin. You can restore it later.",confirmText:"Delete project",destructive:true});
         if(!ok||!state.projects[id])return;
         try{await addTrashItem({kind:"project",project_id:id,project_name:p.name,project_data:{files:p.files,activeFile:p.activeFile,openFiles:p.openFiles}});}catch(error){showToast("Project was not deleted because its Bin backup could not be saved.");return;}
         delete state.projects[id];if(state.activeProject===id)state.activeProject=Object.keys(state.projects)[0];
@@ -3743,9 +3825,37 @@ async function sendAiMessage(event) {
 
       function exportProject() {
         const project = currentProject();
+        const entries = Object.entries(project.files).filter(([name, content]) => typeof name === "string" && name.trim() && typeof content === "string");
+        if (!entries.length) { showToast("There are no files to export yet."); return; }
+        const backdrop = document.createElement("div");
+        backdrop.className = "modal-backdrop export-picker-backdrop";
+        backdrop.innerHTML = '<section class="modal export-picker" role="dialog" aria-modal="true" aria-label="Choose files to export"><h2>Export project files</h2><p>Select the files you want to include. Folder paths and file extensions will be preserved.</p><div class="export-picker-actions"><button type="button" data-export-all>Select all</button><button type="button" data-export-none>Clear</button></div><div class="export-picker-list"></div><div class="modal-actions"><button type="button" data-export-cancel>Cancel</button><button type="button" class="confirm" data-export-go>Export selected</button></div></section>';
+        const list = backdrop.querySelector(".export-picker-list");
+        entries.forEach(([name]) => {
+          const label = document.createElement("label"); label.className = "export-picker-row";
+          const check = document.createElement("input"); check.type = "checkbox"; check.checked = true; check.value = name;
+          const span = document.createElement("span"); span.textContent = name;
+          label.append(check, span); list.append(label);
+        });
+        const checks = () => [...list.querySelectorAll('input[type="checkbox"]')];
+        backdrop.querySelector("[data-export-all]").addEventListener("click", () => checks().forEach(c => c.checked = true));
+        backdrop.querySelector("[data-export-none]").addEventListener("click", () => checks().forEach(c => c.checked = false));
+        backdrop.querySelector("[data-export-cancel]").addEventListener("click", () => backdrop.remove());
+        backdrop.querySelector("[data-export-go]").addEventListener("click", () => {
+          const selected = checks().filter(c => c.checked).map(c => c.value);
+          if (!selected.length) { showToast("Select at least one file to export."); return; }
+          backdrop.remove(); exportProjectZip(selected);
+        });
+        backdrop.addEventListener("click", event => { if (event.target === backdrop) backdrop.remove(); });
+        document.body.append(backdrop);
+      }
+
+      function exportProjectZip(selectedNames) {
+        const project = currentProject();
         const encoder = new TextEncoder();
+        const selected = new Set(selectedNames);
         const files = Object.entries(project.files).filter(([name, content]) =>
-          typeof name === "string" && name.trim() && typeof content === "string"
+          selected.has(name) && typeof name === "string" && name.trim() && typeof content === "string"
         );
         if (!files.length) {
           showToast("There are no files to export yet.");
@@ -3913,15 +4023,23 @@ async function sendAiMessage(event) {
       setOrbitTheme(initialTheme);
       themeToggle.addEventListener("click", () => setOrbitTheme(document.body.classList.contains("dark-theme") ? "light" : "dark"));
       document.getElementById("newProjectButton").addEventListener("click", () => {
-        let number = 1;
-        let projectName = "My Project";
-        const existingNames = new Set(Object.values(state.projects).map(project => project.name.toLowerCase()));
-        while (existingNames.has(projectName.toLowerCase())) {
-          number += 1;
-          projectName = `My Project ${number}`;
-        }
-        createProject(projectName);
-        showToast(`Created ${projectName}. Add your first file from Explorer.`);
+        openNameModal({
+          title: "Create a project",
+          description: "Choose a name for your new project.",
+          button: "Create project",
+          placeholder: "e.g. My Portfolio",
+          action: value => {
+            const clean = value.trim();
+            if (!clean) return false;
+            if (Object.values(state.projects).some(project => project.name.toLowerCase() === clean.toLowerCase())) {
+              showToast("A project with that name already exists.");
+              return false;
+            }
+            const created = createProject(clean);
+            if (created) showToast(`Created ${clean}. Add your first file from Explorer.`);
+            return created;
+          }
+        });
       });
       document.getElementById("projectSwitcher").addEventListener("click", () => {
         const firstOther = Object.keys(state.projects).find(id => id !== state.activeProject);
@@ -4162,6 +4280,53 @@ async function sendAiMessage(event) {
           if (first) first.click();
         }
       });
+      const orbitAiFrame = document.getElementById("orbitAiFrame");
+      function sendOrbitProjectContext() {
+        if (!orbitAiFrame?.contentWindow || !currentProject()) return;
+        saveEditorValue();
+        const p = currentProject();
+        orbitAiFrame.contentWindow.postMessage({
+          type: "orbit:init",
+          project: { id: state.activeProject, name: p.name, activeFile: p.activeFile || "", files: { ...p.files }, openFiles: [...(p.openFiles || [])] }
+        }, "https://sunny-hello-greeting-09.lovable.app");
+      }
+      window.addEventListener("message", async event => {
+        if (event.origin !== "https://sunny-hello-greeting-09.lovable.app" || event.source !== orbitAiFrame?.contentWindow) return;
+        const data = event.data;
+        if (!data || typeof data !== "object") return;
+        if (data.type === "orbit:ready") { sendOrbitProjectContext(); return; }
+        if (data.type === "orbit:apply") {
+          const requestId = typeof data.requestId === "string" ? data.requestId : "";
+          const projectId = typeof data.projectId === "string" ? data.projectId : "";
+          const changes = Array.isArray(data.changes) ? data.changes : [];
+          const respond = (ok, error = "") => orbitAiFrame.contentWindow?.postMessage({ type: "orbit:apply-result", requestId, ok, error }, "https://sunny-hello-greeting-09.lovable.app");
+          if (!requestId || projectId !== state.activeProject || !changes.length || changes.length > 12) { respond(false, "The active project changed or the update is invalid. Refresh the project context and try again."); return; }
+          const p = state.projects[projectId];
+          const safe = changes.every(c => c && typeof c.file === "string" && c.file.length <= 180 && !c.file.startsWith("/") && !c.file.split("/").some(part => !part || part === "." || part === "..") && /^[A-Za-z0-9._ -]+(?:\/[A-Za-z0-9._ -]+)*$/.test(c.file) && typeof c.content === "string" && c.content.length <= 100000);
+          if (!safe) { respond(false, "One or more file paths or contents are invalid."); return; }
+          saveEditorValue();
+          const before = {};
+          const after = {};
+          for (const c of changes) { before[c.file] = Object.hasOwn(p.files,c.file) ? p.files[c.file] : null; after[c.file] = c.content; }
+          const ok = await askForConfirmation({ title: "Apply AI code changes?", description: `Orbit AI wants to create or update ${changes.length} project file${changes.length===1?"":"s"}.`, note: "Review the proposed changes in Orbit AI before approving. Your existing files will only change after you approve.", confirmText: "Approve & apply" });
+          if (!ok || state.activeProject !== projectId || state.projects[projectId] !== p) { respond(false, "Changes were not applied."); return; }
+          const conflicts = changes.filter(c => before[c.file] !== null && p.files[c.file] !== before[c.file]);
+          if (conflicts.length) { respond(false, "Files changed while AI was generating: " + conflicts.map(c=>c.file).join(", ")); return; }
+          changes.forEach(c => { p.files[c.file] = c.content; if (!p.openFiles.includes(c.file)) p.openFiles.push(c.file); });
+          const previousActiveFile = p.activeFile;
+          p.activeFile = changes[0].file;
+          aiChangeUndo.push({ projectId, before, after, previousActiveFile, nextActiveFile: changes[0].file });
+          if (aiChangeUndo.length > 30) aiChangeUndo.shift();
+          aiChangeRedo.length = 0;
+          elements.editor.dataset.file = "";
+          render(); saveState(); buildPreview(); scheduleSave();
+          respond(true);
+          showToast("AI changes applied. Use Undo to reverse the complete update.");
+          sendOrbitProjectContext();
+          return;
+        }
+      });
+      orbitAiFrame?.addEventListener("load", sendOrbitProjectContext);
       window.addEventListener("message", event => {
         if (event.source !== elements.preview.contentWindow) return;
         const data = event.data;

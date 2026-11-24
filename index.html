@@ -1900,6 +1900,7 @@ button.addEventListener("click", () => {
         elements.editor.dataset.file = "";
         render();
         scheduleSave();
+        if (typeof scheduleOrbitContextSync === "function") scheduleOrbitContextSync();
       }
 
       let contextTabFile = null;
@@ -1952,7 +1953,7 @@ button.addEventListener("click", () => {
         fileDeletionUndo.push({projectId:state.activeProject,file,content:project.files[file],openFiles:[...project.openFiles],activeFile:project.activeFile});fileDeletionRedo.length=0;
         delete project.files[file];project.openFiles=project.openFiles.filter(x=>x!==file);
         if(project.activeFile===file){project.activeFile=project.openFiles.at(-1)||Object.keys(project.files)[0];elements.editor.dataset.file="";}
-        render();scheduleSave();showToastWithUndo(`Deleted ${file}`);
+        render();scheduleSave();if(typeof scheduleOrbitContextSync==="function")scheduleOrbitContextSync();showToastWithUndo(`Deleted ${file}`);
       }
 
       async function removeFileTrashAfterUndo(entry) {
@@ -3675,6 +3676,7 @@ async function sendAiMessage(event) {
         elements.editor.dataset.file = "";
         render();
         scheduleSave();
+        if (typeof scheduleOrbitContextSync === "function") scheduleOrbitContextSync();
         return true;
       }
 
@@ -3689,7 +3691,7 @@ async function sendAiMessage(event) {
         if(!ok||!state.projects[id])return;
         try{await addTrashItem({kind:"project",project_id:id,project_name:p.name,project_data:{files:p.files,activeFile:p.activeFile,openFiles:p.openFiles}});}catch(error){showToast("Project was not deleted because its Bin backup could not be saved.");return;}
         delete state.projects[id];if(state.activeProject===id)state.activeProject=Object.keys(state.projects)[0];
-        elements.editor.dataset.file="";render();if(cloudUser&&cloudReady)saveCloudProjects();else scheduleSave();showToast("Project deleted. Find it in Settings → Bin for 7 days.");
+        elements.editor.dataset.file="";render();if(cloudUser&&cloudReady)saveCloudProjects();else scheduleSave();if(typeof scheduleOrbitContextSync==="function")scheduleOrbitContextSync();showToast("Project deleted. Find it in Settings → Bin for 7 days.");
       }
 
       function selectProject(projectId) {
@@ -3701,6 +3703,7 @@ async function sendAiMessage(event) {
         elements.editor.dataset.file = "";
         render();
         scheduleSave();
+        if (typeof scheduleOrbitContextSync === "function") scheduleOrbitContextSync();
         showToast(`Opened ${currentProject().name}`);
       }
 
@@ -4291,9 +4294,11 @@ async function sendAiMessage(event) {
         if (!orbitAiFrame?.contentWindow || !currentProject()) return;
         saveEditorValue();
         const p = currentProject();
+        const files = { ...p.files };
+        if (p.activeFile && elements.editor.dataset.file === p.activeFile) files[p.activeFile] = elements.editor.value;
         orbitAiFrame.contentWindow.postMessage({
           type: "orbit:init",
-          project: { id: state.activeProject, name: p.name, activeFile: p.activeFile || "", files: { ...p.files }, openFiles: [...(p.openFiles || [])] }
+          project: { id: state.activeProject, name: p.name, activeFile: p.activeFile || "", files, openFiles: [...(p.openFiles || [])] }
         }, "https://sunny-hello-greeting-09.lovable.app");
       }
       window.addEventListener("message", async event => {

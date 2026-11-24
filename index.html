@@ -142,11 +142,18 @@
     .export-picker-row input { accent-color:var(--accent); }
     .export-picker-actions { display:flex; gap:7px; margin-top:10px; }
     .export-picker-actions button { padding:6px 9px; border:1px solid var(--line); border-radius:6px; background:var(--panel); font-size:11px; cursor:pointer; }
-    .explorer-folder-row { display:flex;align-items:center;gap:7px;min-height:26px;padding-right:8px;color:var(--text);font-size:12px;cursor:pointer;user-select:none;white-space:nowrap; }
+    .explorer-folder-row { display:flex;align-items:center;gap:7px;min-height:28px;padding-right:5px;color:var(--text);font-size:12px;cursor:pointer;user-select:none;white-space:nowrap; }
     .explorer-folder-row:hover,.file-row:hover { background:var(--panel-soft); }
-    .explorer-folder-caret { width:10px;color:var(--muted);font-size:14px; }
+    .explorer-folder-caret { width:10px;color:var(--muted);font-size:14px;flex:0 0 10px; }
     .explorer-folder-icon { color:var(--muted);font-size:12px; }
-    .explorer-folder-row .file-name { overflow:hidden;text-overflow:ellipsis; }
+    .explorer-folder-row .file-name { overflow:hidden;text-overflow:ellipsis;flex:1;min-width:0; }
+    .explorer-row-actions,.sidebar-controls { display:flex;align-items:center;gap:2px;margin-left:auto;flex:0 0 auto; }
+    .explorer-icon-button { display:inline-flex;align-items:center;justify-content:center;width:23px;height:23px;padding:0;border:0;border-radius:5px;background:transparent;color:var(--muted);cursor:pointer;opacity:0; }
+    .explorer-folder-row:hover .explorer-icon-button,.explorer-folder-row:focus-within .explorer-icon-button,.explorer-icon-button:focus-visible { opacity:1; }
+    .explorer-icon-button:hover { background:var(--panel);color:var(--accent); }
+    .explorer-icon-button svg { width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round; }
+    .sidebar-controls .explorer-icon-button { width:27px;height:27px;opacity:1; }
+    .explorer-dropdown-menu { min-width:165px; }
     .file-row { display:flex;align-items:center;gap:7px;min-height:26px;padding-right:8px;cursor:pointer;user-select:none; }
     .file-row.active { background:var(--panel-soft); }
     .file-row .file-name { overflow:hidden;text-overflow:ellipsis;white-space:nowrap; }
@@ -790,8 +797,9 @@
         <div class="sidebar-heading">
           <span>EXPLORER</span>
           <div class="sidebar-controls">
-            <button class="mini-button" id="newFileButton" type="button" title="New file" aria-label="New file">＋</button>
-            <button class="mini-button" id="newFolderButton" type="button" title="New folder" aria-label="New folder">▰＋</button>
+            <button class="explorer-icon-button" id="newFileButton" type="button" title="New File" aria-label="New File"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M13 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V10z"/><path d="M13 3v7h7M12 13v6m-3-3h6"/></svg></button>
+            <button class="explorer-icon-button" id="newFolderButton" type="button" title="New Folder" aria-label="New Folder"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6a2 2 0 0 1 2-2h5l2 2h7a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M12 10v7m-3.5-3.5h7"/></svg></button>
+            <button class="explorer-icon-button" id="explorerMoreButton" type="button" title="More Explorer actions" aria-label="More Explorer actions"><svg viewBox="0 0 24 24"><path d="m7 10 5 5 5-5"/></svg></button>
           </div>
         </div>
         <div class="project-folder"><span class="folder-caret">⌄</span><span aria-hidden="true">▰</span><span id="folderName">MY FIRST PROJECT</span></div>
@@ -1811,8 +1819,14 @@ button.addEventListener("click", () => {
               const icon=document.createElement("span");icon.className="explorer-folder-icon";icon.textContent="▰";
               const label=document.createElement("span");label.className="file-name";label.textContent=node.name;
               row.append(caret,icon,label);row.title=node.path;row.setAttribute("role","button");row.tabIndex=0;
+              const actions=document.createElement("span");actions.className="explorer-row-actions";
+              const makeAction=(kind,title,svg,handler)=>{const button=document.createElement("button");button.type="button";button.className="explorer-icon-button";button.title=title;button.setAttribute("aria-label",title);button.innerHTML=svg;button.addEventListener("click",event=>{event.stopPropagation();handler(event);});actions.append(button);};
+              makeAction("file","New File in "+node.name,'<svg viewBox="0 0 24 24"><path d="M13 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V10z"/><path d="M13 3v7h7M12 13v6m-3-3h6"/></svg>',()=>openNameModal({title:"New File",description:"Create a file inside "+node.path,button:"Create file",placeholder:node.path+"/page.html",action:createFile}));
+              makeAction("folder","New Folder in "+node.name,'<svg viewBox="0 0 24 24"><path d="M3 6a2 2 0 0 1 2-2h5l2 2h7a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M12 10v7m-3.5-3.5h7"/></svg>',()=>openNameModal({title:"New Folder",description:"Create a nested folder inside "+node.path,button:"Create folder",placeholder:node.path+"/assets",action:createFolder}));
+              makeAction("more","Folder options",'<svg viewBox="0 0 24 24"><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></svg>',event=>showExplorerFolderMenu(event.clientX,event.clientY,node.path));
+              row.append(actions);
               const toggle=()=>{if(collapsedExplorerFolders.has(node.path))collapsedExplorerFolders.delete(node.path);else collapsedExplorerFolders.add(node.path);render();};
-              row.addEventListener("click",toggle);row.addEventListener("keydown",event=>{if(event.key==="Enter"||event.key===" "){event.preventDefault();toggle();}});
+              row.addEventListener("click",event=>{if(!event.target.closest(".explorer-row-actions"))toggle();});row.addEventListener("keydown",event=>{if(event.key==="Enter"||event.key===" "){event.preventDefault();toggle();}});
               row.addEventListener("contextmenu",event=>{event.preventDefault();showExplorerFolderMenu(event.clientX,event.clientY,node.path);});
               elements.fileList.append(row);
               if(!collapsedExplorerFolders.has(node.path))renderNodes(node.path,depth+1);
@@ -3677,6 +3691,16 @@ async function sendAiMessage(event) {
         modalAction = null;
       }
 
+      function showExplorerRootMenu(anchor) {
+        const old=document.getElementById("explorerFolderMenu");if(old)old.remove();
+        const rect=anchor.getBoundingClientRect();const menu=document.createElement("div");menu.id="explorerFolderMenu";menu.className="tab-context-menu explorer-dropdown-menu";menu.style.position="fixed";menu.style.left=Math.max(6,Math.min(rect.right-170,window.innerWidth-180))+"px";menu.style.top=Math.min(rect.bottom+5,window.innerHeight-160)+"px";menu.style.zIndex="999";
+        const action=(label,fn)=>{const b=document.createElement("button");b.type="button";b.textContent=label;b.addEventListener("click",()=>{menu.remove();fn();});menu.append(b);};
+        action("New File",()=>document.getElementById("newFileButton").click());
+        action("New Folder",()=>document.getElementById("newFolderButton").click());
+        action("Refresh Explorer",()=>render());
+        document.body.append(menu);const close=e=>{if(!menu.contains(e.target)&&e.target!==anchor){menu.remove();document.removeEventListener("pointerdown",close);}};setTimeout(()=>document.addEventListener("pointerdown",close),0);
+      }
+
       function showExplorerFolderMenu(x,y,folderPath) {
         const old=document.getElementById("explorerFolderMenu");if(old)old.remove();
         const menu=document.createElement("div");menu.id="explorerFolderMenu";menu.className="tab-context-menu";menu.style.position="fixed";menu.style.left=Math.max(6,Math.min(x,window.innerWidth-190))+"px";menu.style.top=Math.max(6,Math.min(y,window.innerHeight-150))+"px";menu.style.zIndex="999";
@@ -4155,6 +4179,7 @@ async function sendAiMessage(event) {
         title: "New Folder", description: "Create a folder. Use parent/child for nested folders.",
         button: "Create folder", placeholder: "e.g. assets or src/components", action: createFolder
       }));
+      document.getElementById("explorerMoreButton").addEventListener("click",event=>showExplorerRootMenu(event.currentTarget));
       document.getElementById("exportButton").addEventListener("click", exportProject);
       document.getElementById("deployButton").addEventListener("click",()=>void openDeployModal());
       document.getElementById("previewUrl").addEventListener("click",event=>{if(event.currentTarget.dataset.published!=="true"){event.preventDefault();void openDeployModal();}});

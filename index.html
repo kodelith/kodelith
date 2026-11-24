@@ -1440,8 +1440,7 @@ button.addEventListener("click", () => {
             if (activeFile && !openFiles.includes(activeFile)) openFiles.push(activeFile);
             projects[id] = {name:project.name,files,folders:Array.isArray(project.folders)?project.folders.filter(folder=>typeof folder==="string"):[],activeFile,openFiles};
           }
-          if (!Object.keys(projects).length) return null;
-          return {activeProject:Object.hasOwn(projects,parsed.activeProject)?parsed.activeProject:Object.keys(projects)[0],projects};
+          return {activeProject:Object.hasOwn(projects,parsed.activeProject)?parsed.activeProject:Object.keys(projects)[0]||"",projects};
         } catch (error) {
           console.warn("Could not read Orbit local cloud cache:",error);
           return null;
@@ -1457,10 +1456,7 @@ button.addEventListener("click", () => {
       function loadState() {
         try {
           const stored = localStorage.getItem(STORAGE_KEY);
-          if (!stored) {
-            const first = makeStarterProject("My first project");
-            return { activeProject: "my-first-project", projects: { "my-first-project": first } };
-          }
+          if (!stored) return { activeProject: "", projects: {} };
           const parsed = JSON.parse(stored);
           if (!parsed || typeof parsed !== "object" || !parsed.projects || typeof parsed.projects !== "object") {
             throw new Error("Stored workspace has an invalid format.");
@@ -1479,14 +1475,12 @@ button.addEventListener("click", () => {
               projects[id] = { name: project.name, files, folders:Array.isArray(project.folders)?project.folders.filter(folder=>typeof folder==="string"):[], activeFile: Object.hasOwn(files, project.activeFile) ? project.activeFile : Object.keys(files)[0] || "", openFiles };
             }
           }
-          if (!Object.keys(projects).length) throw new Error("No usable projects found in saved workspace.");
-          const activeProject = Object.hasOwn(projects, parsed.activeProject) ? parsed.activeProject : Object.keys(projects)[0];
+          const activeProject = Object.hasOwn(projects, parsed.activeProject) ? parsed.activeProject : Object.keys(projects)[0] || "";
           return { activeProject, projects };
         } catch (error) {
           console.error("Could not load the saved Orbit workspace:", error);
           queueMicrotask(() => showToast("Couldn't load saved projects. Your browser storage may be unavailable."));
-          const first = makeStarterProject("My first project");
-          return { activeProject: "my-first-project", projects: { "my-first-project": first } };
+          return { activeProject: "", projects: {} };
         }
       }
 
@@ -1550,8 +1544,7 @@ button.addEventListener("click", () => {
                 data: { files: project.files, folders: project.folders || [], activeFile: project.activeFile, openFiles: project.openFiles },
                 updated_at: new Date().toISOString()
               }));
-              const { error } = await supabaseClient.from("projects").upsert(rows);
-              if (error) throw error;
+              if (rows.length) { const { error } = await supabaseClient.from("projects").upsert(rows); if (error) throw error; }
               const currentIds = new Set(rows.map(row => row.id));
               const removedIds = [...cloudProjectIds].filter(id => !currentIds.has(id));
               if (removedIds.length) {
@@ -1673,8 +1666,7 @@ button.addEventListener("click", () => {
               }));
               remoteWorkspace = {activeProject:idMap[localWorkspace.activeProject]||Object.keys(importedProjects)[0],projects:importedProjects};
             } else {
-              const id = crypto.randomUUID();
-              remoteWorkspace = {activeProject:id,projects:{[id]:makeStarterProject("My first project")}};
+              remoteWorkspace = {activeProject:"",projects:{}};
             }
           } else {
             remoteWorkspace = {activeProject:Object.keys(projects)[0],projects};
@@ -1764,7 +1756,20 @@ button.addEventListener("click", () => {
 
       function render() {
         const project = currentProject();
-        if (!project) return;
+        if (!project) {
+          elements.projectName.textContent = "Workspace"; elements.folderName.textContent = "WORKSPACE"; elements.statusProject.textContent = "Workspace";
+          elements.projectsList.replaceChildren(); elements.fileList.replaceChildren(); elements.tabs.replaceChildren();
+          elements.editor.dataset.file = ""; elements.editor.value = ""; elements.editor.hidden = true; elements.gutter.hidden = true; elements.emptyEditor.hidden = false;
+          elements.editor.closest(".editor-surface").classList.remove("html-editing"); elements.statusFile.textContent = "NO FILE";
+          for (const id of ["newFileButton","newFolderButton","explorerMoreButton"]) document.getElementById(id).hidden = true;
+          const empty=document.createElement("div"); empty.className="explorer-empty-state";
+          const message=document.createElement("span"); message.textContent="No files yet"; empty.append(message);
+          const create=document.createElement("button"); create.type="button"; create.className="explorer-empty-create"; create.textContent="Create File"; create.addEventListener("click",beginFirstFile); empty.append(create);
+          elements.fileList.append(empty); elements.previewUrl.textContent="orbit://preview/empty";
+          setPreviewDocument("<!doctype html><html><head><meta charset=utf-8></head><body style='font:14px system-ui;padding:24px;color:#777'>Create a file to get started.</body></html>");
+          return;
+        }
+        for (const id of ["newFileButton","newFolderButton","explorerMoreButton"]) document.getElementById(id).hidden = false;
         if (!Array.isArray(project.folders)) project.folders = [];
         const repairedInternalSource = repairLeakedProjectSource(project);
         if (repairedInternalSource) {
@@ -1829,8 +1834,6 @@ button.addEventListener("click", () => {
               row.append(actions);
               const toggle=()=>{if(collapsedExplorerFolders.has(node.path))collapsedExplorerFolders.delete(node.path);else collapsedExplorerFolders.add(node.path);render();};
               caret.addEventListener("click",event=>{event.preventDefault();event.stopPropagation();toggle();});
-              label.addEventListener("click",toggle);
-              icon.addEventListener("click",toggle);
               row.addEventListener("click",event=>{if(!event.target.closest("button"))toggle();});
               row.addEventListener("contextmenu",event=>{event.preventDefault();showExplorerFolderMenu(event.clientX,event.clientY,node.path);});
               elements.fileList.append(row);
@@ -1944,7 +1947,7 @@ button.addEventListener("click", () => {
 
       function activateFile(file) {
         const project = currentProject();
-        if (!Object.hasOwn(project.files, file)) return;
+        if (!project || !Object.hasOwn(project.files, file)) return;
         if (project.activeFile && project.activeFile === elements.editor.dataset.file) {
           project.files[project.activeFile] = elements.editor.value;
         }
@@ -1999,13 +2002,13 @@ button.addEventListener("click", () => {
 
       async function deleteFile(file) {
         const project=currentProject();
-        if(Object.keys(project.files).length===1){showToast("Keep at least one file in your project.");return;}
+        if(!project || !Object.hasOwn(project.files,file)) return;
         const ok=await askForConfirmation({title:"Delete this file?",description:`Delete "${file}" from this project?`,note:"This moves the file to Settings → Bin. You can restore it later.",confirmText:"Delete file",destructive:true});
         if(!ok||!Object.hasOwn(project.files,file))return;
         try { await addTrashItem({kind:"file",project_id:state.activeProject,project_name:project.name,file_name:file,content:project.files[file]}); } catch(error) { showToast("The file was not deleted because its Bin backup could not be saved."); return; }
         fileDeletionUndo.push({projectId:state.activeProject,file,content:project.files[file],openFiles:[...project.openFiles],activeFile:project.activeFile});fileDeletionRedo.length=0;
         delete project.files[file];project.openFiles=project.openFiles.filter(x=>x!==file);
-        if(project.activeFile===file){project.activeFile=project.openFiles.at(-1)||Object.keys(project.files)[0];elements.editor.dataset.file="";}
+        if(project.activeFile===file){project.activeFile=project.openFiles.at(-1)||Object.keys(project.files)[0]||"";elements.editor.dataset.file="";}
         render();scheduleSave();if(typeof scheduleOrbitContextSync==="function")scheduleOrbitContextSync();showToastWithUndo(`Deleted ${file}`);
       }
 
@@ -2594,6 +2597,7 @@ async function sendAiMessage(event) {
 
             function saveEditorValue() {
         const project = currentProject();
+        if (!project) return;
         const file = project.activeFile;
         if (!file || !Object.hasOwn(project.files, file)) return;
         project.files[file] = elements.editor.value;
@@ -3259,6 +3263,11 @@ async function sendAiMessage(event) {
     .explorer-dropdown-menu button { min-height:32px;padding:7px 10px;border-radius:6px; }
     @media (hover:none) { .explorer-folder-row .explorer-icon-button { opacity:1; } }
 
+
+      .explorer-empty-state{display:flex;flex-direction:column;align-items:center;gap:10px;padding:28px 12px;color:var(--muted);font-size:12px;text-align:center}
+      .explorer-empty-create{border:1px solid var(--border);border-radius:6px;background:var(--surface-2);color:var(--text);font:inherit;font-weight:600;padding:7px 13px;cursor:pointer;transition:background .15s,border-color .15s}
+      .explorer-empty-create:hover{background:var(--surface-3);border-color:var(--accent)}
+      .sidebar-controls button[hidden]{display:none!important}
 </style>":"";
         const scriptTag=js?"<script>"+js.replace(/<\/script/gi,"<\\/script")+"<" + "/script>":"";
         if(/<\/head\s*>/i.test(html))html=html.replace(/<\/head\s*>/i,styleTag+"</head>");
@@ -3802,6 +3811,7 @@ async function sendAiMessage(event) {
       }
 
       function createFile(name) {
+        if (!currentProject()) createProject("My Project");
         const file = name.trim().replace(/\\/g,"/");
         if (!file || file.startsWith("/") || file.split("/").some(part=>!part||part==="."||part===".."||/[\\:*?"<>|]/.test(part))) { showToast("Enter a valid relative file path, such as pages/about.html."); return false; }
         const project=currentProject();if(!Array.isArray(project.folders))project.folders=[];
@@ -3843,11 +3853,11 @@ async function sendAiMessage(event) {
         if(!state.projects[id])return false;state.projects[id].name=name;render();scheduleSave();if(typeof scheduleOrbitContextSync==="function")scheduleOrbitContextSync();showToast("Project renamed.");return true;
       }
       async function deleteProject(id) {
-        const p=state.projects[id];if(!p)return;if(Object.keys(state.projects).length<=1){showToast("Keep at least one project in Orbit.");return;}
+        const p=state.projects[id];if(!p)return;
         const ok=await askForConfirmation({title:"Delete project?",description:`Delete "${p.name}" and all its files?`,note:"This moves the project to Settings → Bin. You can restore it later.",confirmText:"Delete project",destructive:true});
         if(!ok||!state.projects[id])return;
         try{await addTrashItem({kind:"project",project_id:id,project_name:p.name,project_data:{files:p.files,activeFile:p.activeFile,openFiles:p.openFiles}});}catch(error){showToast("Project was not deleted because its Bin backup could not be saved.");return;}
-        delete state.projects[id];if(state.activeProject===id)state.activeProject=Object.keys(state.projects)[0];
+        delete state.projects[id];if(state.activeProject===id)state.activeProject=Object.keys(state.projects)[0]||"";
         elements.editor.dataset.file="";render();if(cloudUser&&cloudReady)saveCloudProjects();else scheduleSave();if(typeof scheduleOrbitContextSync==="function")scheduleOrbitContextSync();showToast("Project deleted. Find it in Settings → Bin for 7 days.");
       }
 
@@ -4208,6 +4218,10 @@ async function sendAiMessage(event) {
         else showToast("Your projects are listed in the Projects panel.");
       });
       document.getElementById("sidebarNewProject").addEventListener("click", () => document.getElementById("newProjectButton").click());
+      function beginFirstFile() {
+        if (!currentProject()) createProject("My Project");
+        openNameModal({title:"New File",description:"Create your first file.",button:"Create file",placeholder:"index.html",action:createFile});
+      }
       document.getElementById("newFileButton").addEventListener("click", () => openNameModal({
         title: "New File", description: "Create a file. Use folders/page.html to place it inside a folder.",
         button: "Create file", placeholder: "e.g. index.html or pages/about.html", action: createFile

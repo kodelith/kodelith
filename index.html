@@ -739,9 +739,9 @@
         </div>
         <span class="brand-name">orbit</span><span class="brand-caption">web studio</span>
       </div>
-      <button class="project-switcher" id="projectSwitcher" type="button" aria-label="Switch project">
+      <button class="project-switcher" id="projectSwitcher" type="button" aria-label="Workspace" disabled>
         <span class="project-symbol" aria-hidden="true">▰</span>
-        <span class="project-switcher-name" id="projectName">My first project</span>
+        <span class="project-switcher-name" id="projectName">Workspace</span>
         <span class="chevron" aria-hidden="true">▾</span>
       </button>
       <div class="topbar-spacer"></div>
@@ -754,7 +754,7 @@
         <span aria-hidden="true">↓</span><span class="top-action-label">Export</span>
       </button>
       <button class="top-action" id="deployButton" type="button" title="Publish this website">↗ <span class="top-action-label">Deploy</span></button>
-      <button class="top-action primary" id="newProjectButton" type="button">
+      <button class="top-action primary" id="newProjectButton" type="button" hidden>
         <span aria-hidden="true">＋</span><span class="top-action-label">New project</span>
       </button>
     </header>
@@ -770,7 +770,7 @@
       </nav>
 
       <aside class="sidebar" aria-label="Workspace">
-        <section class="projects-panel" aria-label="Projects">
+        <section class="projects-panel" aria-label="Projects" hidden>
           <div class="projects-panel-head">
             <span>PROJECTS</span><span class="projects-count" id="projectsCount">1</span>
             <button class="projects-add" id="sidebarNewProject" type="button" title="Create a new project" aria-label="Create a new project">＋</button>
@@ -781,6 +781,7 @@
           <span>EXPLORER</span>
           <div class="sidebar-controls">
             <button class="mini-button" id="newFileButton" type="button" title="New file" aria-label="New file">＋</button>
+            <button class="mini-button" id="newFolderButton" type="button" title="New folder" aria-label="New folder">▰＋</button>
           </div>
         </div>
         <div class="project-folder"><span class="folder-caret">⌄</span><span aria-hidden="true">▰</span><span id="folderName">MY FIRST PROJECT</span></div>
@@ -1367,6 +1368,8 @@ button.addEventListener("click", () => {
       let loadedCloudUserId = "";
       let cloudProjectIds = new Set();
       let cloudSaveQueue = Promise.resolve();
+      let cloudSaveRunning = false;
+      let cloudSaveDirty = false;
       let aiBusy = false;
 
       function isLegacyStarterFiles(files) {
@@ -1376,7 +1379,7 @@ button.addEventListener("click", () => {
       }
 
       function makeStarterProject(name) {
-        return { name, files: {}, activeFile: "", openFiles: [] };
+        return { name, files: {}, folders: [], activeFile: "", openFiles: [] };
       }
 
       function isOrbitInternalSourceLeak(content) {
@@ -1416,7 +1419,7 @@ button.addEventListener("click", () => {
             const openFiles = Array.isArray(project.openFiles) ? project.openFiles.filter(file => Object.hasOwn(files,file)) : Object.keys(files);
             const activeFile = Object.hasOwn(files,project.activeFile) ? project.activeFile : Object.keys(files)[0] || "";
             if (activeFile && !openFiles.includes(activeFile)) openFiles.push(activeFile);
-            projects[id] = {name:project.name,files,activeFile,openFiles};
+            projects[id] = {name:project.name,files,folders:Array.isArray(project.folders)?project.folders.filter(folder=>typeof folder==="string"):[],activeFile,openFiles};
           }
           if (!Object.keys(projects).length) return null;
           return {activeProject:Object.hasOwn(projects,parsed.activeProject)?parsed.activeProject:Object.keys(projects)[0],projects};
@@ -1454,7 +1457,7 @@ button.addEventListener("click", () => {
               const openFiles = Array.isArray(project.openFiles)
                 ? project.openFiles.filter(file => typeof file === "string" && Object.hasOwn(files, file))
                 : Object.keys(files);
-              projects[id] = { name: project.name, files, activeFile: Object.hasOwn(files, project.activeFile) ? project.activeFile : Object.keys(files)[0] || "", openFiles };
+              projects[id] = { name: project.name, files, folders:Array.isArray(project.folders)?project.folders.filter(folder=>typeof folder==="string"):[], activeFile: Object.hasOwn(files, project.activeFile) ? project.activeFile : Object.keys(files)[0] || "", openFiles };
             }
           }
           if (!Object.keys(projects).length) throw new Error("No usable projects found in saved workspace.");
@@ -1513,54 +1516,60 @@ button.addEventListener("click", () => {
       function saveCloudProjects() {
         const userId = cloudUser && cloudUser.id;
         if (!userId || !supabaseClient || !cloudReady) return;
+        cloudSaveDirty = true;
+        if (cloudSaveRunning) return cloudSaveQueue;
+        cloudSaveRunning = true;
         elements.saveLabel.textContent = "Saving to cloud…";
         elements.saveDot.style.background = "var(--orange)";
-        cloudSaveQueue = cloudSaveQueue.catch(() => {}).then(async () => {
-          if (!cloudUser || cloudUser.id !== userId) return;
-          const projects = Object.entries(state.projects).map(([id, project]) => ({
-            id,
-            user_id: userId,
-            name: project.name,
-            data: {
-              files: project.files,
-              activeFile: project.activeFile,
-              openFiles: project.openFiles
-            },
-            updated_at: new Date().toISOString()
-          }));
-          const { error } = await supabaseClient.from("projects").upsert(projects);
-          if (error) throw error;
-          const currentIds = new Set(projects.map(project => project.id));
-          const removedIds = [...cloudProjectIds].filter(id => !currentIds.has(id));
-          if (removedIds.length) {
-            const {data:removedRows,error:readRemovedError}=await supabaseClient.from("projects").select("id,name,data").eq("user_id",userId).in("id",removedIds);
-            if(readRemovedError) throw readRemovedError;
-            if(removedRows&&removedRows.length){
-              const {data:existingTrash,error:existingTrashError}=await supabaseClient.from("trash_items").select("project_id").eq("user_id",userId).eq("kind","project").in("project_id",removedIds).gt("expires_at",new Date().toISOString());
-              if(existingTrashError) throw existingTrashError;
-              const alreadyBackedUp=new Set((existingTrash||[]).map(item=>String(item.project_id)));
-              const backups=removedRows.filter(row=>!alreadyBackedUp.has(String(row.id))).map(row=>({user_id:userId,kind:"project",project_id:String(row.id),project_name:row.name,project_data:row.data,deleted_at:new Date().toISOString(),expires_at:new Date(Date.now()+7*86400000).toISOString()}));
-              if(backups.length){const {error:trashError}=await supabaseClient.from("trash_items").insert(backups);if(trashError) throw trashError;}
+        cloudSaveQueue = (async () => {
+          try {
+            while (cloudSaveDirty && cloudUser && cloudUser.id === userId) {
+              cloudSaveDirty = false;
+              const snapshot = JSON.parse(JSON.stringify(state));
+              const rows = Object.entries(snapshot.projects).map(([id, project]) => ({
+                id, user_id: userId, name: project.name,
+                data: { files: project.files, folders: project.folders || [], activeFile: project.activeFile, openFiles: project.openFiles },
+                updated_at: new Date().toISOString()
+              }));
+              const { error } = await supabaseClient.from("projects").upsert(rows);
+              if (error) throw error;
+              const currentIds = new Set(rows.map(row => row.id));
+              const removedIds = [...cloudProjectIds].filter(id => !currentIds.has(id));
+              if (removedIds.length) {
+                const {data:removedRows,error:readError}=await supabaseClient.from("projects").select("id,name,data").eq("user_id",userId).in("id",removedIds);
+                if(readError) throw readError;
+                if(removedRows?.length) {
+                  const {data:existingTrash,error:trashReadError}=await supabaseClient.from("trash_items").select("project_id").eq("user_id",userId).eq("kind","project").in("project_id",removedIds).gt("expires_at",new Date().toISOString());
+                  if(trashReadError) throw trashReadError;
+                  const backed=new Set((existingTrash||[]).map(item=>String(item.project_id)));
+                  const backups=removedRows.filter(row=>!backed.has(String(row.id))).map(row=>({user_id:userId,kind:"project",project_id:String(row.id),project_name:row.name,project_data:row.data,deleted_at:new Date().toISOString(),expires_at:new Date(Date.now()+7*86400000).toISOString()}));
+                  if(backups.length){const {error:insertError}=await supabaseClient.from("trash_items").insert(backups);if(insertError)throw insertError;}
+                }
+                const {error:deleteError}=await supabaseClient.from("projects").delete().eq("user_id",userId).in("id",removedIds);
+                if(deleteError)throw deleteError;
+              }
+              cloudProjectIds = currentIds;
+              writeCloudCache(userId,snapshot);
             }
-            const { error: deleteError } = await supabaseClient.from("projects").delete().eq("user_id", userId).in("id", removedIds);
-            if (deleteError) throw deleteError;
+            if (cloudUser?.id === userId) {
+              elements.saveLabel.textContent = "Saved to cloud";
+              elements.saveDot.style.background = "var(--green)";
+              elements.saveDot.title = "All recent changes are saved to your Orbit account.";
+            }
+          } catch (error) {
+            console.error("Could not save Orbit projects to the cloud:", error);
+            if (cloudUser?.id === userId) {
+              elements.saveLabel.textContent = "Cloud save failed";
+              elements.saveDot.style.background = "var(--red)";
+              elements.saveDot.title = error.message || "Cloud save failed.";
+              showToast("Couldn't save to your account. Check your connection and try again.");
+            }
+          } finally {
+            cloudSaveRunning = false;
+            if (cloudSaveDirty && cloudUser?.id === userId) void saveCloudProjects();
           }
-          cloudProjectIds = currentIds;
-          writeCloudCache(userId);
-          if (cloudUser && cloudUser.id === userId) {
-            elements.saveLabel.textContent = "Saved to cloud";
-            elements.saveDot.style.background = "var(--green)";
-            elements.saveDot.title = "Your projects are saved to your Orbit account.";
-          }
-        }).catch(error => {
-          console.error("Could not save Orbit projects to the cloud:", error);
-          if (cloudUser && cloudUser.id === userId) {
-            elements.saveLabel.textContent = "Cloud save failed";
-            elements.saveDot.style.background = "var(--red)";
-            elements.saveDot.title = error.message || "Cloud save failed.";
-            showToast("Couldn't save to your account. Check your connection and try again.");
-          }
-        });
+        })();
+        return cloudSaveQueue;
       }
 
       function mergePendingWorkspaceEdits(base, working, remote) {
@@ -1630,7 +1639,7 @@ button.addEventListener("click", () => {
             let files = Object.fromEntries(Object.entries(row.data.files || {}).filter(([file, content]) => typeof file === "string" && typeof content === "string"));
             if (isLegacyStarterFiles(files)) files = {};
             const openFiles = Array.isArray(row.data.openFiles) ? row.data.openFiles.filter(file => typeof file === "string" && Object.hasOwn(files, file)) : Object.keys(files);
-            projects[row.id] = {name:row.name,files,activeFile:Object.hasOwn(files,row.data.activeFile)?row.data.activeFile:Object.keys(files)[0]||"",openFiles};
+            projects[row.id] = {name:row.name,files,folders:Array.isArray(row.data.folders)?row.data.folders:[],activeFile:Object.hasOwn(files,row.data.activeFile)?row.data.activeFile:Object.keys(files)[0]||"",openFiles};
           }
           if (!Object.keys(projects).length && rows.length) throw new Error("No usable projects were returned from the cloud.");
           cloudProjectIds = new Set(rows.map(row => row.id).filter(id => typeof id === "string"));
@@ -2606,12 +2615,19 @@ async function sendAiMessage(event) {
           const id = decodeURIComponent(String(anchor).replace(/^#/, ""));
           if (id) elements.preview.contentDocument?.getElementById(id)?.scrollIntoView();
         };
-        elements.preview.srcdoc = html;
+        if(html!==lastPreviewMarkup){lastPreviewMarkup=html;elements.preview.srcdoc=html;}
       }
 
+      let lastPreviewMarkup = "";
       function schedulePreview() {
         window.clearTimeout(previewTimer);
-        previewTimer = window.setTimeout(buildPreview, 300);
+        const projectId=state.activeProject, file=currentProject()?.activeFile||"";
+        previewTimer=window.setTimeout(()=>{
+          if(state.activeProject!==projectId)return;
+          const project=currentProject();if(!project||project.activeFile!==file)return;
+          if(file&&elements.editor.dataset.file===file)project.files[file]=elements.editor.value;
+          buildPreview(file||undefined);
+        },650);
       }
 
       let latestDiagnostics = [];
@@ -3645,24 +3661,22 @@ async function sendAiMessage(event) {
       }
 
       function createFile(name) {
-        const file = name.trim();
-        if (!file || /[\\/:*?"<>|]/.test(file)) {
-          showToast("Enter a file name without slashes or special characters.");
-          return false;
-        }
-        const project = currentProject();
-        if (Object.hasOwn(project.files, file)) {
-          showToast("A file with that name already exists.");
-          return false;
-        }
-        project.files[file] = "";
-        project.activeFile = file;
-        project.openFiles.push(file);
-        elements.editor.dataset.file = "";
-        render();
-        scheduleSave();
-        if (typeof scheduleOrbitContextSync === "function") scheduleOrbitContextSync();
-        return true;
+        const file = name.trim().replace(/\\/g,"/");
+        if (!file || file.startsWith("/") || file.split("/").some(part=>!part||part==="."||part===".."||/[\\:*?"<>|]/.test(part))) { showToast("Enter a valid relative file path, such as pages/about.html."); return false; }
+        const project=currentProject();
+        if(Object.hasOwn(project.files,file)){showToast("A file with that name already exists.");return false;}
+        let path="";
+        for(const part of file.split("/").slice(0,-1)){path=path?path+"/"+part:part;if(!project.folders.includes(path))project.folders.push(path);}
+        project.files[file]="";project.activeFile=file;project.openFiles.push(file);elements.editor.dataset.file="";
+        render();scheduleSave();if(typeof scheduleOrbitContextSync==="function")scheduleOrbitContextSync();return true;
+      }
+      function createFolder(name) {
+        const folder=name.trim().replace(/\\/g,"/");
+        if(!folder||folder.startsWith("/")||folder.split("/").some(part=>!part||part==="."||part===".."||/[\\:*?"<>|]/.test(part))){showToast("Enter a valid folder path.");return false;}
+        const project=currentProject();
+        if(project.folders.includes(folder)||Object.keys(project.files).some(file=>file===folder||file.startsWith(folder+"/"))){showToast("That folder already exists.");return false;}
+        let path="";for(const part of folder.split("/")){path=path?path+"/"+part:part;if(!project.folders.includes(path))project.folders.push(path);}
+        render();scheduleSave();if(typeof scheduleOrbitContextSync==="function")scheduleOrbitContextSync();return true;
       }
 
       function slugify(name) {
@@ -4054,11 +4068,12 @@ async function sendAiMessage(event) {
       });
       document.getElementById("sidebarNewProject").addEventListener("click", () => document.getElementById("newProjectButton").click());
       document.getElementById("newFileButton").addEventListener("click", () => openNameModal({
-        title: "Create a file",
-        description: "Add a file to this project, such as about.html or app.js.",
-        button: "Create file",
-        placeholder: "e.g. about.html",
-        action: createFile
+        title: "New File", description: "Create a file. Use folders/page.html to place it inside a folder.",
+        button: "Create file", placeholder: "e.g. index.html or pages/about.html", action: createFile
+      }));
+      document.getElementById("newFolderButton").addEventListener("click", () => openNameModal({
+        title: "New Folder", description: "Create a folder. Use parent/child for nested folders.",
+        button: "Create folder", placeholder: "e.g. assets or src/components", action: createFolder
       }));
       document.getElementById("exportButton").addEventListener("click", exportProject);
       document.getElementById("deployButton").addEventListener("click",()=>void openDeployModal());

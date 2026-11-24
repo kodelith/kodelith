@@ -436,7 +436,44 @@
     body.dark-theme .ai-contextbar{background:#252526;border-color:#454545}
     body.dark-theme .ai-online,body.dark-theme .ai-clear{border-color:#454545}
     @media(max-width:650px){.ai-panel{top:50px;bottom:24px;width:min(100vw,440px)}.ai-welcome{padding:8px 0 14px}.ai-composer{padding:10px}.ai-hint{max-width:220px}}
-  </style>
+      /* Refined VS Code-style Explorer */
+    .sidebar-heading { height:48px; padding:0 12px 0 15px; color:var(--muted); font-size:10px; letter-spacing:.13em; }
+    .sidebar-controls { gap:4px; }
+    .sidebar-controls .explorer-icon-button { width:30px;height:30px;border-radius:7px;color:var(--muted);background:transparent;transition:background .15s,color .15s,transform .15s; }
+    .sidebar-controls .explorer-icon-button:hover { background:var(--panel-soft);color:var(--text); }
+    .sidebar-controls .explorer-icon-button:active { transform:scale(.94); }
+    .explorer-folder-row { position:relative;min-height:31px;padding-right:8px;gap:5px;border-radius:5px;margin:1px 6px 1px 0;color:var(--text);font-size:12px;transition:background .12s ease; }
+    .explorer-folder-row:hover { background:var(--panel-soft); }
+    .explorer-folder-row:focus-visible { outline:1px solid var(--accent);outline-offset:-1px; }
+    .explorer-folder-caret { width:20px;height:25px;flex:0 0 20px;border:0;border-radius:5px;background:transparent;color:var(--muted);display:inline-flex;align-items:center;justify-content:center;padding:0;cursor:pointer; }
+    .explorer-folder-caret svg { width:13px;height:13px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;transition:transform .16s ease; }
+    .explorer-folder-caret.is-open svg { transform:rotate(90deg); }
+    .explorer-folder-caret:hover { color:var(--text);background:var(--panel); }
+    .explorer-folder-icon { width:17px;height:18px;flex:0 0 17px;display:inline-flex;align-items:center;justify-content:center;color:var(--muted); }
+    .explorer-folder-icon svg { width:17px;height:17px;fill:none;stroke:currentColor;stroke-width:1.45;stroke-linecap:round;stroke-linejoin:round; }
+    .explorer-folder-icon.is-open { color:var(--accent); }
+    .explorer-folder-row .file-name { font-size:12px;font-weight:500;letter-spacing:.005em; }
+    .explorer-row-actions { gap:2px; }
+    .explorer-folder-row .explorer-icon-button { width:25px;height:25px;border-radius:6px;opacity:0;color:var(--muted);transition:opacity .12s,background .12s,color .12s; }
+    .explorer-folder-row:hover .explorer-icon-button,.explorer-folder-row:focus-within .explorer-icon-button { opacity:1; }
+    .explorer-folder-row .explorer-icon-button:hover { background:var(--panel);color:var(--accent); }
+    .file-row { min-height:29px;margin:1px 6px 1px 0;border-radius:5px;padding-right:8px;transition:background .12s ease; }
+    .file-row:hover { background:var(--panel-soft); }
+    .file-row.active { background:color-mix(in srgb,var(--accent) 12%,transparent);color:var(--text);box-shadow:inset 2px 0 var(--accent); }
+    .file-row .file-name { font-size:12px; }
+    .file-row .file-delete { border-radius:5px; }
+    .file-row .file-delete:hover { background:var(--panel); }
+    .explorer-dropdown-menu { min-width:190px;padding:5px;border:1px solid var(--line);border-radius:9px;background:var(--panel);box-shadow:0 12px 34px #0003; }
+    .explorer-dropdown-menu button { min-height:32px;padding:7px 10px;border-radius:6px; }
+    @media (hover:none) { .explorer-folder-row .explorer-icon-button { opacity:1; } }
+
+
+      .explorer-empty-state{display:flex;flex-direction:column;align-items:center;gap:10px;padding:28px 12px;color:var(--muted);font-size:12px;text-align:center}
+      .explorer-empty-create{border:1px solid var(--border);border-radius:6px;background:var(--surface-2);color:var(--text);font:inherit;font-weight:600;padding:7px 13px;cursor:pointer;transition:background .15s,border-color .15s}
+      .explorer-empty-create:hover{background:var(--surface-3);border-color:var(--accent)}
+      .sidebar-controls button[hidden]{display:none!important}
+
+    </style>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/codemirror@5.65.21/lib/codemirror.css">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/codemirror@5.65.21/theme/eclipse.css">
   <style>
@@ -3233,44 +3270,7 @@ async function sendAiMessage(event) {
         const js=typeof files["script.js"]==="string"?files["script.js"]:"";
         html=html.replace(/<link\b(?=[^>]*\bhref\s*=\s*["']style\.css["'])[^>]*>/gi,"");
         html=html.replace(/<script\b(?=[^>]*\bsrc\s*=\s*["']script\.js["'])[^>]*>\s*<\/script\s*>/gi,"");
-        const styleTag=css?"<style>"+css.replace(/<\/style/gi,"<\\/style")+"
-    /* Refined VS Code-style Explorer */
-    .sidebar-heading { height:48px; padding:0 12px 0 15px; color:var(--muted); font-size:10px; letter-spacing:.13em; }
-    .sidebar-controls { gap:4px; }
-    .sidebar-controls .explorer-icon-button { width:30px;height:30px;border-radius:7px;color:var(--muted);background:transparent;transition:background .15s,color .15s,transform .15s; }
-    .sidebar-controls .explorer-icon-button:hover { background:var(--panel-soft);color:var(--text); }
-    .sidebar-controls .explorer-icon-button:active { transform:scale(.94); }
-    .explorer-folder-row { position:relative;min-height:31px;padding-right:8px;gap:5px;border-radius:5px;margin:1px 6px 1px 0;color:var(--text);font-size:12px;transition:background .12s ease; }
-    .explorer-folder-row:hover { background:var(--panel-soft); }
-    .explorer-folder-row:focus-visible { outline:1px solid var(--accent);outline-offset:-1px; }
-    .explorer-folder-caret { width:20px;height:25px;flex:0 0 20px;border:0;border-radius:5px;background:transparent;color:var(--muted);display:inline-flex;align-items:center;justify-content:center;padding:0;cursor:pointer; }
-    .explorer-folder-caret svg { width:13px;height:13px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;transition:transform .16s ease; }
-    .explorer-folder-caret.is-open svg { transform:rotate(90deg); }
-    .explorer-folder-caret:hover { color:var(--text);background:var(--panel); }
-    .explorer-folder-icon { width:17px;height:18px;flex:0 0 17px;display:inline-flex;align-items:center;justify-content:center;color:var(--muted); }
-    .explorer-folder-icon svg { width:17px;height:17px;fill:none;stroke:currentColor;stroke-width:1.45;stroke-linecap:round;stroke-linejoin:round; }
-    .explorer-folder-icon.is-open { color:var(--accent); }
-    .explorer-folder-row .file-name { font-size:12px;font-weight:500;letter-spacing:.005em; }
-    .explorer-row-actions { gap:2px; }
-    .explorer-folder-row .explorer-icon-button { width:25px;height:25px;border-radius:6px;opacity:0;color:var(--muted);transition:opacity .12s,background .12s,color .12s; }
-    .explorer-folder-row:hover .explorer-icon-button,.explorer-folder-row:focus-within .explorer-icon-button { opacity:1; }
-    .explorer-folder-row .explorer-icon-button:hover { background:var(--panel);color:var(--accent); }
-    .file-row { min-height:29px;margin:1px 6px 1px 0;border-radius:5px;padding-right:8px;transition:background .12s ease; }
-    .file-row:hover { background:var(--panel-soft); }
-    .file-row.active { background:color-mix(in srgb,var(--accent) 12%,transparent);color:var(--text);box-shadow:inset 2px 0 var(--accent); }
-    .file-row .file-name { font-size:12px; }
-    .file-row .file-delete { border-radius:5px; }
-    .file-row .file-delete:hover { background:var(--panel); }
-    .explorer-dropdown-menu { min-width:190px;padding:5px;border:1px solid var(--line);border-radius:9px;background:var(--panel);box-shadow:0 12px 34px #0003; }
-    .explorer-dropdown-menu button { min-height:32px;padding:7px 10px;border-radius:6px; }
-    @media (hover:none) { .explorer-folder-row .explorer-icon-button { opacity:1; } }
-
-
-      .explorer-empty-state{display:flex;flex-direction:column;align-items:center;gap:10px;padding:28px 12px;color:var(--muted);font-size:12px;text-align:center}
-      .explorer-empty-create{border:1px solid var(--border);border-radius:6px;background:var(--surface-2);color:var(--text);font:inherit;font-weight:600;padding:7px 13px;cursor:pointer;transition:background .15s,border-color .15s}
-      .explorer-empty-create:hover{background:var(--surface-3);border-color:var(--accent)}
-      .sidebar-controls button[hidden]{display:none!important}
-</style>":"";
+        const styleTag=css?"<style>"+css.replace(/<\/style/gi,"<\\/style")+"</style>":"";
         const scriptTag=js?"<script>"+js.replace(/<\/script/gi,"<\\/script")+"<" + "/script>":"";
         if(/<\/head\s*>/i.test(html))html=html.replace(/<\/head\s*>/i,styleTag+"</head>");
         else html=styleTag+html;

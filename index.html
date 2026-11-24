@@ -144,7 +144,8 @@
     .export-picker-actions button { padding:6px 9px; border:1px solid var(--line); border-radius:6px; background:var(--panel); font-size:11px; cursor:pointer; }
     .explorer-folder-row { display:flex;align-items:center;gap:7px;min-height:28px;padding-right:5px;color:var(--text);font-size:12px;cursor:pointer;user-select:none;white-space:nowrap; }
     .explorer-folder-row:hover,.file-row:hover { background:var(--panel-soft); }
-    .explorer-folder-caret { width:10px;color:var(--muted);font-size:14px;flex:0 0 10px; }
+    .explorer-folder-caret { display:inline-flex;align-items:center;justify-content:center;width:18px;height:22px;flex:0 0 18px;padding:0;border:0;border-radius:4px;background:transparent;color:var(--muted);font-size:16px;line-height:1;cursor:pointer;transition:background .15s,color .15s; }
+    .explorer-folder-caret:hover,.explorer-folder-caret:focus-visible { background:var(--panel);color:var(--accent);outline:none; }
     .explorer-folder-icon { color:var(--muted);font-size:12px; }
     .explorer-folder-row .file-name { overflow:hidden;text-overflow:ellipsis;flex:1;min-width:0; }
     .explorer-row-actions,.sidebar-controls { display:flex;align-items:center;gap:2px;margin-left:auto;flex:0 0 auto; }
@@ -1815,10 +1816,11 @@ button.addEventListener("click", () => {
             row.className=node.type==="folder"?"explorer-folder-row":"file-row";
             row.style.paddingLeft=(8+depth*14)+"px";
             if(node.type==="folder"){
-              const caret=document.createElement("span");caret.className="explorer-folder-caret";caret.textContent=collapsedExplorerFolders.has(node.path)?"›":"⌄";
+              const isCollapsed=collapsedExplorerFolders.has(node.path);
+              const caret=document.createElement("button");caret.type="button";caret.className="explorer-folder-caret";caret.textContent=isCollapsed?"›":"⌄";caret.title=(isCollapsed?"Expand ":"Collapse ")+node.name;caret.setAttribute("aria-label",caret.title);caret.setAttribute("aria-expanded",String(!isCollapsed));
               const icon=document.createElement("span");icon.className="explorer-folder-icon";icon.textContent="▰";
               const label=document.createElement("span");label.className="file-name";label.textContent=node.name;
-              row.append(caret,icon,label);row.title=node.path;row.setAttribute("role","button");row.tabIndex=0;
+              row.append(caret,icon,label);row.title=node.path;
               const actions=document.createElement("span");actions.className="explorer-row-actions";
               const makeAction=(kind,title,svg,handler)=>{const button=document.createElement("button");button.type="button";button.className="explorer-icon-button";button.title=title;button.setAttribute("aria-label",title);button.innerHTML=svg;button.addEventListener("click",event=>{event.stopPropagation();handler(event);});actions.append(button);};
               makeAction("file","New File in "+node.name,'<svg viewBox="0 0 24 24"><path d="M13 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V10z"/><path d="M13 3v7h7M12 13v6m-3-3h6"/></svg>',()=>openNameModal({title:"New File",description:"Create a file inside "+node.path,button:"Create file",placeholder:node.path+"/page.html",action:createFile}));
@@ -1826,7 +1828,8 @@ button.addEventListener("click", () => {
               makeAction("more","Folder options",'<svg viewBox="0 0 24 24"><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></svg>',event=>showExplorerFolderMenu(event.clientX,event.clientY,node.path));
               row.append(actions);
               const toggle=()=>{if(collapsedExplorerFolders.has(node.path))collapsedExplorerFolders.delete(node.path);else collapsedExplorerFolders.add(node.path);render();};
-              row.addEventListener("click",event=>{if(!event.target.closest(".explorer-row-actions"))toggle();});row.addEventListener("keydown",event=>{if(event.key==="Enter"||event.key===" "){event.preventDefault();toggle();}});
+              caret.addEventListener("click",event=>{event.preventDefault();event.stopPropagation();toggle();});
+              row.addEventListener("click",event=>{if(!event.target.closest("button"))toggle();});
               row.addEventListener("contextmenu",event=>{event.preventDefault();showExplorerFolderMenu(event.clientX,event.clientY,node.path);});
               elements.fileList.append(row);
               if(!collapsedExplorerFolders.has(node.path))renderNodes(node.path,depth+1);

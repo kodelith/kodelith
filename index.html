@@ -1601,6 +1601,7 @@ button.addEventListener("click", () => {
           }
           if (workProject.name !== baseProject.name) targetProject.name = workProject.name;
           if (JSON.stringify(workProject.openFiles || []) !== JSON.stringify(baseProject.openFiles || [])) targetProject.openFiles = [...(workProject.openFiles || [])];
+          if (JSON.stringify(workProject.folders || []) !== JSON.stringify(baseProject.folders || [])) targetProject.folders = [...(workProject.folders || [])];
           if (workProject.activeFile !== baseProject.activeFile) targetProject.activeFile = workProject.activeFile;
         }
         for (const id of Object.keys(base.projects || {})) {

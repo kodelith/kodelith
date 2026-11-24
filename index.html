@@ -2129,13 +2129,10 @@ async function sendAiMessage(event) {
         event?.preventDefault();
         const prompt = elements.aiPrompt.value.trim();
         if (!prompt || aiBusy) return;
-        if (!cloudUser || !supabaseClient) {
-          addAiMessage("error", "Please sign in to Orbit first. AI access is available to signed-in accounts.");
-          return;
-        }
         saveEditorValue();
         const projectId = state.activeProject;
         const project = currentProject();
+        if(!project){addAiMessage("error","Create or open a project before asking the local AI to work on code.");return;}
         const activeFile = project.activeFile || "";
         const baseFiles = { ...project.files };
         const fileManifest = Object.keys(project.files).slice(0, 80);

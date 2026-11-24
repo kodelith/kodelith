@@ -3534,6 +3534,7 @@ async function sendAiMessage(event) {
           controls.className = "delete-confirm-controls";
           const label = document.createElement("label");
           label.className = "delete-confirm-check";
+          label.hidden = !firstTwo;
           const checkbox = document.createElement("input");
           checkbox.type = "checkbox";
           checkbox.id = "deleteConfirmAware";
@@ -3660,6 +3661,7 @@ async function sendAiMessage(event) {
         elements.editor.dataset.file = "";
         render();
         scheduleSave();
+        if (typeof scheduleOrbitContextSync === "function") scheduleOrbitContextSync();
         return true;
       }
 
@@ -3683,7 +3685,7 @@ async function sendAiMessage(event) {
       function renameProject(id,value) {
         const name=value.trim();if(!name||name.length>60){showToast("Project names must be 1–60 characters.");return false;}
         if(Object.entries(state.projects).some(([key,p])=>key!==id&&p.name.toLowerCase()===name.toLowerCase())){showToast("A project with that name already exists.");return false;}
-        if(!state.projects[id])return false;state.projects[id].name=name;render();scheduleSave();showToast("Project renamed.");return true;
+        if(!state.projects[id])return false;state.projects[id].name=name;render();scheduleSave();if(typeof scheduleOrbitContextSync==="function")scheduleOrbitContextSync();showToast("Project renamed.");return true;
       }
       async function deleteProject(id) {
         const p=state.projects[id];if(!p)return;if(Object.keys(state.projects).length<=1){showToast("Keep at least one project in Orbit.");return;}

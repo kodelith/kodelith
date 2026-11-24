@@ -4213,9 +4213,13 @@ async function sendAiMessage(event) {
         });
       });
       document.getElementById("projectSwitcher").addEventListener("click", () => {
-        const firstOther = Object.keys(state.projects).find(id => id !== state.activeProject);
-        if (firstOther) selectProject(firstOther);
-        else showToast("Your projects are listed in the Projects panel.");
+        const ids=Object.keys(state.projects);
+        if(ids.length>1){const index=ids.indexOf(state.activeProject);selectProject(ids[(index+1)%ids.length]);}
+        else if(ids.length===1) showToast("Right-click the workspace name to rename or delete this project.");
+      });
+      document.getElementById("projectSwitcher").addEventListener("contextmenu",event=>{
+        event.preventDefault();
+        if(state.activeProject) showProjectContextMenu(event.clientX,event.clientY,state.activeProject);
       });
       document.getElementById("sidebarNewProject").addEventListener("click", () => document.getElementById("newProjectButton").click());
       function beginFirstFile() {

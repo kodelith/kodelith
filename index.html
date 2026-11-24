@@ -2547,6 +2547,7 @@ async function sendAiMessage(event) {
         updateCursorPosition();
         scheduleSave();
         schedulePreview();
+        if (typeof scheduleOrbitContextSync === "function") scheduleOrbitContextSync();
       }
 
       let currentPreviewFile = "";
@@ -3557,7 +3558,7 @@ async function sendAiMessage(event) {
               return;
             }
             timer.textContent = `Please review this warning: ${destructiveConfirmRemaining}s`;
-            accept.disabled = destructiveConfirmRemaining > 0;
+            accept.disabled = firstTwo ? !checkbox.checked : destructiveConfirmRemaining > 0;
           };
           checkbox.addEventListener("change", update);
           update();
@@ -4281,6 +4282,11 @@ async function sendAiMessage(event) {
         }
       });
       const orbitAiFrame = document.getElementById("orbitAiFrame");
+      let orbitContextTimer = 0;
+      function scheduleOrbitContextSync() {
+        window.clearTimeout(orbitContextTimer);
+        orbitContextTimer = window.setTimeout(sendOrbitProjectContext, 350);
+      }
       function sendOrbitProjectContext() {
         if (!orbitAiFrame?.contentWindow || !currentProject()) return;
         saveEditorValue();
@@ -4308,8 +4314,7 @@ async function sendAiMessage(event) {
           const before = {};
           const after = {};
           for (const c of changes) { before[c.file] = Object.hasOwn(p.files,c.file) ? p.files[c.file] : null; after[c.file] = c.content; }
-          const ok = await askForConfirmation({ title: "Apply AI code changes?", description: `Orbit AI wants to create or update ${changes.length} project file${changes.length===1?"":"s"}.`, note: "Review the proposed changes in Orbit AI before approving. Your existing files will only change after you approve.", confirmText: "Approve & apply" });
-          if (!ok || state.activeProject !== projectId || state.projects[projectId] !== p) { respond(false, "Changes were not applied."); return; }
+          if (state.activeProject !== projectId || state.projects[projectId] !== p) { respond(false, "The active project changed. Nothing was applied."); return; }
           const conflicts = changes.filter(c => before[c.file] !== null && p.files[c.file] !== before[c.file]);
           if (conflicts.length) { respond(false, "Files changed while AI was generating: " + conflicts.map(c=>c.file).join(", ")); return; }
           changes.forEach(c => { p.files[c.file] = c.content; if (!p.openFiles.includes(c.file)) p.openFiles.push(c.file); });

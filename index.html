@@ -142,6 +142,16 @@
     .export-picker-row input { accent-color:var(--accent); }
     .export-picker-actions { display:flex; gap:7px; margin-top:10px; }
     .export-picker-actions button { padding:6px 9px; border:1px solid var(--line); border-radius:6px; background:var(--panel); font-size:11px; cursor:pointer; }
+    .explorer-folder-row { display:flex;align-items:center;gap:7px;min-height:26px;padding-right:8px;color:var(--text);font-size:12px;cursor:pointer;user-select:none;white-space:nowrap; }
+    .explorer-folder-row:hover,.file-row:hover { background:var(--panel-soft); }
+    .explorer-folder-caret { width:10px;color:var(--muted);font-size:14px; }
+    .explorer-folder-icon { color:var(--muted);font-size:12px; }
+    .explorer-folder-row .file-name { overflow:hidden;text-overflow:ellipsis; }
+    .file-row { display:flex;align-items:center;gap:7px;min-height:26px;padding-right:8px;cursor:pointer;user-select:none; }
+    .file-row.active { background:var(--panel-soft); }
+    .file-row .file-name { overflow:hidden;text-overflow:ellipsis;white-space:nowrap; }
+    .file-delete { opacity:0; }
+    .file-row:hover .file-delete,.file-row:focus-within .file-delete { opacity:1; }
     .project-row { display:flex;align-items:center;gap:2px;min-width:0; }
     .project-row .project-item { flex:1;width:auto; }
     .project-item { width:100%; min-width:0; display:flex; align-items:center; gap:8px; padding:7px 8px; border:1px solid transparent; border-radius:7px; background:transparent; color:var(--text); text-align:left; cursor:pointer; font:inherit; font-size:11px; }
@@ -1501,7 +1511,7 @@ button.addEventListener("click", () => {
         elements.saveLabel.textContent = "Unsaved changes";
         elements.saveDot.style.background = "var(--orange)";
         window.clearTimeout(saveTimer);
-        saveTimer = window.setTimeout(saveState, 220);
+        saveTimer = window.setTimeout(saveState, 700);
       }
 
       function makeProjectId(name) {
@@ -1772,41 +1782,54 @@ button.addEventListener("click", () => {
           });
           elements.projectsList.append(row);
         }
+        elements.projectName.textContent = "Workspace";
+        elements.folderName.textContent = "WORKSPACE";
+        elements.statusProject.textContent = "Workspace";
+        elements.projectsCount.textContent = "";
+        elements.projectsList.replaceChildren();
         elements.fileList.replaceChildren();
+        const collapsedExplorerFolders = window.orbitCollapsedExplorerFolders || (window.orbitCollapsedExplorerFolders = new Set());
+        const folders = new Set(project.folders || []);
         for (const file of Object.keys(project.files)) {
-          const row = document.createElement("div");
-          row.className = `file-row${file === project.activeFile ? " active" : ""}`;
-          row.setAttribute("role", "button");
-          row.setAttribute("tabindex", "0");
-          row.setAttribute("aria-label", `Open ${file}`);
-          const icon = document.createElement("span");
-          icon.className = `file-icon ${fileKind(file)}`;
-          icon.textContent = fileKind(file) === "html" ? "5" : fileKind(file) === "css" ? "#" : fileKind(file) === "js" ? "JS" : fileKind(file) === "c" ? "C" : "◇";
-          const label = document.createElement("span");
-          label.className = "file-name";
-          label.textContent = file;
-          const remove = document.createElement("button");
-          remove.className = "file-delete";
-          remove.type = "button";
-          remove.title = `Delete ${file}`;
-          remove.setAttribute("aria-label", `Delete ${file}`);
-          remove.textContent = "×";
-          remove.addEventListener("click", event => {
-            event.stopPropagation();
-            deleteFile(file);
-          });
-          row.addEventListener("contextmenu",event=>{event.preventDefault();showFileContextMenu(event.clientX,event.clientY,file);});
-          row.append(icon, label, remove);
-          row.addEventListener("click", () => activateFile(file));
-          row.addEventListener("keydown", event => {
-            if (event.key === "Enter" || event.key === " ") {
-              event.preventDefault();
-              activateFile(file);
-            }
-          });
-          elements.fileList.append(row);
+          const parts=file.split("/");
+          for(let i=1;i<parts.length;i++) folders.add(parts.slice(0,i).join("/"));
         }
-
+        const children = new Map();
+        const addChild=(parent,node)=>{if(!children.has(parent))children.set(parent,[]);children.get(parent).push(node);};
+        for(const folder of folders){const parts=folder.split("/");addChild(parts.slice(0,-1).join("/"),{type:"folder",name:parts.at(-1),path:folder});}
+        for(const file of Object.keys(project.files)){const parts=file.split("/");addChild(parts.slice(0,-1).join("/"),{type:"file",name:parts.at(-1),path:file});}
+        for(const list of children.values()) list.sort((a,b)=>a.type===b.type?a.name.localeCompare(b.name):a.type==="folder"?-1:1);
+        const renderNodes=(parent,depth=0)=>{
+          for(const node of children.get(parent)||[]){
+            const row=document.createElement("div");
+            row.className=node.type==="folder"?"explorer-folder-row":"file-row";
+            row.style.paddingLeft=(8+depth*14)+"px";
+            if(node.type==="folder"){
+              const caret=document.createElement("span");caret.className="explorer-folder-caret";caret.textContent=collapsedExplorerFolders.has(node.path)?"›":"⌄";
+              const icon=document.createElement("span");icon.className="explorer-folder-icon";icon.textContent="▰";
+              const label=document.createElement("span");label.className="file-name";label.textContent=node.name;
+              row.append(caret,icon,label);row.title=node.path;row.setAttribute("role","button");row.tabIndex=0;
+              const toggle=()=>{if(collapsedExplorerFolders.has(node.path))collapsedExplorerFolders.delete(node.path);else collapsedExplorerFolders.add(node.path);render();};
+              row.addEventListener("click",toggle);row.addEventListener("keydown",event=>{if(event.key==="Enter"||event.key===" "){event.preventDefault();toggle();}});
+              row.addEventListener("contextmenu",event=>{event.preventDefault();showExplorerFolderMenu(event.clientX,event.clientY,node.path);});
+              elements.fileList.append(row);
+              if(!collapsedExplorerFolders.has(node.path))renderNodes(node.path,depth+1);
+            } else {
+              row.classList.toggle("active",node.path===project.activeFile);
+              row.setAttribute("role","button");row.tabIndex=0;row.setAttribute("aria-label","Open "+node.path);
+              const icon=document.createElement("span");icon.className="file-icon "+fileKind(node.path);icon.textContent=fileKind(node.path)==="html"?"5":fileKind(node.path)==="css"?"#":fileKind(node.path)==="js"?"JS":fileKind(node.path)==="c"?"C":"◇";
+              const label=document.createElement("span");label.className="file-name";label.textContent=node.name;label.title=node.path;
+              const remove=document.createElement("button");remove.className="file-delete";remove.type="button";remove.title="Delete "+node.path;remove.setAttribute("aria-label","Delete "+node.path);remove.textContent="×";
+              remove.addEventListener("click",event=>{event.stopPropagation();deleteFile(node.path);});
+              row.append(icon,label,remove);
+              row.addEventListener("contextmenu",event=>{event.preventDefault();showFileContextMenu(event.clientX,event.clientY,node.path);});
+              row.addEventListener("click",()=>activateFile(node.path));
+              row.addEventListener("keydown",event=>{if(event.key==="Enter"||event.key===" "){event.preventDefault();activateFile(node.path);}});
+              elements.fileList.append(row);
+            }
+          }
+        };
+        renderNodes("");
         elements.tabs.replaceChildren();
         project.openFiles = project.openFiles.filter(file => Object.hasOwn(project.files, file));
         if (project.activeFile && !project.openFiles.includes(project.activeFile)) project.openFiles.push(project.activeFile);
@@ -2627,7 +2650,7 @@ async function sendAiMessage(event) {
           const project=currentProject();if(!project||project.activeFile!==file)return;
           if(file&&elements.editor.dataset.file===file)project.files[file]=elements.editor.value;
           buildPreview(file||undefined);
-        },650);
+        },850);
       }
 
       let latestDiagnostics = [];
@@ -3629,6 +3652,40 @@ async function sendAiMessage(event) {
       function closeNameModal() {
         elements.modalBackdrop.hidden = true;
         modalAction = null;
+      }
+
+      function showExplorerFolderMenu(x,y,folderPath) {
+        const old=document.getElementById("explorerFolderMenu");if(old)old.remove();
+        const menu=document.createElement("div");menu.id="explorerFolderMenu";menu.className="tab-context-menu";menu.style.position="fixed";menu.style.left=Math.max(6,Math.min(x,window.innerWidth-190))+"px";menu.style.top=Math.max(6,Math.min(y,window.innerHeight-150))+"px";menu.style.zIndex="999";
+        const action=(label,fn)=>{const b=document.createElement("button");b.type="button";b.textContent=label;b.addEventListener("click",()=>{menu.remove();fn();});menu.append(b);};
+        action("New File",()=>openNameModal({title:"New File",description:"Create a file inside "+folderPath,button:"Create file",placeholder:folderPath+"/page.html",action:createFile}));
+        action("New Folder",()=>openNameModal({title:"New Folder",description:"Create a nested folder inside "+folderPath,button:"Create folder",placeholder:folderPath+"/assets",action:createFolder}));
+        action("Rename Folder",()=>openNameModal({title:"Rename Folder",description:"Enter the new folder path.",button:"Rename",placeholder:folderPath,action:value=>renameExplorerFolder(folderPath,value)}));
+        action("Delete Folder",()=>void deleteExplorerFolder(folderPath));
+        document.body.append(menu);const close=e=>{if(!menu.contains(e.target)){menu.remove();document.removeEventListener("pointerdown",close);}};setTimeout(()=>document.addEventListener("pointerdown",close),0);
+      }
+      function renameExplorerFolder(oldPath,newPath) {
+        const next=newPath.trim().replace(/\\/g,"/");
+        if(!next||next.startsWith("/")||next.split("/").some(p=>!p||p==="."||p===".."||/[\\:*?"<>|]/.test(p))){showToast("Enter a valid folder path.");return false;}
+        const project=currentProject();const files=Object.keys(project.files).filter(f=>f.startsWith(oldPath+"/"));const folders=(project.folders||[]).filter(f=>f===oldPath||f.startsWith(oldPath+"/"));
+        if(!files.length&&!folders.length)return false;
+        if(Object.keys(project.files).some(f=>f===next||f.startsWith(next+"/"))||project.folders.includes(next)){showToast("That folder name already exists.");return false;}
+        for(const f of files){project.files[next+f.slice(oldPath.length)]=project.files[f];delete project.files[f];}
+        project.openFiles=project.openFiles.map(f=>f===oldPath||f.startsWith(oldPath+"/")?next+f.slice(oldPath.length):f);
+        if(project.activeFile===oldPath||project.activeFile.startsWith(oldPath+"/"))project.activeFile=next+project.activeFile.slice(oldPath.length);
+        project.folders=project.folders.filter(f=>!folders.includes(f));for(const f of folders)project.folders.push(next+f.slice(oldPath.length));
+        elements.editor.dataset.file="";render();scheduleSave();buildPreview();return true;
+      }
+      async function deleteExplorerFolder(folderPath) {
+        const project=currentProject();const files=Object.keys(project.files).filter(f=>f.startsWith(folderPath+"/"));
+        const ok=await askForConfirmation({title:"Delete folder?",description:"Delete "+folderPath+" and its "+files.length+" file(s)?",note:"Files are moved to Settings → Bin when supported.",confirmText:"Delete folder",destructive:true});
+        if(!ok)return;
+        for(const file of files){try{await addTrashItem({kind:"file",project_id:state.activeProject,project_name:project.name,file_name:file,file_content:project.files[file]});}catch(error){showToast("Folder was not deleted because its Bin backup failed.");return;}}
+        for(const file of files)delete project.files[file];
+        project.openFiles=project.openFiles.filter(f=>!f.startsWith(folderPath+"/"));
+        if(project.activeFile.startsWith(folderPath+"/"))project.activeFile=Object.keys(project.files)[0]||"";
+        project.folders=project.folders.filter(f=>f!==folderPath&&!f.startsWith(folderPath+"/"));
+        elements.editor.dataset.file="";render();scheduleSave();buildPreview();
       }
 
       function showProjectContextMenu(x,y,projectId) {

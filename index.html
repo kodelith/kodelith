@@ -2163,7 +2163,7 @@ async function sendAiMessage(event) {
           const response=await fetch(LOCAL_OLLAMA+"/api/chat",{method:"POST",mode:"cors",headers:{"Content-Type":"application/json"},body:JSON.stringify(request),signal:AbortSignal.timeout(240000)});if(!response.ok)throw new Error("Local model request failed (HTTP "+response.status+").");const result=await response.json();waiting.remove();let data;try{data=JSON.parse(result?.message?.content||"{}");}catch{data={message:result?.message?.content||"The local model returned an unreadable response.",updates:[]};}if(!data||typeof data.message!=="string")throw new Error("The local model returned an invalid response.");
           addAiMessage("assistant", data.message);
           const updates = Array.isArray(data.updates) ? data.updates.filter(update =>
-            update && typeof update.file === "string" && /^[A-Za-z0-9._-]{1,80}$/.test(update.file) &&
+            update && typeof update.file === "string" && update.file.length <= 180 && /^[A-Za-z0-9._ -]+(?:\/[A-Za-z0-9._ -]+)*$/.test(update.file) && !update.file.split("/").some(part=>!part||part==="."||part==="..") &&
             typeof update.content === "string" && update.content.length <= 50000
           ).slice(0, 8) : [];
           if (!updates.length && /\b(write|create|build|add|fix|change|implement|code|website|page|component)\b/i.test(prompt)) {

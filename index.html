@@ -375,9 +375,10 @@
 
     .ai-panel{position:fixed;z-index:90;top:54px;right:0;bottom:28px;width:min(390px,94vw);display:flex;flex-direction:column;background:var(--panel-raised);border-left:1px solid var(--line);box-shadow:-14px 0 38px #0002}
     .ai-embed-frame{display:block;flex:1 1 auto;width:100%;min-height:0;border:0;background:#fff}
-    .ai-panel .ai-contextbar,.ai-panel .ai-messages,.ai-panel .ai-composer{display:none!important}
+    .ai-embed-frame{display:none!important}
     @media(max-width:650px){.ai-panel{top:0;bottom:0;width:100%;border-left:0}}
     .ai-panel[hidden]{display:none}
+    .ai-setup{flex:1;min-height:0;overflow:auto;padding:18px;background:var(--bg);display:flex;flex-direction:column;gap:13px}.ai-setup[hidden]{display:none!important}.ai-setup-card{border:1px solid var(--line);border-radius:12px;background:var(--panel-raised);padding:16px;display:grid;gap:10px}.ai-setup-card h3{margin:0;font-size:15px}.ai-setup-card p{margin:0;color:var(--muted);font-size:11px;line-height:1.6}.ai-setup-status{display:flex;align-items:center;gap:8px;font-size:11px;color:var(--muted)}.ai-setup-status:before{content:"";width:7px;height:7px;border-radius:50%;background:#d49b35}.ai-setup-status.ready:before{background:#20a464}.ai-setup-actions{display:flex;flex-wrap:wrap;gap:8px}.ai-setup-actions button,.ai-setup-actions a{border:1px solid var(--line);border-radius:8px;padding:8px 11px;background:var(--panel);color:var(--text);font:600 11px inherit;text-decoration:none;cursor:pointer}.ai-setup-actions .primary{background:var(--accent);color:white;border-color:var(--accent)}.ai-setup-code{padding:10px;border-radius:8px;background:var(--panel);color:var(--text);font:10px/1.5 ui-monospace,monospace;overflow-wrap:anywhere;user-select:all}.ai-setup-progress{height:6px;border-radius:8px;background:var(--panel-soft);overflow:hidden}.ai-setup-progress>span{display:block;height:100%;width:0;background:var(--accent);transition:width .2s}
     .ai-head{height:58px;flex:none;display:flex;align-items:center;justify-content:space-between;padding:0 15px;border-bottom:1px solid var(--line)}
     .ai-brand{display:flex;align-items:center;gap:10px;font-size:14px;font-weight:700}.ai-brand-mark{width:30px;height:30px;border-radius:9px;display:grid;place-items:center;background:#e8f2ff;color:#0874c9;font-size:18px}
     .ai-model{display:block;color:var(--muted);font-size:11px;font-weight:400;margin-top:2px}
@@ -962,7 +963,7 @@
       <div class="ai-head-actions"><span class="ai-online"><i></i> Ready</span><button class="ai-clear" id="aiClear" type="button" title="Clear conversation" aria-label="Clear conversation">⌫</button><button class="ai-close" id="aiClose" type="button" aria-label="Close AI panel">×</button></div>
     </div>
     <div class="ai-contextbar"><span>⌘</span><span id="aiProjectContext">Project context · current workspace</span><span class="ai-context-files" id="aiContextFiles">0 files</span></div>
-    <iframe id="orbitAiFrame" class="ai-embed-frame" src="https://sunny-hello-greeting-09.lovable.app" title="Orbit AI" loading="lazy" referrerpolicy="strict-origin-when-cross-origin" allow="clipboard-read; clipboard-write"></iframe>
+    <section class="ai-setup" id="aiSetup" aria-live="polite"><div class="ai-setup-card"><h3>Set up your local coding AI</h3><p>Orbit can use an AI model running on this Mac. No API key, subscription or cloud AI credits are needed. Download the model once, then it runs on your device.</p><div class="ai-setup-status" id="aiLocalStatus">Checking Ollama…</div><div class="ai-setup-status" id="aiSetupMessage">Checking local connection…</div><div class="ai-setup-actions"><a href="https://ollama.com/download/mac" target="_blank" rel="noopener noreferrer">Install Ollama for Mac</a><button type="button" id="aiCheckLocal">Check again</button></div></div><div class="ai-setup-card" id="aiLocalHelp" hidden><h3>Allow Orbit to connect</h3><p>Quit the Ollama app if it is running. Open Terminal and run this command:</p><code class="ai-setup-code" id="aiLocalCommand">OLLAMA_ORIGINS="https://save-codes.github.io" ollama serve</code><div class="ai-setup-actions"><button type="button" class="primary" id="aiCopyLocalCommand">Copy command</button></div><p>Keep Terminal open, return here and choose Check again. Your browser may ask permission to access a local network service.</p></div><div class="ai-setup-card" id="aiModelCard" hidden><h3>Download the coding model</h3><p>Recommended: Qwen2.5 Coder 7B (about 4.7 GB). This download is needed only once.</p><div class="ai-setup-progress"><span id="aiModelProgress"></span></div><div class="ai-setup-status" id="aiModelStatus">Model not installed</div><div class="ai-setup-actions"><button type="button" class="primary" id="aiDownloadModel">Download coding model</button></div></div></section>
     <div class="ai-messages" id="aiMessages" aria-live="polite">
       <div class="ai-welcome" id="aiWelcome">
         <div class="ai-welcome-icon">✦</div><h3>What are we building?</h3>
@@ -2107,15 +2108,14 @@ button.addEventListener("click", () => {
         return item;
       }
 
-      function showAiPanel() {
-        elements.aiPanel.hidden = false;
-        elements.aiToggle.classList.add("active");
-        const project=currentProject(),count=project?Object.keys(project.files||{}).length:0;
-        const context=document.getElementById("aiProjectContext"),filesLabel=document.getElementById("aiContextFiles");
-        if(context)context.textContent=project?("Project · "+project.name):"No active project";
-        if(filesLabel)filesLabel.textContent=count+" file"+(count===1?"":"s");
-        elements.aiPrompt.focus();
-      }
+      const LOCAL_OLLAMA="http://127.0.0.1:11434",LOCAL_CODER_MODEL="qwen2.5-coder:7b";
+      let localAiReady=false,localAiModel=LOCAL_CODER_MODEL,localAiChecking=false;
+      function setLocalStatus(message,ready=false){const e=document.getElementById("aiLocalStatus");e.textContent=message;e.classList.toggle("ready",ready);}
+      async function checkLocalAi(){if(localAiChecking)return;localAiChecking=true;setLocalStatus("Checking Ollama on this device…");const help=document.getElementById("aiLocalHelp"),card=document.getElementById("aiModelCard"),msg=document.getElementById("aiSetupMessage");try{const r=await fetch(LOCAL_OLLAMA+"/api/tags",{mode:"cors",cache:"no-store",signal:AbortSignal.timeout(4500)});if(!r.ok)throw new Error("Ollama returned HTTP "+r.status);const data=await r.json(),models=Array.isArray(data.models)?data.models:[];localAiReady=true;help.hidden=true;setLocalStatus("Ollama is connected on this device.",true);const names=models.map(m=>String(m.name||""));const installed=names.find(n=>n===LOCAL_CODER_MODEL||n.startsWith(LOCAL_CODER_MODEL+":"));if(installed){localAiModel=installed;card.hidden=true;msg.textContent="Coding model installed. Local AI is ready.";msg.classList.add("ready");document.getElementById("aiSetup").hidden=true;elements.aiMessages.hidden=false;elements.aiForm.hidden=false;elements.aiPrompt.placeholder="Ask your local coding AI…";}else{card.hidden=false;msg.textContent=names.length?"Ollama found. Download the recommended coding model to continue.":"Ollama is running. The coding model still needs to be downloaded.";msg.classList.remove("ready");}}catch(error){localAiReady=false;card.hidden=true;help.hidden=false;setLocalStatus("Ollama is not reachable yet.");msg.textContent="Orbit cannot reach Ollama. Install it or restart it using the connection command below. "+(error.message||"");msg.classList.remove("ready");}finally{localAiChecking=false;}}
+      async function downloadLocalModel(){const button=document.getElementById("aiDownloadModel"),status=document.getElementById("aiModelStatus"),bar=document.getElementById("aiModelProgress");button.disabled=true;status.textContent="Starting model download…";try{const r=await fetch(LOCAL_OLLAMA+"/api/pull",{method:"POST",mode:"cors",headers:{"Content-Type":"application/json"},body:JSON.stringify({name:LOCAL_CODER_MODEL,stream:true})});if(!r.ok)throw new Error("Download request failed (HTTP "+r.status+").");const reader=r.body.getReader(),decoder=new TextDecoder();let buffer="";while(true){const part=await reader.read();if(part.done)break;buffer+=decoder.decode(part.value,{stream:true});const rows=buffer.split("\\n");buffer=rows.pop()||"";for(const row of rows){if(!row.trim())continue;const item=JSON.parse(row);if(item.error)throw new Error(item.error);if(item.total&&item.completed){const p=Math.min(99,Math.round(item.completed/item.total*100));bar.style.width=p+"%";status.textContent=(item.status||"Downloading")+" · "+p+"%";}else if(item.status)status.textContent=item.status;}}bar.style.width="100%";localAiModel=LOCAL_CODER_MODEL;document.getElementById("aiSetup").hidden=true;elements.aiMessages.hidden=false;elements.aiForm.hidden=false;elements.aiPrompt.placeholder="Ask your local coding AI…";addAiMessage("assistant","Your local coding AI is ready. I can now inspect and edit your active Orbit project.");}catch(error){status.textContent="Download failed: "+error.message;}finally{button.disabled=false;}}
+      function showAiPanel(){elements.aiPanel.hidden=false;elements.aiToggle.classList.add("active");const project=currentProject(),count=project?Object.keys(project.files||{}).length:0;const context=document.getElementById("aiProjectContext"),filesLabel=document.getElementById("aiContextFiles");if(context)context.textContent=project?("Project · "+project.name):"No active project";if(filesLabel)filesLabel.textContent=count+" file"+(count===1?"":"s");if(localAiReady){document.getElementById("aiSetup").hidden=true;elements.aiMessages.hidden=false;elements.aiForm.hidden=false;elements.aiPrompt.focus();}else{document.getElementById("aiSetup").hidden=false;elements.aiMessages.hidden=true;elements.aiForm.hidden=true;void checkLocalAi();}}
+      document.getElementById("aiCheckLocal").addEventListener("click",()=>void checkLocalAi());document.getElementById("aiDownloadModel").addEventListener("click",()=>void downloadLocalModel());document.getElementById("aiCopyLocalCommand").addEventListener("click",async()=>{try{await navigator.clipboard.writeText(document.getElementById("aiLocalCommand").textContent);showToast("Command copied.");}catch{showToast("Select and copy the command manually.");}});
+
       function clearAiConversation(){
         if(aiBusy){showToast("Wait for the current AI response to finish.");return;}
         elements.aiMessages.replaceChildren();
@@ -2160,16 +2160,10 @@ async function sendAiMessage(event) {
         elements.aiSend.innerHTML = "<span>Working</span> …";
         const waiting = addAiMessage("assistant", "Working on your project…");
         try {
-          const { data, error } = await supabaseClient.functions.invoke("orbit-ai", {
-            body: { prompt, projectName: project.name, activeFile, files, fileManifest, contextNote }
-          });
-          waiting.remove();
-          if (error) {
-            let detail = error.message || "The AI request failed.";
-            try { if (error.context) { const body = await error.context.json(); if (body.error) detail = body.error; } } catch {}
-            throw new Error(detail);
-          }
-          if (!data || typeof data.message !== "string") throw new Error("Orbit AI returned an invalid response.");
+          if(!localAiReady)throw new Error("Local AI is not connected. Open the AI setup screen and connect Ollama.");
+          const systemPrompt='You are Orbit, a careful senior coding assistant. Inspect the project and answer the user. When code changes are requested, return complete replacement contents for every changed file, preserving existing features and avoiding unrelated edits. Return ONLY valid JSON: {"message":"brief explanation","updates":[{"file":"relative/path","content":"complete file contents"}]}. For explanations/reviews without edits, return an empty updates array. Never invent files.';
+          const request={model:localAiModel,stream:false,format:"json",messages:[{role:"system",content:systemPrompt},{role:"user",content:"Project: "+project.name+"\\nActive file: "+activeFile+"\\nFiles: "+JSON.stringify(files)+"\\n"+contextNote+"\\nRequest: "+prompt}]};
+          const response=await fetch(LOCAL_OLLAMA+"/api/chat",{method:"POST",mode:"cors",headers:{"Content-Type":"application/json"},body:JSON.stringify(request),signal:AbortSignal.timeout(240000)});if(!response.ok)throw new Error("Local model request failed (HTTP "+response.status+").");const result=await response.json();waiting.remove();let data;try{data=JSON.parse(result?.message?.content||"{}");}catch{data={message:result?.message?.content||"The local model returned an unreadable response.",updates:[]};}if(!data||typeof data.message!=="string")throw new Error("The local model returned an invalid response.");
           addAiMessage("assistant", data.message);
           const updates = Array.isArray(data.updates) ? data.updates.filter(update =>
             update && typeof update.file === "string" && /^[A-Za-z0-9._-]{1,80}$/.test(update.file) &&
@@ -4463,7 +4457,7 @@ async function sendAiMessage(event) {
           if (first) first.click();
         }
       });
-      const orbitAiFrame = document.getElementById("orbitAiFrame");
+      const orbitAiFrame = null;
       let orbitContextTimer = 0;
       function scheduleOrbitContextSync() {
         window.clearTimeout(orbitContextTimer);
@@ -4515,7 +4509,7 @@ async function sendAiMessage(event) {
           return;
         }
       });
-      orbitAiFrame?.addEventListener("load", sendOrbitProjectContext);
+      // Local AI receives project context directly from the active Orbit workspace.
       window.addEventListener("message", event => {
         if (event.source !== elements.preview.contentWindow) return;
         const data = event.data;

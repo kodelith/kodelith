@@ -915,7 +915,11 @@ body.dark-theme .ai-composer textarea{background:var(--editor-bg);color:var(--te
  .tab{min-width:88px;padding:0 7px}
 }
 
-    </style>
+      .file-row[draggable="true"]{cursor:grab}
+  .file-row.orbit-dragging{opacity:.45}
+  .explorer-folder-row.orbit-drop-target{background:var(--selected-bg)!important;outline:1px dashed var(--accent);outline-offset:-1px}
+  .file-list.orbit-drop-root{background:color-mix(in srgb,var(--accent) 7%,transparent);outline:1px dashed var(--accent);outline-offset:-3px}
+</style>
 </head>
 <body>
   <div class="app">
@@ -1975,6 +1979,9 @@ button.addEventListener("click", () => {
         elements.projectsCount.textContent = "";
         elements.projectsList.replaceChildren();
         elements.fileList.replaceChildren();
+        elements.fileList.addEventListener("dragover",event=>{if(event.dataTransfer.types.includes("application/x-orbit-file")){event.preventDefault();event.dataTransfer.dropEffect="move";elements.fileList.classList.add("orbit-drop-root");}});
+        elements.fileList.addEventListener("dragleave",event=>{if(!elements.fileList.contains(event.relatedTarget))elements.fileList.classList.remove("orbit-drop-root");});
+        elements.fileList.addEventListener("drop",event=>{const source=event.dataTransfer.getData("application/x-orbit-file");if(source&&!event.target.closest(".explorer-folder-row")){event.preventDefault();elements.fileList.classList.remove("orbit-drop-root");moveExplorerFile(source,"");}});
         const collapsedExplorerFolders = window.orbitCollapsedExplorerFolders || (window.orbitCollapsedExplorerFolders = new Set());
         const folders = new Set(project.folders || []);
         for (const file of Object.keys(project.files)) {
@@ -2003,6 +2010,9 @@ button.addEventListener("click", () => {
               makeAction("folder","New Folder in "+node.name,'<svg viewBox="0 0 24 24"><path d="M3 6a2 2 0 0 1 2-2h5l2 2h7a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M12 10v7m-3.5-3.5h7"/></svg>',()=>openNameModal({title:"New Folder",description:"Create a nested folder inside "+node.path,button:"Create folder",placeholder:node.path+"/assets",action:createFolder}));
               makeAction("more","Folder options",'<svg viewBox="0 0 24 24"><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></svg>',event=>showExplorerFolderMenu(event.clientX,event.clientY,node.path));
               row.append(actions);
+              row.addEventListener("dragover",event=>{if(event.dataTransfer.types.includes("application/x-orbit-file")){event.preventDefault();event.dataTransfer.dropEffect="move";row.classList.add("orbit-drop-target");}});
+              row.addEventListener("dragleave",event=>{if(!row.contains(event.relatedTarget))row.classList.remove("orbit-drop-target");});
+              row.addEventListener("drop",event=>{const source=event.dataTransfer.getData("application/x-orbit-file");if(source){event.preventDefault();event.stopPropagation();row.classList.remove("orbit-drop-target");moveExplorerFile(source,node.path);}});
               const toggle=()=>{if(collapsedExplorerFolders.has(node.path))collapsedExplorerFolders.delete(node.path);else collapsedExplorerFolders.add(node.path);render();};
               caret.addEventListener("click",event=>{event.preventDefault();event.stopPropagation();toggle();});
               row.addEventListener("click",event=>{if(!event.target.closest("button"))toggle();});
@@ -2017,6 +2027,9 @@ button.addEventListener("click", () => {
               const remove=document.createElement("button");remove.className="file-delete";remove.type="button";remove.title="Delete "+node.path;remove.setAttribute("aria-label","Delete "+node.path);remove.textContent="×";
               remove.addEventListener("click",event=>{event.stopPropagation();deleteFile(node.path);});
               row.append(icon,label,remove);
+              row.draggable=true;
+              row.addEventListener("dragstart",event=>{event.dataTransfer.effectAllowed="move";event.dataTransfer.setData("application/x-orbit-file",node.path);event.dataTransfer.setData("text/plain",node.path);row.classList.add("orbit-dragging");});
+              row.addEventListener("dragend",()=>row.classList.remove("orbit-dragging"));
               row.addEventListener("contextmenu",event=>{event.preventDefault();showFileContextMenu(event.clientX,event.clientY,node.path);});
               row.addEventListener("click",()=>activateFile(node.path));
               row.addEventListener("keydown",event=>{if(event.key==="Enter"||event.key===" "){event.preventDefault();activateFile(node.path);}});
@@ -3933,7 +3946,22 @@ async function sendAiMessage(event) {
         render();scheduleSave();showToast("File renamed.");return true;
       }
 
-      function createFile(name) {
+      function moveExplorerFile(sourcePath,targetFolder) {
+         const project=currentProject();if(!project||!Object.hasOwn(project.files,sourcePath))return false;
+         const fileName=sourcePath.split("/").pop(),destination=targetFolder?targetFolder+"/"+fileName:fileName;
+         if(destination===sourcePath){showToast("That file is already in this folder.");return false;}
+         if(targetFolder===sourcePath||targetFolder.startsWith(sourcePath+"/")){showToast("A file cannot be moved into itself.");return false;}
+         if(Object.hasOwn(project.files,destination)){showToast("A file with that name already exists in the destination folder.");return false;}
+         project.files[destination]=project.files[sourcePath];delete project.files[sourcePath];
+         project.openFiles=project.openFiles.map(file=>file===sourcePath?destination:file);
+         if(project.activeFile===sourcePath)project.activeFile=destination;
+         if(elements.editor.dataset.file===sourcePath)elements.editor.dataset.file=destination;
+         if(!Array.isArray(project.folders))project.folders=[];
+         let path="";for(const part of destination.split("/").slice(0,-1)){path=path?path+"/"+part:part;if(!project.folders.includes(path))project.folders.push(path);}
+         render();scheduleSave();if(typeof scheduleOrbitContextSync==="function")scheduleOrbitContextSync();showToast("Moved "+fileName+" to "+(targetFolder||"workspace")+".");return true;
+       }
+
+       function createFile(name) {
         if (!currentProject()) createProject("My Project");
         const file = name.trim().replace(/\\/g,"/");
         if (!file || file.startsWith("/") || file.split("/").some(part=>!part||part==="."||part===".."||/[\\:*?"<>|]/.test(part))) { showToast("Enter a valid relative file path, such as pages/about.html."); return false; }

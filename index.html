@@ -2806,14 +2806,16 @@ async function sendAiMessage(event) {
           setPreviewDocument("<!doctype html><html><head><meta charset=utf-8></head><body style='font:14px system-ui;padding:24px;color:#777'>This workspace is empty. Create an HTML file to see its preview.</body></html>");
           return;
         }
-        if (typeof fileName !== "string") {
-          fileName = typeof project.previewFile === "string" && typeof files[project.previewFile] === "string"
-            ? project.previewFile
-            : typeof files["index.html"] === "string" ? "index.html" : htmlFiles[0] || "";
+        // The preview must always render an HTML entry point, never the
+        // currently edited CSS/JS/source file. Keep the last HTML preview
+        // while the user switches between supporting files in the editor.
+        const isHtmlFile = name => typeof name === "string" && /\.html?$/i.test(name) && typeof files[name] === "string";
+        if (!isHtmlFile(fileName)) {
+          fileName = isHtmlFile(project.previewFile) ? project.previewFile
+            : isHtmlFile("index.html") ? "index.html"
+            : htmlFiles[0] || "";
         }
-        if (typeof files[fileName] !== "string") {
-          fileName = typeof files["index.html"] === "string" ? "index.html" : htmlFiles[0] || "";
-        }
+        if (!isHtmlFile(fileName)) fileName = htmlFiles[0] || "";
         if (!fileName) {
           currentPreviewFile = "";
           project.previewFile = "";

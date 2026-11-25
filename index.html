@@ -218,10 +218,7 @@
     .editor-toolbar { flex-wrap: wrap; min-width: 0; max-width: 100%; margin-left: 0; padding: 6px 12px; row-gap: 5px; }
     .toolbar-button { flex: 0 0 auto; white-space: nowrap; }
     @media (max-width: 900px) { .editor-toolbar { width: 100%; } .tabs { flex: 1 1 100%; } }
-    .css-color-decorations { position:absolute; inset:0; z-index:3; pointer-events:none; overflow:hidden; }
-    .css-color-decoration { position:absolute; width:13px; height:13px; padding:0; border:1px solid #7779; border-radius:3px; background:var(--css-swatch); box-shadow:0 0 0 1px #fff; cursor:pointer; pointer-events:auto; }
-    .css-color-decoration:hover { outline:2px solid var(--accent); outline-offset:1px; }
-    .css-color-decoration input { position:absolute; inset:-3px; width:19px; height:19px; opacity:0; cursor:pointer; }
+
     .toolbar-button { height: 28px; display: inline-flex; align-items: center; gap: 6px; padding: 0 9px; border: 1px solid transparent; border-radius: 6px; background: transparent; color: #424242; cursor: pointer; font-size: 10px; }
     .toolbar-button.active { border-color: #b3d8f1; background: #e6f3fb; color: #005a9e; }
     .main-area { display:grid; grid-template-columns:minmax(320px,58%) 6px minmax(280px,42%); grid-template-rows:auto minmax(0,1fr) 0; min-height:0; }
@@ -1004,7 +1001,6 @@ body.dark-theme .ai-composer textarea{background:var(--editor-bg);color:var(--te
         <section class="editor-surface" aria-label="Code editor">
           <div class="gutter" id="lineNumbers" aria-hidden="true">1</div>
           <pre class="highlight-layer" id="highlightLayer" aria-hidden="true"><code id="highlightCode"></code></pre>
-          <div class="css-color-decorations" id="cssColorDecorations" aria-label="CSS color swatches"></div>
           <textarea class="code-editor" id="codeEditor" aria-label="Code editor" spellcheck="false" autocapitalize="off" autocomplete="off" autocorrect="off"></textarea>
           <div class="html-suggestions" id="htmlSuggestions" role="listbox" aria-label="HTML tag suggestions"><div class="html-suggestions-title">SUGGESTIONS</div><div id="htmlSuggestionItems"></div></div>
           <div class="empty-editor" id="emptyEditor">No files yet. Choose + in Explorer to create your first file.</div>
@@ -1399,7 +1395,6 @@ button.addEventListener("click", () => {
         gutter: document.getElementById("lineNumbers"),
         highlightLayer: document.getElementById("highlightLayer"),
         highlightCode: document.getElementById("highlightCode"),
-        cssColorDecorations: document.getElementById("cssColorDecorations"),
         emptyEditor: document.getElementById("emptyEditor"),
         preview: document.getElementById("previewFrame"),
         previewUrl: document.getElementById("previewUrl"),
@@ -2398,123 +2393,6 @@ async function sendAiMessage(event) {
         button.style.cssText="margin-left:14px;border:0;background:transparent;color:#0067b8;font-weight:700;cursor:pointer";button.addEventListener("click",undoOrbit);elements.toast.append(button);elements.toast.hidden=false;
         window.clearTimeout(toastTimer);toastTimer=window.setTimeout(()=>{elements.toast.hidden=true;},6000);
       }
-      let cssColorPickerOpen = false;
-      function renderCssColorDecorations(source) {
-        // Do not replace the active color input while its native picker is open.
-        if (cssColorPickerOpen) return;
-        const layer = elements.cssColorDecorations;
-        layer.replaceChildren();
-        if (fileKind(currentProject()?.activeFile || "") !== "css") return;
-
-        const lines = source.split("\n");
-        const colorPattern = /#(?:[0-9a-f]{3,4}|[0-9a-f]{6}|[0-9a-f]{8})\b|\b(?:rgba?|hsla?)\([^)]*\)|\b[a-zA-Z]+\b/gi;
-        const layerRect = layer.getBoundingClientRect();
-        const nativeEditor = document.getElementById("codeEditor");
-        const nativeRect = nativeEditor.getBoundingClientRect();
-        const nativeStyle = getComputedStyle(nativeEditor);
-        const canvas = document.createElement("canvas");
-        const ctx = canvas.getContext("2d");
-        ctx.font = codeMirror
-          ? getComputedStyle(codeMirror.getWrapperElement()).font
-          : nativeStyle.font;
-        const lineHeight = codeMirror
-          ? (parseFloat(getComputedStyle(codeMirror.getWrapperElement()).lineHeight) || 21)
-          : (parseFloat(nativeStyle.lineHeight) || 21);
-        let offset = 0;
-
-        // CodeMirror replaces the textarea with its own scrolling editor.
-        // Use its character coordinates when active; use textarea metrics only
-        // in the native fallback. Never measure the proxy editor object.
-        const positionFor = (lineIndex, column, line) => {
-          if (codeMirror) {
-            const coords = codeMirror.charCoords({ line: lineIndex, ch: column }, "page");
-            const scroll = codeMirror.getScrollInfo();
-            // Anchor to the actual character position. The swatch is placed
-            // after the color token, so it cannot cover the CSS property name.
-            const x = coords.left - layerRect.left - window.scrollX + 3;
-            const y = coords.top - layerRect.top - window.scrollY + 4;
-            if (coords.bottom < layerRect.top + window.scrollY ||
-                coords.top > layerRect.bottom + window.scrollY) return null;
-            return { x, y };
-          }
-          const paddingTop = parseFloat(nativeStyle.paddingTop) || 16;
-          const paddingLeft = parseFloat(nativeStyle.paddingLeft) || 18;
-          const x = nativeRect.left - layerRect.left + paddingLeft
-            + ctx.measureText(line.slice(0, column)).width + 3
-            - nativeEditor.scrollLeft;
-          const y = nativeRect.top - layerRect.top + paddingTop
-            + lineIndex * lineHeight + 4 - nativeEditor.scrollTop;
-          if (y < -lineHeight || y > layer.clientHeight) return null;
-          return { x, y };
-        };
-
-        const makePicker = (value, start, end, label) => {
-          const button = document.createElement("button");
-          button.type = "button";
-          button.className = "css-color-decoration";
-          button.style.setProperty("--css-swatch", value || "#000000");
-          button.title = label;
-          button.setAttribute("aria-label", label);
-          const picker = document.createElement("input");
-          picker.type = "color";
-          picker.value = (() => {
-            const probe = document.createElement("span");
-            probe.style.color = value || "#000000";
-            document.body.append(probe);
-            const computed = getComputedStyle(probe).color;
-            probe.remove();
-            const nums = computed.match(/\d+/g);
-            return nums && nums.length >= 3
-              ? "#" + nums.slice(0, 3).map(n => Number(n).toString(16).padStart(2, "0")).join("")
-              : "#000000";
-          })();
-          picker.setAttribute("aria-label", "Choose replacement color");
-          picker.addEventListener("focus", () => { cssColorPickerOpen = true; });
-          picker.addEventListener("change", () => {
-            elements.editor.setRangeText(picker.value, start, end, "end");
-            cssColorPickerOpen = false;
-            elements.editor.focus();
-            saveEditorValue();
-            renderCssColorDecorations(elements.editor.value);
-          });
-          button.append(picker);
-          return button;
-        };
-
-        lines.forEach((line, lineIndex) => {
-          const masked = line.replace(/\/\*[\s\S]*?\*\/|(["'])(?:\\.|(?!\1)[^\\])*?\1/g, match => " ".repeat(match.length));
-          let match;
-          colorPattern.lastIndex = 0;
-          while ((match = colorPattern.exec(masked))) {
-            const value = match[0];
-            const tokenIndex = match.index;
-            if (!window.CSS || !CSS.supports("color", value)) continue;
-            // Only decorate actual color values, not arbitrary CSS words.
-            const before = masked.slice(0, tokenIndex);
-            if (!/(?:^|:)\s*$/.test(before) && !/(?:color|fill|stroke)\s*:\s*[^;]*$/.test(before)) continue;
-            const position = positionFor(lineIndex, tokenIndex + value.length, line);
-            if (!position) continue;
-            const button = makePicker(value, offset + tokenIndex, offset + tokenIndex + value.length, "Change CSS color: " + value);
-            button.style.left = Math.max(54, position.x) + "px";
-            button.style.top = position.y + "px";
-            layer.append(button);
-          }
-
-          // Offer a picker for an empty color property value.
-          const emptyColorMatch = /\b(?:color|background-color|border-color|border-top-color|border-right-color|border-bottom-color|border-left-color|outline-color|text-decoration-color|fill|stroke)\s*:\s*(?=;|$)/i.exec(masked);
-          if (emptyColorMatch) {
-            const insertAt = offset + emptyColorMatch.index + emptyColorMatch[0].length;
-            const position = positionFor(lineIndex, emptyColorMatch.index + emptyColorMatch[0].length, line);
-            if (position) {
-              const button = makePicker("#000000", insertAt, insertAt, "Choose a CSS color");
-              button.style.left = Math.max(54, position.x) + "px";
-              button.style.top = position.y + "px";
-              layer.append(button);
-            }
-          }
-          offset += line.length + 1;
-        });
-      }
 
       function renderSyntaxHighlight() {
         const file = currentProject()?.activeFile || "";
@@ -2541,7 +2419,7 @@ async function sendAiMessage(event) {
         elements.highlightCode.innerHTML = html + (source.endsWith("\n") ? " " : "");
         elements.highlightLayer.scrollTop = elements.editor.scrollTop;
         elements.highlightLayer.scrollLeft = elements.editor.scrollLeft;
-        renderCssColorDecorations(source);
+
       }
 
       function updateLineNumbers() {
@@ -4508,10 +4386,9 @@ async function sendAiMessage(event) {
         elements.gutter.scrollTop = elements.editor.scrollTop;
         elements.highlightLayer.scrollTop = elements.editor.scrollTop;
         elements.highlightLayer.scrollLeft = elements.editor.scrollLeft;
-        renderCssColorDecorations(elements.editor.value);
+
       });
-      window.addEventListener("resize", () => renderCssColorDecorations(elements.editor.value));
-      renderCssColorDecorations(elements.editor.value);
+
       elements.editor.addEventListener("click", updateCursorPosition);
       elements.editor.addEventListener("keyup", updateCursorPosition);
       elements.editor.addEventListener("keydown", event => {

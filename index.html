@@ -2724,9 +2724,50 @@ async function sendAiMessage(event) {
           elements.htmlSuggestionItems.append(row);
         });
         elements.htmlSuggestions.classList.add("visible");
-        const popupHeight=Math.min(250,elements.editor.clientHeight-28,htmlSuggestionMatches.length*33+8);
-        // Keep completion suggestions in a predictable strip at the top of the editor.
-        elements.htmlSuggestions.style.top="12px";
+        // Anchor autocomplete to the caret, not the top of the editor.
+        const surface = elements.editor.closest(".editor-surface");
+        const popup = elements.htmlSuggestions;
+        const surfaceRect = surface.getBoundingClientRect();
+        const cursorBefore = elements.editor.value.slice(0, elements.editor.selectionStart);
+        const cursorLines = cursorBefore.split("\n");
+        const lineIndex = cursorLines.length - 1;
+        const ch = cursorLines[lineIndex].length;
+        let caret = null;
+        if (codeMirror) {
+          const coords = codeMirror.charCoords({ line: lineIndex, ch }, "page");
+          caret = {
+            left: coords.left - surfaceRect.left - window.scrollX,
+            top: coords.top - surfaceRect.top - window.scrollY,
+            bottom: coords.bottom - surfaceRect.top - window.scrollY
+          };
+        } else {
+          const style = getComputedStyle(elements.editor);
+          const canvas = document.createElement("canvas");
+          const ctx = canvas.getContext("2d");
+          ctx.font = style.font;
+          const lineHeight = parseFloat(style.lineHeight) || 21;
+          caret = {
+            left: elements.editor.offsetLeft + (parseFloat(style.paddingLeft) || 0)
+              + ctx.measureText(cursorLines[lineIndex]).width - elements.editor.scrollLeft,
+            top: elements.editor.offsetTop + (parseFloat(style.paddingTop) || 0)
+              + lineIndex * lineHeight - elements.editor.scrollTop,
+            bottom: elements.editor.offsetTop + (parseFloat(style.paddingTop) || 0)
+              + (lineIndex + 1) * lineHeight - elements.editor.scrollTop
+          };
+        }
+        if (!caret) { hideHtmlSuggestions(); return; }
+        const popupWidth = Math.min(290, Math.max(160, surface.clientWidth - 24));
+        const desiredHeight = Math.min(250, htmlSuggestionMatches.length * 33 + 8);
+        const left = Math.max(8, Math.min(caret.left, surface.clientWidth - popupWidth - 8));
+        const belowTop = caret.bottom + 6;
+        const spaceBelow = surface.clientHeight - belowTop - 8;
+        const spaceAbove = caret.top - 8;
+        const placeBelow = spaceBelow >= Math.min(150, desiredHeight) || spaceBelow >= spaceAbove;
+        const available = Math.max(80, Math.min(desiredHeight, placeBelow ? spaceBelow : spaceAbove));
+        popup.style.left = left + "px";
+        popup.style.width = popupWidth + "px";
+        popup.style.maxHeight = available + "px";
+        popup.style.top = (placeBelow ? belowTop : Math.max(8, caret.top - available - 6)) + "px";
       }
 
             function acceptHtmlSuggestion() {

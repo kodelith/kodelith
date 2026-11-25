@@ -2127,6 +2127,7 @@ button.addEventListener("click", () => {
         }
         elements.statusFile.textContent = editorReady ? fileKind(activeFile).toUpperCase() : "NO FILE";
         elements.previewUrl.textContent = `orbit://preview/${Object.keys(project.files).length ? (project.files["index.html"] ? "index.html" : "no-entry-file") : "empty"}`;
+        renderCssColorDecorations(elements.editor.value);
         schedulePreview();
       }
 
@@ -2402,10 +2403,11 @@ async function sendAiMessage(event) {
 
       let cssColorPickerOpen = false;
       function renderCssColorDecorations(source) {
-        if (cssColorPickerOpen) return;
         const layer = elements.cssColorDecorations;
         layer.replaceChildren();
-        if (fileKind(currentProject()?.activeFile || "") !== "css") return;
+        // Use the file actually loaded in the editor, and clear stale swatches
+        // whenever the editor switches from CSS to HTML, JS, or another file.
+        if (cssColorPickerOpen || fileKind(elements.editor.dataset.file || currentProject()?.activeFile || "") !== "css") return;
 
         const nativeEditor = document.getElementById("codeEditor");
         const nativeRect = nativeEditor.getBoundingClientRect();

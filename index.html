@@ -2488,10 +2488,10 @@ async function sendAiMessage(event) {
             const value = match[0];
             const tokenIndex = match.index;
             if (!window.CSS || !CSS.supports("color", value)) continue;
-            // Only decorate actual color values, not arbitrary CSS words.
+            // Only decorate values inside declarations that can contain a CSS color.
             const before = masked.slice(0, tokenIndex);
-            if (!/(?:^|:)\s*$/.test(before) && !/(?:color|fill|stroke)\s*:\s*[^;]*$/.test(before)) continue;
-            const position = positionFor(lineIndex, tokenIndex, line);
+            if (!/^\s*(?:color|background|background-color|border(?:-(?:top|right|bottom|left))?-color|outline-color|text-decoration-color|fill|stroke)\s*:\s*[^;]*$/i.test(before)) continue;
+            const position = positionFor(lineIndex, tokenIndex + value.length, line);
             if (!position) continue;
             const button = makePicker(value, offset + tokenIndex, offset + tokenIndex + value.length, "Change CSS color: " + value);
             button.style.left = Math.max(54, position.x) + "px";

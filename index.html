@@ -2407,7 +2407,7 @@ async function sendAiMessage(event) {
         layer.replaceChildren();
         // Use the file actually loaded in the editor, and clear stale swatches
         // whenever the editor switches from CSS to HTML, JS, or another file.
-        if (cssColorPickerOpen || fileKind(elements.editor.dataset.file || currentProject()?.activeFile || "") !== "css") return;
+        if (cssColorPickerOpen || fileKind(currentProject()?.activeFile || "") !== "css") return;
 
         const nativeEditor = document.getElementById("codeEditor");
         const nativeRect = nativeEditor.getBoundingClientRect();
@@ -2905,7 +2905,7 @@ async function sendAiMessage(event) {
           const project=currentProject();if(!project||project.activeFile!==file)return;
           if(file&&elements.editor.dataset.file===file)project.files[file]=elements.editor.value;
           buildPreview(file||undefined);
-        },850);
+        },250);
       }
 
       let latestDiagnostics = [];

@@ -2429,7 +2429,9 @@ async function sendAiMessage(event) {
           if (codeMirror) {
             const coords = codeMirror.charCoords({ line: lineIndex, ch: column }, "page");
             const scroll = codeMirror.getScrollInfo();
-            const x = coords.left - layerRect.left - window.scrollX - 16;
+            // Anchor to the actual character position. The swatch is placed
+            // after the color token, so it cannot cover the CSS property name.
+            const x = coords.left - layerRect.left - window.scrollX + 3;
             const y = coords.top - layerRect.top - window.scrollY + 4;
             if (coords.bottom < layerRect.top + window.scrollY ||
                 coords.top > layerRect.bottom + window.scrollY) return null;
@@ -2438,7 +2440,7 @@ async function sendAiMessage(event) {
           const paddingTop = parseFloat(nativeStyle.paddingTop) || 16;
           const paddingLeft = parseFloat(nativeStyle.paddingLeft) || 18;
           const x = nativeRect.left - layerRect.left + paddingLeft
-            + ctx.measureText(line.slice(0, column)).width - 16
+            + ctx.measureText(line.slice(0, column)).width + 3
             - nativeEditor.scrollLeft;
           const y = nativeRect.top - layerRect.top + paddingTop
             + lineIndex * lineHeight + 4 - nativeEditor.scrollTop;
@@ -2490,7 +2492,7 @@ async function sendAiMessage(event) {
             // Only decorate actual color values, not arbitrary CSS words.
             const before = masked.slice(0, tokenIndex);
             if (!/(?:^|:)\s*$/.test(before) && !/(?:color|fill|stroke)\s*:\s*[^;]*$/.test(before)) continue;
-            const position = positionFor(lineIndex, tokenIndex, line);
+            const position = positionFor(lineIndex, tokenIndex + value.length, line);
             if (!position) continue;
             const button = makePicker(value, offset + tokenIndex, offset + tokenIndex + value.length, "Change CSS color: " + value);
             button.style.left = Math.max(54, position.x) + "px";

@@ -1798,7 +1798,10 @@ button.addEventListener("click", () => {
         cloudLoading = true;
         const localWorkspace = state;
         const cachedWorkspace = readCloudCache(userId);
-        const baselineWorkspace = JSON.parse(JSON.stringify(cachedWorkspace || localWorkspace));
+        const hasCachedProjects = !!cachedWorkspace && Object.keys(cachedWorkspace.projects || {}).length > 0;
+        // An empty/stale cloud cache must never replace a workspace that still has local projects.
+        const recoveryWorkspace = hasCachedProjects ? cachedWorkspace : (Object.keys(localWorkspace.projects || {}).length ? localWorkspace : cachedWorkspace);
+        const baselineWorkspace = JSON.parse(JSON.stringify(recoveryWorkspace || localWorkspace));
         cloudUser = session.user;
         cloudReady = false;
         loadedCloudUserId = userId;
@@ -1806,10 +1809,10 @@ button.addEventListener("click", () => {
         elements.accountButton.disabled = false;
         elements.profileButton.hidden = false;
         void refreshProfileAvatar();
-        elements.storageCopy.textContent = cachedWorkspace ? "Restored your workspace from this device while checking for newer cloud changes." : "Loading your cloud workspace…";
-        if (cachedWorkspace) {
-          state = cachedWorkspace;
-          cloudProjectIds = new Set(Object.keys(cachedWorkspace.projects));
+        elements.storageCopy.textContent = recoveryWorkspace ? "Restored your workspace from this device while checking for newer cloud changes." : "Loading your cloud workspace…";
+        if (recoveryWorkspace) {
+          state = recoveryWorkspace;
+          cloudProjectIds = new Set(Object.keys(recoveryWorkspace.projects));
           elements.saveLabel.textContent = "Restored local copy · syncing";
           elements.saveDot.style.background = "var(--orange)";
           render();
@@ -1832,7 +1835,7 @@ button.addEventListener("click", () => {
           cloudProjectIds = new Set(rows.map(row => row.id).filter(id => typeof id === "string"));
           let remoteWorkspace;
           if (!Object.keys(projects).length) {
-            if (!cachedWorkspace && Object.keys(localWorkspace.projects).length) {
+            if (!hasCachedProjects && Object.keys(localWorkspace.projects).length) {
               const idMap = Object.fromEntries(Object.keys(localWorkspace.projects).map(id => [id,crypto.randomUUID()]));
               const importedProjects = Object.fromEntries(Object.entries(localWorkspace.projects).map(([id,project]) => {
                 const files = isLegacyStarterFiles(project.files) ? {} : project.files;
@@ -1847,7 +1850,7 @@ button.addEventListener("click", () => {
           }
           const workingWorkspace = state;
           const pendingLocalChanges = JSON.stringify(workingWorkspace) !== JSON.stringify(baselineWorkspace);
-          state = (!rows.length && !cachedWorkspace) ? remoteWorkspace : mergePendingWorkspaceEdits(baselineWorkspace,workingWorkspace,remoteWorkspace);
+          state = (!rows.length && !hasCachedProjects) ? remoteWorkspace : mergePendingWorkspaceEdits(baselineWorkspace,workingWorkspace,remoteWorkspace);
           cloudReady = true;
           cloudLoading = false;
           elements.accountButton.textContent = "Accounts";
@@ -1869,7 +1872,7 @@ button.addEventListener("click", () => {
           elements.accountButton.disabled = false;
           elements.profileButton.hidden = false;
           elements.storageCopy.textContent = "Showing the saved copy on this device. Reconnect to sync newer changes.";
-          state = cachedWorkspace || localWorkspace;
+          state = recoveryWorkspace || localWorkspace;
           render();
           elements.saveLabel.textContent = "Offline copy";
           elements.saveDot.style.background = "var(--orange)";

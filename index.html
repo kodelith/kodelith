@@ -2402,70 +2402,56 @@ async function sendAiMessage(event) {
 
       let cssColorPickerOpen = false;
       function renderCssColorDecorations(source) {
-        // Do not replace the active color input while its native picker is open.
         if (cssColorPickerOpen) return;
         const layer = elements.cssColorDecorations;
         layer.replaceChildren();
         if (fileKind(currentProject()?.activeFile || "") !== "css") return;
 
-        const lines = source.split("\n");
-        const colorPattern = /#(?:[0-9a-f]{3,4}|[0-9a-f]{6}|[0-9a-f]{8})\b|\b(?:rgba?|hsla?)\([^)]*\)|\b[a-zA-Z]+\b/gi;
-        const layerRect = layer.getBoundingClientRect();
         const nativeEditor = document.getElementById("codeEditor");
         const nativeRect = nativeEditor.getBoundingClientRect();
         const nativeStyle = getComputedStyle(nativeEditor);
+        const layerRect = layer.getBoundingClientRect();
         const canvas = document.createElement("canvas");
         const ctx = canvas.getContext("2d");
-        ctx.font = codeMirror
-          ? getComputedStyle(codeMirror.getWrapperElement()).font
-          : nativeStyle.font;
-        const lineHeight = codeMirror
-          ? (parseFloat(getComputedStyle(codeMirror.getWrapperElement()).lineHeight) || 21)
-          : (parseFloat(nativeStyle.lineHeight) || 21);
+        ctx.font = nativeStyle.font;
+        const lineHeight = parseFloat(nativeStyle.lineHeight) || 21;
         let offset = 0;
 
-        // CodeMirror replaces the textarea with its own scrolling editor.
-        // Use its character coordinates when active; use textarea metrics only
-        // in the native fallback. Never measure the proxy editor object.
         const positionFor = (lineIndex, column, line) => {
           if (codeMirror) {
-            const coords = codeMirror.charCoords({ line: lineIndex, ch: column }, "page");
-            const x = coords.right - layerRect.left - window.scrollX + 5;
+            // charCoords describes the character at this position, so use
+            // the final character of the color token, not the next position.
+            const coords = codeMirror.charCoords({ line: lineIndex, ch: Math.max(0, column - 1) }, "page");
+            const x = coords.right - layerRect.left - window.scrollX + 7;
             const y = coords.top - layerRect.top - window.scrollY + 4;
-            if (coords.bottom < layerRect.top + window.scrollY ||
-                coords.top > layerRect.bottom + window.scrollY) return null;
+            if (coords.bottom < layerRect.top + window.scrollY || coords.top > layerRect.bottom + window.scrollY) return null;
             return { x, y };
           }
-          const paddingTop = parseFloat(nativeStyle.paddingTop) || 16;
-          const paddingLeft = parseFloat(nativeStyle.paddingLeft) || 18;
-          const x = nativeRect.left - layerRect.left + paddingLeft
-            + ctx.measureText(line.slice(0, column)).width + 5
-            - nativeEditor.scrollLeft;
-          const y = nativeRect.top - layerRect.top + paddingTop
+          const x = nativeRect.left - layerRect.left + (parseFloat(nativeStyle.paddingLeft) || 18)
+            + ctx.measureText(line.slice(0, column)).width - nativeEditor.scrollLeft + 5;
+          const y = nativeRect.top - layerRect.top + (parseFloat(nativeStyle.paddingTop) || 16)
             + lineIndex * lineHeight + 4 - nativeEditor.scrollTop;
           if (y < -lineHeight || y > layer.clientHeight) return null;
           return { x, y };
         };
 
-        const makePicker = (value, start, end, label) => {
+        const makePicker = (value, start, end) => {
           const button = document.createElement("button");
           button.type = "button";
           button.className = "css-color-decoration";
-          button.style.setProperty("--css-swatch", value || "#000000");
-          button.title = label;
-          button.setAttribute("aria-label", label);
+          button.style.setProperty("--css-swatch", value);
+          button.title = "Change CSS color: " + value;
+          button.setAttribute("aria-label", "Change CSS color: " + value);
           const picker = document.createElement("input");
           picker.type = "color";
           picker.value = (() => {
             const probe = document.createElement("span");
-            probe.style.color = value || "#000000";
+            probe.style.color = value;
             document.body.append(probe);
             const computed = getComputedStyle(probe).color;
             probe.remove();
             const nums = computed.match(/\d+/g);
-            return nums && nums.length >= 3
-              ? "#" + nums.slice(0, 3).map(n => Number(n).toString(16).padStart(2, "0")).join("")
-              : "#000000";
+            return nums && nums.length >= 3 ? "#" + nums.slice(0, 3).map(n => Number(n).toString(16).padStart(2, "0")).join("") : "#000000";
           })();
           picker.setAttribute("aria-label", "Choose replacement color");
           picker.addEventListener("focus", () => { cssColorPickerOpen = true; });
@@ -2474,38 +2460,29 @@ async function sendAiMessage(event) {
             cssColorPickerOpen = false;
             elements.editor.focus();
             saveEditorValue();
-            renderCssColorDecorations(elements.editor.value);
           });
           button.append(picker);
           return button;
         };
 
+        const colorProperties = /^(?:color|background|background-color|border(?:-(?:top|right|bottom|left))?(?:-color)?|outline(?:-color)?|text-decoration-color|fill|stroke)$/i;
+        const colorPattern = /#(?:[0-9a-f]{3,4}|[0-9a-f]{6}|[0-9a-f]{8})\b|\b(?:rgba?|hsla?)\([^)]*\)|\b[a-z][a-z-]*\b/gi;
+        const lines = source.split("\n");
         lines.forEach((line, lineIndex) => {
           const masked = line.replace(/\/\*[\s\S]*?\*\/|(["'])(?:\\.|(?!\1)[^\\])*?\1/g, match => " ".repeat(match.length));
-          let match;
-          colorPattern.lastIndex = 0;
-          while ((match = colorPattern.exec(masked))) {
-            const value = match[0];
-            const tokenIndex = match.index;
-            if (!window.CSS || !CSS.supports("color", value)) continue;
-            // Only decorate values inside declarations that can contain a CSS color.
-            const before = masked.slice(0, tokenIndex);
-            if (!/^\s*(?:color|background|background-color|border(?:-(?:top|right|bottom|left))?-color|outline-color|text-decoration-color|fill|stroke)\s*:\s*[^;]*$/i.test(before)) continue;
-            const position = positionFor(lineIndex, tokenIndex + value.length, line);
-            if (!position) continue;
-            const button = makePicker(value, offset + tokenIndex, offset + tokenIndex + value.length, "Change CSS color: " + value);
-            button.style.left = Math.max(54, position.x) + "px";
-            button.style.top = position.y + "px";
-            layer.append(button);
-          }
-
-          // Offer a picker for an empty color property value.
-          const emptyColorMatch = /\b(?:color|background-color|border-color|border-top-color|border-right-color|border-bottom-color|border-left-color|outline-color|text-decoration-color|fill|stroke)\s*:\s*(?=;|$)/i.exec(masked);
-          if (emptyColorMatch) {
-            const insertAt = offset + emptyColorMatch.index + emptyColorMatch[0].length;
-            const position = positionFor(lineIndex, emptyColorMatch.index + emptyColorMatch[0].length, line);
-            if (position) {
-              const button = makePicker("#000000", insertAt, insertAt, "Choose a CSS color");
+          const declaration = /^\s*([a-z-]+)\s*:\s*([^;}]*)/i.exec(masked);
+          if (declaration && colorProperties.test(declaration[1])) {
+            const valueStart = declaration.index + declaration[0].lastIndexOf(declaration[2]);
+            colorPattern.lastIndex = 0;
+            let match;
+            while ((match = colorPattern.exec(declaration[2]))) {
+              const value = match[0];
+              if (!window.CSS || !CSS.supports("color", value)) continue;
+              const tokenStart = valueStart + match.index;
+              const tokenEnd = tokenStart + value.length;
+              const position = positionFor(lineIndex, tokenEnd, line);
+              if (!position) continue;
+              const button = makePicker(value, offset + tokenStart, offset + tokenEnd);
               button.style.left = Math.max(54, position.x) + "px";
               button.style.top = position.y + "px";
               layer.append(button);
@@ -2514,7 +2491,6 @@ async function sendAiMessage(event) {
           offset += line.length + 1;
         });
       }
-
 
       function renderSyntaxHighlight() {
         const file = currentProject()?.activeFile || "";

@@ -2409,24 +2409,39 @@ async function sendAiMessage(event) {
         const lines = source.split("\n");
         const colorPattern = /#(?:[0-9a-f]{3,4}|[0-9a-f]{6}|[0-9a-f]{8})\b|\b(?:rgba?|hsla?)\([^)]*\)|\b[a-zA-Z]+\b/gi;
         const layerRect = layer.getBoundingClientRect();
-        const editorRect = elements.editor.getBoundingClientRect();
-        const editorStyle = getComputedStyle(elements.editor);
+        const nativeEditor = document.getElementById("codeEditor");
+        const nativeRect = nativeEditor.getBoundingClientRect();
+        const nativeStyle = getComputedStyle(nativeEditor);
         const canvas = document.createElement("canvas");
         const ctx = canvas.getContext("2d");
-        ctx.font = editorStyle.font;
-        const lineHeight = parseFloat(editorStyle.lineHeight) || 21;
-        const paddingTop = parseFloat(editorStyle.paddingTop) || 16;
-        const paddingLeft = parseFloat(editorStyle.paddingLeft) || 18;
+        ctx.font = codeMirror
+          ? getComputedStyle(codeMirror.getWrapperElement()).font
+          : nativeStyle.font;
+        const lineHeight = codeMirror
+          ? (parseFloat(getComputedStyle(codeMirror.getWrapperElement()).lineHeight) || 21)
+          : (parseFloat(nativeStyle.lineHeight) || 21);
         let offset = 0;
 
-        // Measure against the actual textarea, not CodeMirror's stale page
-        // coordinates. This keeps swatches aligned after scrolling/resizing.
+        // CodeMirror replaces the textarea with its own scrolling editor.
+        // Use its character coordinates when active; use textarea metrics only
+        // in the native fallback. Never measure the proxy editor object.
         const positionFor = (lineIndex, column, line) => {
-          const x = editorRect.left - layerRect.left + paddingLeft
+          if (codeMirror) {
+            const coords = codeMirror.charCoords({ line: lineIndex, ch: column }, "page");
+            const scroll = codeMirror.getScrollInfo();
+            const x = coords.left - layerRect.left - window.scrollX - 16;
+            const y = coords.top - layerRect.top - window.scrollY + 4;
+            if (coords.bottom < layerRect.top + window.scrollY ||
+                coords.top > layerRect.bottom + window.scrollY) return null;
+            return { x, y };
+          }
+          const paddingTop = parseFloat(nativeStyle.paddingTop) || 16;
+          const paddingLeft = parseFloat(nativeStyle.paddingLeft) || 18;
+          const x = nativeRect.left - layerRect.left + paddingLeft
             + ctx.measureText(line.slice(0, column)).width - 16
-            - elements.editor.scrollLeft;
-          const y = editorRect.top - layerRect.top + paddingTop
-            + lineIndex * lineHeight + 4 - elements.editor.scrollTop;
+            - nativeEditor.scrollLeft;
+          const y = nativeRect.top - layerRect.top + paddingTop
+            + lineIndex * lineHeight + 4 - nativeEditor.scrollTop;
           if (y < -lineHeight || y > layer.clientHeight) return null;
           return { x, y };
         };

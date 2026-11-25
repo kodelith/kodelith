@@ -1979,9 +1979,9 @@ button.addEventListener("click", () => {
         elements.projectsCount.textContent = "";
         elements.projectsList.replaceChildren();
         elements.fileList.replaceChildren();
-        elements.fileList.addEventListener("dragover",event=>{if(event.dataTransfer.types.includes("application/x-orbit-file")){event.preventDefault();event.dataTransfer.dropEffect="move";elements.fileList.classList.add("orbit-drop-root");}});
-        elements.fileList.addEventListener("dragleave",event=>{if(!elements.fileList.contains(event.relatedTarget))elements.fileList.classList.remove("orbit-drop-root");});
-        elements.fileList.addEventListener("drop",event=>{const source=event.dataTransfer.getData("application/x-orbit-file");if(source&&!event.target.closest(".explorer-folder-row")){event.preventDefault();elements.fileList.classList.remove("orbit-drop-root");moveExplorerFile(source,"");}});
+        elements.fileList.ondragover=event=>{if(event.dataTransfer.types.includes("application/x-orbit-file")){event.preventDefault();event.dataTransfer.dropEffect="move";elements.fileList.classList.add("orbit-drop-root");}};
+        elements.fileList.ondragleave=event=>{if(!elements.fileList.contains(event.relatedTarget))elements.fileList.classList.remove("orbit-drop-root");};
+        elements.fileList.ondrop=event=>{const source=event.dataTransfer.getData("application/x-orbit-file");if(source&&!event.target.closest?.(".explorer-folder-row")){event.preventDefault();elements.fileList.classList.remove("orbit-drop-root");moveExplorerFile(source,"");}};
         const collapsedExplorerFolders = window.orbitCollapsedExplorerFolders || (window.orbitCollapsedExplorerFolders = new Set());
         const folders = new Set(project.folders || []);
         for (const file of Object.keys(project.files)) {
@@ -2830,12 +2830,12 @@ async function sendAiMessage(event) {
         const linkedScripts = [];
         html = html.replace(/<link\b[^>]*\bhref\s*=\s*(["'])(.*?)\1[^>]*>/gi,(tag,q,href)=>{
           if(!/\.css(?:$|[?#])/i.test(href))return tag;
-          const path=resolvePreviewAsset(fileName,href),content=files[path];
+          const path=resolvePreviewAsset(fileName,href),fallback=String(href).split(/[?#]/)[0].replace(/^\.\//,""),content=typeof files[path]==="string"?files[path]:files[fallback];
           if(typeof content!=="string")return tag;
           linkedStyles.push(content);return "";
         });
         html = html.replace(/<script\b[^>]*\bsrc\s*=\s*(["'])(.*?)\1[^>]*>\s*<\/script\s*>/gi,(tag,q,src)=>{
-          const path=resolvePreviewAsset(fileName,src),content=files[path];
+          const path=resolvePreviewAsset(fileName,src),fallback=String(src).split(/[?#]/)[0].replace(/^\.\//,""),content=typeof files[path]==="string"?files[path]:files[fallback];
           if(typeof content!=="string")return tag;
           linkedScripts.push(content);return "";
         });
@@ -3947,18 +3947,26 @@ async function sendAiMessage(event) {
       }
 
       function moveExplorerFile(sourcePath,targetFolder) {
-         const project=currentProject();if(!project||!Object.hasOwn(project.files,sourcePath))return false;
-         const fileName=sourcePath.split("/").pop(),destination=targetFolder?targetFolder+"/"+fileName:fileName;
+         const project=currentProject();
+         if(!project||!Object.hasOwn(project.files,sourcePath))return false;
+         if(project.activeFile===sourcePath&&elements.editor.dataset.file===sourcePath)saveEditorValue();
+         const fileName=sourcePath.split("/").pop();
+         const destination=targetFolder?targetFolder+"/"+fileName:fileName;
          if(destination===sourcePath){showToast("That file is already in this folder.");return false;}
          if(targetFolder===sourcePath||targetFolder.startsWith(sourcePath+"/")){showToast("A file cannot be moved into itself.");return false;}
          if(Object.hasOwn(project.files,destination)){showToast("A file with that name already exists in the destination folder.");return false;}
          project.files[destination]=project.files[sourcePath];delete project.files[sourcePath];
-         project.openFiles=project.openFiles.map(file=>file===sourcePath?destination:file);
+         project.openFiles=(project.openFiles||[]).map(file=>file===sourcePath?destination:file);
          if(project.activeFile===sourcePath)project.activeFile=destination;
          if(elements.editor.dataset.file===sourcePath)elements.editor.dataset.file=destination;
+         if(project.previewFile===sourcePath)project.previewFile=destination;
+         if(currentPreviewFile===sourcePath)currentPreviewFile=destination;
          if(!Array.isArray(project.folders))project.folders=[];
          let path="";for(const part of destination.split("/").slice(0,-1)){path=path?path+"/"+part:part;if(!project.folders.includes(path))project.folders.push(path);}
-         render();scheduleSave();if(typeof scheduleOrbitContextSync==="function")scheduleOrbitContextSync();showToast("Moved "+fileName+" to "+(targetFolder||"workspace")+".");return true;
+         render();scheduleSave();
+         if(typeof scheduleOrbitContextSync==="function")scheduleOrbitContextSync();
+         buildPreview(project.previewFile);
+         showToast("Moved "+fileName+" to "+(targetFolder||"workspace")+".");return true;
        }
 
        function createFile(name) {

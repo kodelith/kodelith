@@ -2022,7 +2022,24 @@ button.addEventListener("click", () => {
       }
 
       function render() {
-        const project = currentProject();
+        let project = currentProject();
+        const projectIds = Object.keys(state.projects || {});
+        // Recover gracefully if a stale workspace selection points to a missing project.
+        if (!project && projectIds.length) {
+          state.activeProject = projectIds[0];
+          project = currentProject();
+        }
+        if (project) {
+          if (!project.files || typeof project.files !== "object" || Array.isArray(project.files)) project.files = {};
+          if (!Array.isArray(project.openFiles)) project.openFiles = [];
+          project.openFiles = project.openFiles.filter(file => Object.hasOwn(project.files, file));
+          // If the saved active tab is stale, reopen the last valid tab instead of showing a blank editor.
+          if (project.activeFile && !Object.hasOwn(project.files, project.activeFile)) {
+            project.activeFile = project.openFiles.at(-1) || Object.keys(project.files)[0] || "";
+          }
+          if (!project.activeFile && project.openFiles.length) project.activeFile = project.openFiles[project.openFiles.length - 1];
+          if (project.activeFile && !project.openFiles.includes(project.activeFile)) project.openFiles.push(project.activeFile);
+        }
         if (!project) {
           document.getElementById("projectSwitcher").disabled = true;
           elements.projectName.textContent = "Workspace"; elements.folderName.textContent = "WORKSPACE"; elements.statusProject.textContent = "Workspace";

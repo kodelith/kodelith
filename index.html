@@ -2735,14 +2735,22 @@ async function sendAiMessage(event) {
       }
 
       let cssColorPickerOpen = false;
+      let cssColorBookmarks = [];
       function renderCssColorDecorations(source) {
         const layer=elements.cssColorDecorations;
         if(!layer)return;
+        // Keep color swatches attached to the actual CSS text in CodeMirror.
+        // Clear old inline bookmarks before rebuilding them for the current text.
+        if(cssColorPickerOpen)return;
+        cssColorBookmarks.forEach(marker=>{try{marker.clear();}catch(_){}}); 
+        cssColorBookmarks=[];
         layer.replaceChildren();
-        if(cssColorPickerOpen||fileKind(currentProject()?.activeFile||"")!=="css")return;
-        const layerRect=layer.getBoundingClientRect();
+        const isCss=fileKind(currentProject()?.activeFile||"")==="css";
+        layer.hidden=!!codeMirror||!isCss;
+        if(!isCss)return;
         const nativeEditor=document.getElementById("codeEditor");
         const nativeRect=nativeEditor.getBoundingClientRect();
+        const layerRect=layer.getBoundingClientRect();
         const nativeStyle=getComputedStyle(nativeEditor);
         const canvas=document.createElement("canvas");
         const ctx=canvas.getContext("2d");
@@ -2754,14 +2762,6 @@ async function sendAiMessage(event) {
           let low=0,high=lineStarts.length-1;
           while(low<high){const mid=Math.ceil((low+high)/2);if(lineStarts[mid]<=offset)low=mid;else high=mid-1;}
           const lineIndex=low,column=offset-lineStarts[lineIndex];
-          if(codeMirror){
-            const coords=codeMirror.charCoords(codeMirror.posFromIndex(Math.max(0,offset-1)),"page");
-            const x=coords.right-layerRect.left-window.scrollX+5;
-            const y=(coords.top+coords.bottom)/2-layerRect.top-window.scrollY-6;
-            if(coords.bottom<=layerRect.top+window.scrollY||coords.top>=layerRect.bottom+window.scrollY)return null;
-            if(x<0||x>layer.clientWidth-13)return null;
-            return{x,y};
-          }
           const nextBreak=source.indexOf("\n",lineStarts[lineIndex]);
           const line=source.slice(lineStarts[lineIndex],nextBreak<0?source.length:nextBreak);
           const x=nativeRect.left-layerRect.left+(parseFloat(nativeStyle.paddingLeft)||18)+ctx.measureText(line.slice(0,column)).width-nativeEditor.scrollLeft+5;
@@ -2775,6 +2775,11 @@ async function sendAiMessage(event) {
           button.style.setProperty("--css-swatch",value);
           button.title="Change CSS color: "+value;
           button.setAttribute("aria-label","Change CSS color: "+value);
+          if(codeMirror){
+            // Inline bookmark: the color text and punctuation remain visible,
+            // and the swatch occupies its own place directly after the value.
+            button.style.cssText+=";position:relative;left:auto;top:auto;display:inline-block;vertical-align:middle;margin:0 4px;width:12px;height:12px;flex:none;";
+          }
           const picker=document.createElement("input");
           picker.type="color";picker.setAttribute("aria-label","Choose replacement color");
           picker.value=(()=>{
@@ -2817,12 +2822,17 @@ async function sendAiMessage(event) {
             const token=match[0];
             if(!window.CSS||!CSS.supports("color",token))continue;
             const start=valueStart+match.index,end=start+token.length;
-            const position=positionFor(end);
-            if(!position)continue;
             const button=makePicker(token,start,end);
-            button.style.left=position.x+"px";
-            button.style.top=position.y+"px";
-            layer.append(button);
+            if(codeMirror){
+              const marker=codeMirror.setBookmark(codeMirror.posFromIndex(end),{widget:button,insertLeft:false});
+              if(marker)cssColorBookmarks.push(marker);
+            }else{
+              const position=positionFor(end);
+              if(!position)continue;
+              button.style.left=position.x+"px";
+              button.style.top=position.y+"px";
+              layer.append(button);
+            }
           }
         }
       }

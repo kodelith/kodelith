@@ -518,6 +518,9 @@
     body.dark-theme .ai-key-note{background:#1d3028;border-color:#315b45;color:#c6d8cd}
     @media(max-width:650px){.ai-panel{width:100%;border:0}.ai-setup{padding:14px}.ai-setup-card{padding:15px}}
     .ai-messages[hidden],.ai-composer[hidden]{display:none!important}
+
+    #networkStatusBanner { position:fixed; top:12px; left:50%; transform:translateX(-50%); z-index:10000; width:min(560px,calc(100vw - 28px)); padding:11px 15px; border:1px solid #b42318; border-radius:9px; background:#fff1f0; color:#8f1d16; box-shadow:0 5px 22px #0002; font-size:12px; line-height:1.5; font-weight:600; text-align:center; }
+    #networkStatusBanner[hidden] { display:none !important; }
 </style>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/codemirror@5.65.21/lib/codemirror.css">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/codemirror@5.65.21/theme/eclipse.css">
@@ -3136,13 +3139,17 @@ async function sendAiMessage(event) {
         if (!project) return;
         const file = project.activeFile;
         if (!file || !Object.hasOwn(project.files, file)) return;
-        project.files[file] = elements.editor.value;
+        const previousContent = project.files[file];
+        const nextContent = elements.editor.value;
+        const contentChanged = previousContent !== nextContent;
+        project.files[file] = nextContent;
         updateLineNumbers();
         updateCursorPosition();
         scheduleSave();
-        schedulePreview();
+        // Blur, tab switching, and routine saves must not rebuild the preview.
+        if (contentChanged) schedulePreview();
         if (typeof renderCssColorDecorations === "function") renderCssColorDecorations(elements.editor.value);
-        if (typeof scheduleOrbitContextSync === "function") scheduleOrbitContextSync();
+        if (typeof scheduleOrbitContextSync === "function" && contentChanged) scheduleOrbitContextSync();
       }
 
       let currentPreviewFile = "";
@@ -5201,6 +5208,17 @@ async function sendAiMessage(event) {
           void saveCloudProjects();
         }
       });
+
+      // Give a clear, persistent warning when the browser has no network connection.
+      const networkStatusBanner = document.createElement("div");
+      networkStatusBanner.id = "networkStatusBanner";
+      networkStatusBanner.setAttribute("role", "alert");
+      networkStatusBanner.setAttribute("aria-live", "assertive");
+      networkStatusBanner.textContent = "No internet connection. Cloud sign-in and syncing may be unavailable; your local workspace remains available.";
+      networkStatusBanner.hidden = navigator.onLine;
+      document.body.append(networkStatusBanner);
+      window.addEventListener("offline", () => { networkStatusBanner.hidden = false; });
+      window.addEventListener("online", () => { networkStatusBanner.hidden = true; });
 
       render();
       if (codeMirror) codeMirror.refresh();

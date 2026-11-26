@@ -2377,7 +2377,7 @@ button.addEventListener("click", () => {
       }
       function connectAiProvider() {
         const provider=document.getElementById("aiProvider").value;
-        const endpoint=document.getElementById("aiEndpoint").value.trim().replace(/\\/+$/,"");
+        const endpoint=document.getElementById("aiEndpoint").value.trim().replace(/[/]+$/,"");
         const model=document.getElementById("aiModelInput").value.trim();
         const enteredKey=document.getElementById("aiApiKey").value.trim();
         const key=enteredKey||aiApiKey;
@@ -2388,7 +2388,7 @@ button.addEventListener("click", () => {
         if(parsed.protocol!=="https:"&&!(parsed.protocol==="http:"&&["localhost","127.0.0.1"].includes(parsed.hostname))){setAiSetupMessage("For safety, API endpoints must use HTTPS (HTTP is allowed only for localhost).",false,true);return;}
         if(parsed.username||parsed.password||parsed.search||parsed.hash){setAiSetupMessage("Remove credentials, query strings and fragments from the endpoint URL.",false,true);return;}
         aiApiKey=key;
-        aiProviderConfig={provider,endpoint:parsed.href.replace(/\\/+$/,""),model};
+        aiProviderConfig={provider,endpoint:parsed.href.replace(/[/]+$/,""),model};
         document.getElementById("aiApiKey").value="";
         document.getElementById("aiApiKey").placeholder="Active for this tab — leave blank to keep it";
         document.getElementById("aiForgetKey").hidden=false;

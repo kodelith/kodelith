@@ -3803,7 +3803,8 @@ async function sendAiMessage(event) {
         const js=typeof files["script.js"]==="string"?files["script.js"]:"";
         html=html.replace(/<link\b(?=[^>]*\bhref\s*=\s*["']style\.css["'])[^>]*>/gi,"");
         html=html.replace(/<script\b(?=[^>]*\bsrc\s*=\s*["']script\.js["'])[^>]*>\s*<\/script\s*>/gi,"");
-        const styleTag=css?"<style>"+css+"</style>":"";\n        const scriptTag=js?"<script>"+js.replace(/<\/script/gi,"<\\/script")+"<" + "/script>":"";
+        const styleTag=css?"<style>"+css+"</style>":"";
+        const scriptTag=js?"<script>"+js.replace(/<\/script/gi,"<\\/script")+"<" + "/script>":"";
         if(/<\/head\s*>/i.test(html))html=html.replace(/<\/head\s*>/i,styleTag+"</head>");
         else html=styleTag+html;
         if(scriptTag){if(/<\/body\s*>/i.test(html))html=html.replace(/<\/body\s*>/i,scriptTag+"</body>");else html+=scriptTag;}

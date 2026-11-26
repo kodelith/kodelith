@@ -972,11 +972,6 @@ body.dark-theme .ai-composer textarea{background:var(--editor-bg);color:var(--te
         </div>
         <span class="brand-name">orbit</span><span class="brand-caption">web studio</span>
       </div>
-      <button class="project-switcher" id="projectSwitcher" type="button" aria-label="Workspace" disabled>
-        <span class="project-symbol" aria-hidden="true">▰</span>
-        <span class="project-switcher-name" id="projectName">Workspace</span>
-        <span class="chevron" aria-hidden="true">▾</span>
-      </button>
       <div class="topbar-spacer"></div>
       <button class="top-action" id="themeToggle" type="button" title="Switch color theme" aria-label="Switch color theme" aria-pressed="false">◐</button>
       <div class="save-state" title="Saved in this browser">
@@ -1463,7 +1458,6 @@ button.addEventListener("click", () => {
       };
 
       const elements = {
-        projectName: document.getElementById("projectName"),
         folderName: document.getElementById("folderName"),
         statusProject: document.getElementById("statusProject"),
         fileList: document.getElementById("fileList"),
@@ -2041,8 +2035,7 @@ button.addEventListener("click", () => {
           if (project.activeFile && !project.openFiles.includes(project.activeFile)) project.openFiles.push(project.activeFile);
         }
         if (!project) {
-          document.getElementById("projectSwitcher").disabled = true;
-          elements.projectName.textContent = "Workspace"; elements.folderName.textContent = "WORKSPACE"; elements.statusProject.textContent = "Workspace";
+elements.folderName.textContent = "WORKSPACE"; elements.statusProject.textContent = "Workspace";
           elements.projectsList.replaceChildren(); elements.fileList.replaceChildren(); elements.tabs.replaceChildren();
           elements.editor.dataset.file = ""; elements.editor.value = ""; elements.editor.hidden = true; elements.gutter.hidden = true; elements.emptyEditor.hidden = false;
           elements.editor.closest(".editor-surface").classList.remove("html-editing"); elements.statusFile.textContent = "NO FILE";
@@ -2054,7 +2047,6 @@ button.addEventListener("click", () => {
           setPreviewDocument("<!doctype html><html><head><meta charset=utf-8></head><body style='font:14px system-ui;padding:24px;color:#777'>Create a file to get started.</body></html>");
           return;
         }
-        document.getElementById("projectSwitcher").disabled = false;
         for (const id of ["newFileButton","newFolderButton","explorerMoreButton"]) document.getElementById(id).hidden = false;
         if (!Array.isArray(project.folders)) project.folders = [];
         const repairedInternalSource = repairLeakedProjectSource(project);
@@ -2065,7 +2057,6 @@ button.addEventListener("click", () => {
             showToast("Recovered Orbit's editor from an accidental internal-code paste. Your other project files were kept.");
           });
         }
-        elements.projectName.textContent = project.name;
         elements.folderName.textContent = project.name.toLocaleUpperCase();
         elements.statusProject.textContent = project.name;
         elements.projectsCount.textContent = String(Object.keys(state.projects).length);
@@ -2084,7 +2075,6 @@ button.addEventListener("click", () => {
           });
           elements.projectsList.append(row);
         }
-        elements.projectName.textContent = "Workspace";
         elements.folderName.textContent = "WORKSPACE";
         elements.statusProject.textContent = "Workspace";
         elements.projectsCount.textContent = "";
@@ -4649,15 +4639,6 @@ async function sendAiMessage(event) {
             return created;
           }
         });
-      });
-      document.getElementById("projectSwitcher").addEventListener("click", () => {
-        const ids=Object.keys(state.projects);
-        if(ids.length>1){const index=ids.indexOf(state.activeProject);selectProject(ids[(index+1)%ids.length]);}
-        else if(ids.length===1) showToast("Right-click the workspace name to rename or delete this project.");
-      });
-      document.getElementById("projectSwitcher").addEventListener("contextmenu",event=>{
-        event.preventDefault();
-        if(state.activeProject) showProjectContextMenu(event.clientX,event.clientY,state.activeProject);
       });
       document.getElementById("sidebarNewProject").addEventListener("click", () => document.getElementById("newProjectButton").click());
       function beginFirstFile() {

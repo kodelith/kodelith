@@ -3237,7 +3237,7 @@ async function sendAiMessage(event) {
         const scrollCode = "(function(){var scheduled=false;function report(){parent.postMessage({type:'orbit-preview-scroll',x:window.scrollX,y:window.scrollY},'*');}window.addEventListener('scroll',function(){if(scheduled)return;scheduled=true;requestAnimationFrame(function(){scheduled=false;report();});},{passive:true});window.addEventListener('message',function(e){var d=e.data;if(d&&d.type==='orbit-preview-restore-scroll'){window.scrollTo(Number(d.x)||0,Number(d.y)||0);requestAnimationFrame(report);}});})();";
         const liveCode = "(function(){window.addEventListener('message',function(e){var d=e.data;if(!d||d.type!=='kodelith-live-update')return;if(d.kind==='css'){var style=document.getElementById('kodelith-live-css');if(style)style.textContent=String(d.content||'');}else if(d.kind==='js'){var old=document.getElementById('kodelith-live-js');if(old)old.remove();var script=document.createElement('script');script.id='kodelith-live-js';script.text=String(d.content||'');document.body.appendChild(script);}});})();";
         const liveTag = "<script>" + liveCode + "\n<" + "/script>";
-        const scrollTag = "<script>" + scrollCode + "\\n<" + "/script>";
+        const scrollTag = "<script>" + scrollCode + "\n<" + "/script>";
 
         if (/<\/body\s*>/i.test(html)) html = html.replace(/<\/body\s*>/i, scriptTag + navigationTag + liveTag + scrollTag + "</body>");
         else html += scriptTag + navigationTag + liveTag + scrollTag;

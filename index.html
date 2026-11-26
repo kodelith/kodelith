@@ -1032,7 +1032,7 @@ body.dark-theme .ai-composer textarea{background:var(--editor-bg);color:var(--te
         <div class="editor-top">
           <div class="tabs" id="tabs" role="tablist" aria-label="Open files"></div>
           <div class="editor-toolbar">
-            <button class="toolbar-button" id="aiToggle" type="button" title="Open AI">✦ AI</button>
+            <button class="toolbar-button" id="aiToggle" type="button" title="Open personal AI">✦ AI</button>
             <button class="toolbar-button active" id="previewToggle" type="button" aria-pressed="true"><span aria-hidden="true">◉</span><span>Preview</span></button>
             <button class="toolbar-button" id="undoButton" type="button" title="Undo">↶ Undo</button>
             <button class="toolbar-button" id="redoButton" type="button" title="Redo">↷ Redo</button>
@@ -1144,7 +1144,7 @@ body.dark-theme .ai-composer textarea{background:var(--editor-bg);color:var(--te
       <div class="ai-setup-card">
         <div class="ai-setup-kicker">PERSONAL AI · BYOK</div>
         <h3>Connect your own AI</h3>
-        <p>Use an API key from an OpenAI-compatible provider. Orbit sends requests directly from this browser to the provider you choose. Your key is held in memory for this tab only; it is not saved to your Orbit account or project.</p>
+        <p>Use an API key from an OpenAI-compatible provider. Orbit sends requests directly from this browser to the provider you choose. Your key is held in memory for this tab only; it is not saved to your Orbit account or project. It is sent directly to the selected provider, so use a trusted device.</p>
         <label class="ai-field">Provider
           <select id="aiProvider">
             <option value="openai">OpenAI</option>
@@ -1164,7 +1164,7 @@ body.dark-theme .ai-composer textarea{background:var(--editor-bg);color:var(--te
         <label class="ai-field">API key
           <input id="aiApiKey" type="password" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Paste your provider API key">
         </label>
-        <div class="ai-key-note"><span aria-hidden="true">◆</span> Never paste your key into project code. Orbit does not store it. Closing or refreshing this tab clears it.</div>
+        <div class="ai-key-note"><span aria-hidden="true">◆</span> Never paste your key into project code. Orbit does not store it. Closing or refreshing this tab clears it. Only use keys you are allowed to use.</div>
         <div class="ai-setup-actions">
           <button type="button" class="primary" id="aiConnectButton">Connect AI</button>
           <button type="button" id="aiForgetKey" hidden>Forget active key</button>
@@ -1173,7 +1173,7 @@ body.dark-theme .ai-composer textarea{background:var(--editor-bg);color:var(--te
       </div>
       <div class="ai-setup-card ai-provider-help">
         <h3>Before connecting</h3>
-        <p>Your provider may charge for API usage. Check its pricing and usage limits first. Only OpenAI-compatible chat-completions endpoints are supported. Your provider must allow browser CORS requests. Custom endpoints must use HTTPS (or localhost).</p>
+        <p>Your provider may charge for API usage. Check pricing and usage limits with a parent or guardian before enabling paid usage. Only OpenAI-compatible chat-completions endpoints are supported. Your provider must allow browser CORS requests. Custom endpoints must use HTTPS (or localhost).</p>
       </div>
     </section>
     <div class="ai-messages" id="aiMessages" aria-live="polite" hidden>

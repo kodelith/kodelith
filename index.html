@@ -2328,7 +2328,7 @@ elements.folderName.textContent = "WORKSPACE"; elements.statusProject.textConten
         elements.statusFile.textContent = editorReady ? fileKind(activeFile).toUpperCase() : "NO FILE";
         elements.previewUrl.textContent = `kodelith://preview/${Object.keys(project.files).length ? (project.files["index.html"] ? "index.html" : "no-entry-file") : "empty"}`;
         renderCssColorDecorations(elements.editor.value);
-        schedulePreview();
+        // Rendering or switching editor tabs must never refresh the live preview.
       }
 
       function activateFile(file) {

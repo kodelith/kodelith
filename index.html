@@ -286,7 +286,9 @@
     .preview-zoom-controls button{border:1px solid #d1d5db;border-radius:6px;background:#fff;padding:4px 7px;color:#222;cursor:pointer;font:inherit;}
     .preview-zoom-controls output{min-width:34px;text-align:center;font-variant-numeric:tabular-nums;}
     .preview-frame { display:block; width:100%; max-width:100%; height:100%; min-height:0; min-width:0; flex:1 1 auto; border:0; border-radius:7px; background:white; box-shadow:0 2px 12px #00000012; transform-origin:top center; transition:width .18s ease,transform .12s ease; overflow:auto; overscroll-behavior:contain; }
-    .preview-bottom-splitter { display:none; height:7px; flex:0 0 7px; cursor:row-resize; touch-action:none; background:var(--line); position:relative; z-index:6; }\n    .preview-bottom-splitter:hover,.preview-bottom-splitter.dragging,.preview-bottom-splitter:focus { background:var(--accent); outline:none; }\n    .preview-dimensions { flex:0 0 auto; padding:5px 12px 8px; color:var(--muted); background:#e8e8e8; text-align:center; font:10px "SFMono-Regular",Consolas,monospace; }
+    .preview-bottom-splitter { display:none; height:7px; flex:0 0 7px; cursor:row-resize; touch-action:none; background:var(--line); position:relative; z-index:6; }
+    .preview-bottom-splitter:hover,.preview-bottom-splitter.dragging,.preview-bottom-splitter:focus { background:var(--accent); outline:none; }
+    .preview-dimensions { flex:0 0 auto; padding:5px 12px 8px; color:var(--muted); background:#e8e8e8; text-align:center; font:10px "SFMono-Regular",Consolas,monospace; }
     .preview-device { width:104px; height:25px; padding:0 6px; border:1px solid var(--line); border-radius:6px; background:var(--panel-raised); color:var(--text); font-size:10px; }
     .command-backdrop { position:fixed; inset:0; z-index:100; display:flex; justify-content:center; align-items:flex-start; padding: min(15vh,110px) 16px 20px; background:#10182880; backdrop-filter:blur(3px); }
     .command-palette { width:min(560px,100%); max-height:min(560px,75vh); display:flex; flex-direction:column; overflow:hidden; border:1px solid var(--line); border-radius:12px; background:var(--panel-raised); color:var(--text); box-shadow:0 24px 80px #0005; }
@@ -3634,8 +3636,16 @@ async function sendAiMessage(event) {
       }
       async function openAccountManager() {
         if(!supabaseClient){openAuth("signin");return;}
-        const {data}=await supabaseClient.auth.getSession();if(data&&data.session)saveAccountSession(data.session);
-        renderAccountManager();document.getElementById("accountBackdrop").hidden=false;
+        try {
+          const {data,error}=await supabaseClient.auth.getSession();
+          if(error)throw error;
+          if(data&&data.session)saveAccountSession(data.session);
+          renderAccountManager();
+          document.getElementById("accountBackdrop").hidden=false;
+        } catch(error) {
+          console.error("Could not open the account manager:",error);
+          showToast(error.message||"Couldn't load your accounts.");
+        }
       }
       async function switchSavedAccount(userId) {
         const account=readSavedAccounts().find(item=>item.user_id===userId);if(!account)return;
@@ -4831,7 +4841,7 @@ async function sendAiMessage(event) {
       elements.profileEditBackdrop.addEventListener("click",event => {if(event.target===elements.profileEditBackdrop)elements.profileEditBackdrop.hidden=true;});
       document.getElementById("profileViewClose").addEventListener("click",()=>{document.getElementById("profileBackdrop").hidden=true;});
       document.getElementById("profileBackdrop").addEventListener("click",event=>{if(event.target===event.currentTarget)event.currentTarget.hidden=true;});
-      elements.accountButton.addEventListener("click", () => { if(readSavedAccounts().length || cloudUser) void openAccountManager(); else openAuth("signin"); });
+      elements.accountButton.addEventListener("click", () => { if(supabaseClient) void openAccountManager(); else openAuth("signin"); });
       elements.togglePasswordVisibility.addEventListener("click", () => {
         const showing = elements.authPassword.type === "password";
         elements.authPassword.type = showing ? "text" : "password";

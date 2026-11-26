@@ -3773,7 +3773,51 @@ async function sendAiMessage(event) {
         const js=typeof files["script.js"]==="string"?files["script.js"]:"";
         html=html.replace(/<link\b(?=[^>]*\bhref\s*=\s*["']style\.css["'])[^>]*>/gi,"");
         html=html.replace(/<script\b(?=[^>]*\bsrc\s*=\s*["']script\.js["'])[^>]*>\s*<\/script\s*>/gi,"");
-        const styleTag=css?"<style>"+css.replace(/<\/style/gi,"<\\/style")+"</style>":"";
+        const styleTag=css?"<style>"+css.replace(/<\/style/gi,"<\\/style")+"    /* Stabilize all modal panels (Deploy, Friends, profile, chat and dialogs). */
+    .modal-backdrop {
+      box-sizing:border-box;
+      overflow-x:hidden;
+      overflow-y:auto;
+      align-items:center;
+      justify-items:center;
+      isolation:isolate;
+      -webkit-overflow-scrolling:touch;
+    }
+    .modal-backdrop[hidden] { display:none !important; }
+    .modal-backdrop > .modal {
+      box-sizing:border-box;
+      min-width:0;
+      max-width:100%;
+      max-height:calc(100vh - 40px);
+      max-height:calc(100dvh - 40px);
+      overflow-x:hidden;
+      overflow-y:auto;
+    }
+    .friends-modal {
+      min-height:0;
+      height:min(720px, calc(100dvh - 40px));
+      max-height:calc(100dvh - 40px);
+      overflow:hidden;
+    }
+    .friends-content[hidden],
+    .deploy-url-panel[hidden],
+    .modal-backdrop [hidden] { display:none !important; }
+    .friends-content { min-width:0; width:100%; }
+    .deploy-modal { min-height:0; }
+    @media(max-width:600px) {
+      .modal-backdrop { padding:12px; }
+      .modal-backdrop > .modal {
+        width:100%;
+        max-height:calc(100vh - 24px);
+        max-height:calc(100dvh - 24px);
+      }
+      .friends-modal {
+        height:calc(100dvh - 24px);
+        max-height:calc(100dvh - 24px);
+      }
+    }
+
+</style>":"";
         const scriptTag=js?"<script>"+js.replace(/<\/script/gi,"<\\/script")+"<" + "/script>":"";
         if(/<\/head\s*>/i.test(html))html=html.replace(/<\/head\s*>/i,styleTag+"</head>");
         else html=styleTag+html;

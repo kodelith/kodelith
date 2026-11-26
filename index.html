@@ -816,10 +816,13 @@
     .main-area:not(.preview-hidden) > .preview-area { display:flex !important; visibility:visible !important; min-width:0; min-height:180px; }
     .main-area.preview-hidden > .preview-area { display:none !important; }
     @media (min-width:761px) {
-      .main-area:not(.preview-hidden) { grid-template-columns:minmax(280px,58%) 6px minmax(260px,42%); grid-template-rows:auto minmax(220px,1fr) 0; }
+      /* Stack editor above preview and let the horizontal grip resize their heights. */
+      .main-area:not(.preview-hidden) { grid-template-columns:minmax(0,1fr); grid-template-rows:auto minmax(180px,42%) 7px minmax(220px,1fr); }
       .main-area:not(.preview-hidden) > .editor-surface { grid-column:1; grid-row:2; min-height:180px; }
-      .main-area:not(.preview-hidden) > .preview-splitter { display:block; grid-column:2; grid-row:2; }
-      .main-area:not(.preview-hidden) > .preview-area { grid-column:3; grid-row:2; }
+      .main-area:not(.preview-hidden) > .preview-splitter { display:none; }
+      .main-area:not(.preview-hidden) > .preview-bottom-splitter { display:block; grid-column:1; grid-row:3; }
+      .main-area:not(.preview-hidden) > .preview-area { grid-column:1; grid-row:4; min-height:220px; border-left:0; border-top:1px solid var(--line); }
+      .main-area.preview-hidden { grid-template-columns:minmax(0,1fr); grid-template-rows:auto minmax(180px,1fr) 0 0; }
     }
     @media (max-width:760px) {
       .main-area:not(.preview-hidden) { display:flex; flex-direction:column; min-height:0; }
@@ -4851,7 +4854,7 @@ async function sendAiMessage(event) {
       if(window.ResizeObserver)new ResizeObserver(updatePreviewDimensions).observe(document.querySelector(".preview-frame-wrap"));
       window.addEventListener("resize",updatePreviewDimensions);
       const bottomSplitter=document.getElementById("previewBottomSplitter");let bottomDrag=null;
-      const setMobilePreviewSplit=clientY=>{const area=bottomSplitter.closest(".main-area");const rect=area.getBoundingClientRect();const topHeight=clientY-rect.top;const available=rect.height-44-7;const editorHeight=Math.max(140,Math.min(available-180,topHeight-44));const previewHeight=Math.max(180,available-editorHeight);area.querySelector(".editor-surface").style.flex=`0 0 ${editorHeight}px`;area.querySelector(".preview-area").style.flex=`0 0 ${previewHeight}px`;bottomSplitter.setAttribute("aria-valuenow",String(Math.round(previewHeight/available*100)));requestAnimationFrame(updatePreviewDimensions);};
+      const setMobilePreviewSplit=clientY=>{const area=bottomSplitter.closest(".main-area");const rect=area.getBoundingClientRect();const topHeight=clientY-rect.top;const available=rect.height-44-7;const editorHeight=Math.max(140,Math.min(available-180,topHeight-44));const previewHeight=Math.max(180,available-editorHeight);if(window.matchMedia("(min-width:761px)").matches){area.style.gridTemplateRows=`auto ${editorHeight}px 7px ${previewHeight}px`;}else{area.querySelector(".editor-surface").style.flex=`0 0 ${editorHeight}px`;area.querySelector(".preview-area").style.flex=`0 0 ${previewHeight}px`;}bottomSplitter.setAttribute("aria-valuenow",String(Math.round(previewHeight/available*100)));requestAnimationFrame(updatePreviewDimensions);};
       bottomSplitter.addEventListener("pointerdown",event=>{bottomDrag=event.pointerId;bottomSplitter.classList.add("dragging");bottomSplitter.setPointerCapture(event.pointerId);setMobilePreviewSplit(event.clientY);});
       bottomSplitter.addEventListener("pointermove",event=>{if(bottomDrag===event.pointerId)setMobilePreviewSplit(event.clientY);});
       const stopBottomDrag=event=>{if(bottomDrag===event.pointerId){bottomDrag=null;bottomSplitter.classList.remove("dragging");}};bottomSplitter.addEventListener("pointerup",stopBottomDrag);bottomSplitter.addEventListener("pointercancel",stopBottomDrag);

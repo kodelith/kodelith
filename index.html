@@ -5149,6 +5149,21 @@ async function sendAiMessage(event) {
           return;
         }
       });
+      function findPreviewHtmlFile(requested) {
+        const files=currentProject()?.files||{};
+        const normalize=value=>String(value||"").replace(/\\/g,"/").replace(/^\.\//,"").replace(/^\/+|\/+$/g,"").normalize("NFC");
+        const wanted=normalize(requested);
+        if(!wanted)return "";
+        const exact=Object.keys(files).find(name=>normalize(name)===wanted&&/\.html?$/i.test(name)&&typeof files[name]==="string");
+        if(exact)return exact;
+        const insensitive=Object.keys(files).filter(name=>normalize(name).toLowerCase()===wanted.toLowerCase()&&/\.html?$/i.test(name)&&typeof files[name]==="string");
+        if(insensitive.length===1)return insensitive[0];
+        if(!wanted.includes("/")){
+          const byName=Object.keys(files).filter(name=>normalize(name).split("/").pop().toLowerCase()===wanted.toLowerCase()&&/\.html?$/i.test(name)&&typeof files[name]==="string");
+          if(byName.length===1)return byName[0];
+        }
+        return "";
+      }
       // Local AI receives project context directly from the active Kodelith workspace.
       window.addEventListener("message", event => {
         if (event.source !== elements.preview.contentWindow) return;
@@ -5156,8 +5171,9 @@ async function sendAiMessage(event) {
         if (!data || typeof data !== "object") return;
         if (data.type === "orbit-preview-console" && typeof data.text === "string") { terminalLog("[preview " + String(data.level || "log") + "] " + data.text.slice(0,1800)); return; }
         if (data.type !== "orbit-preview-navigate" || typeof data.file !== "string") return;
-        buildPreview(data.file, typeof data.hash === "string" ? data.hash : "");
-        // Missing project links are silently ignored by buildPreview.
+        const target=findPreviewHtmlFile(data.file);
+        if(!target){showToast("Page not found in this project: "+data.file);return;}
+        buildPreview(target, typeof data.hash === "string" ? data.hash : "");
       });
       const previewSplitter = document.getElementById("previewSplitter");
       const mainArea = previewSplitter.closest(".main-area");

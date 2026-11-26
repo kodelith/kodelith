@@ -1167,7 +1167,7 @@ body.dark-theme .ai-composer textarea{background:var(--editor-bg);color:var(--te
             </select>
           </div>
           <div class="preview-frame-wrap">
-            <iframe class="preview-frame" id="previewFrame" title="Live project preview" sandbox="allow-scripts"></iframe>
+            <iframe class="preview-frame" id="previewFrame" title="Live project preview" sandbox="allow-scripts allow-popups"></iframe>
             <div class="preview-zoom-controls" id="previewZoomControls" aria-label="Preview zoom controls">
               <button type="button" id="previewZoomOut" title="Zoom out" aria-label="Zoom out">−</button>
               <input type="range" id="previewZoom" min="25" max="150" step="5" value="100" aria-label="Preview zoom">
@@ -3214,13 +3214,13 @@ async function sendAiMessage(event) {
         const consoleTag = "<script>" + consoleCode + "\n<" + "/script>";
         if (/<\/head\s*>/i.test(html)) html = html.replace(/<\/head\s*>/i, styleTag + consoleTag + "</head>");
         else html = styleTag + consoleTag + html;
-        const navCode = "(function(){function resolve(raw){if(!raw||raw.charAt(0)==='#'||raw.indexOf('//')===0||/^[a-z][a-z0-9+.-]*:/i.test(raw))return null;var clean=raw.split('#')[0].split('?')[0];if(!clean)return null;var base=" + JSON.stringify(fileName) + ".split('/');base.pop();var parts=(clean.charAt(0)==='/'?clean.slice(1):base.join('/')+(base.length?'/':'')+clean).split('/');var out=[];for(var i=0;i<parts.length;i++){var p=decodeURIComponent(parts[i]);if(!p||p==='.')continue;if(p==='..'){if(!out.length)return null;out.pop();}else out.push(p);}return out.join('/');}document.addEventListener('click',function(e){var a=e.target.closest&&e.target.closest('a[href]');if(!a||a.target==='_blank'||a.hasAttribute('download'))return;var file=resolve(a.getAttribute('href').trim());if(!file)return;e.preventDefault();parent.postMessage({type:'orbit-preview-navigate',file:file,hash:window.location.hash},'*');});})();";
+        const navCode = "(function(){function resolve(raw){if(!raw||raw.charAt(0)==='#')return null;if(raw.indexOf('//')===0||/^[a-z][a-z0-9+.-]*:/i.test(raw))return null;var clean=raw.split('#')[0].split('?')[0];if(!clean)return null;var base=" + JSON.stringify(fileName) + ".split('/');base.pop();var parts=(clean.charAt(0)==='/'?clean.slice(1):base.join('/')+(base.length?'/':'')+clean).split('/');var out=[];for(var i=0;i<parts.length;i++){var p=decodeURIComponent(parts[i]);if(!p||p==='.')continue;if(p==='..'){if(!out.length)return null;out.pop();}else out.push(p);}return out.join('/');}document.addEventListener('click',function(e){var a=e.target.closest&&e.target.closest('a[href]');if(!a||a.hasAttribute('download'))return;var href=a.getAttribute('href').trim();if(!href||href.charAt(0)==='#')return;if(/^(?:https?:)?\\/\\//i.test(href)||/^(?:mailto:|tel:)/i.test(href)){a.target='_blank';a.rel='noopener noreferrer';return;}if(a.target==='_blank')return;var file=resolve(href);if(!file)return;e.preventDefault();parent.postMessage({type:'orbit-preview-navigate',file:file,hash:window.location.hash},'*');});})();";
         const navigationTag = "<script>" + navCode + "\n<" + "/script>";
-        const scrollCode = "(function(){var scheduled=false;window.addEventListener('scroll',function(){if(scheduled)return;scheduled=true;requestAnimationFrame(function(){scheduled=false;parent.postMessage({type:'orbit-preview-scroll',x:window.scrollX,y:window.scrollY},'*');});},{passive:true});window.addEventListener('message',function(e){var d=e.data;if(d&&d.type==='orbit-preview-restore-scroll'){window.scrollTo(Number(d.x)||0,Number(d.y)||0);}});parent.postMessage({type:'orbit-preview-scroll',x:window.scrollX,y:window.scrollY},'*');})();";
+        const scrollCode = "(function(){var scheduled=false;function report(){parent.postMessage({type:'orbit-preview-scroll',x:window.scrollX,y:window.scrollY},'*');}window.addEventListener('scroll',function(){if(scheduled)return;scheduled=true;requestAnimationFrame(function(){scheduled=false;report();});},{passive:true});window.addEventListener('message',function(e){var d=e.data;if(d&&d.type==='orbit-preview-restore-scroll'){window.scrollTo(Number(d.x)||0,Number(d.y)||0);requestAnimationFrame(report);}});})();";
         const scrollTag = "<script>" + scrollCode + "\n<" + "/script>";
 
         if (/<\/body\s*>/i.test(html)) html = html.replace(/<\/body\s*>/i, scriptTag + navigationTag + scrollTag + "</body>");
-        else html += scriptTag + navigationTag;
+        else html += scriptTag + navigationTag + scrollTag;
         elements.preview.onload = () => {
           if (!anchor) return;
           const id = decodeURIComponent(String(anchor).replace(/^#/, ""));

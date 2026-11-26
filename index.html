@@ -3127,24 +3127,27 @@ async function sendAiMessage(event) {
 
       let currentPreviewFile = "";
 
+      // The preview iframe is sandboxed without same-origin access, so it
+      // reports its own scroll position to the parent using postMessage.
+      let previewSavedScroll={x:0,y:0};
+      window.addEventListener("message",event=>{
+        if(event.source!==elements.preview.contentWindow)return;
+        const data=event.data;
+        if(data&&data.type==="orbit-preview-scroll"){
+          previewSavedScroll={x:Number(data.x)||0,y:Number(data.y)||0};
+        }
+      });
       function setPreviewDocument(markup) {
         if(markup===lastPreviewMarkup)return;
         const frame=elements.preview;
-        let savedX=0,savedY=0;
-        try{
-          savedX=frame.contentWindow?frame.contentWindow.scrollX:0;
-          savedY=frame.contentWindow?frame.contentWindow.scrollY:0;
-        }catch(_){}
         lastPreviewMarkup=markup;
-        // A srcdoc update reloads the iframe. Restore the visitor's position
-        // after the new document has finished loading instead of jumping to top.
         frame.addEventListener("load",()=>{
           const restore=()=>{
-            try{frame.contentWindow.scrollTo(savedX,savedY);}catch(_){}
+            try{frame.contentWindow.postMessage({type:"orbit-preview-restore-scroll",x:previewSavedScroll.x,y:previewSavedScroll.y},"*");}catch(_){}
           };
           requestAnimationFrame(()=>requestAnimationFrame(restore));
-          window.setTimeout(restore,80);
-          window.setTimeout(restore,240);
+          window.setTimeout(restore,100);
+          window.setTimeout(restore,300);
         },{once:true});
         frame.srcdoc=markup;
       }
@@ -3213,8 +3216,10 @@ async function sendAiMessage(event) {
         else html = styleTag + consoleTag + html;
         const navCode = "(function(){function resolve(raw){if(!raw||raw.charAt(0)==='#'||raw.indexOf('//')===0||/^[a-z][a-z0-9+.-]*:/i.test(raw))return null;var clean=raw.split('#')[0].split('?')[0];if(!clean)return null;var base=" + JSON.stringify(fileName) + ".split('/');base.pop();var parts=(clean.charAt(0)==='/'?clean.slice(1):base.join('/')+(base.length?'/':'')+clean).split('/');var out=[];for(var i=0;i<parts.length;i++){var p=decodeURIComponent(parts[i]);if(!p||p==='.')continue;if(p==='..'){if(!out.length)return null;out.pop();}else out.push(p);}return out.join('/');}document.addEventListener('click',function(e){var a=e.target.closest&&e.target.closest('a[href]');if(!a||a.target==='_blank'||a.hasAttribute('download'))return;var file=resolve(a.getAttribute('href').trim());if(!file)return;e.preventDefault();parent.postMessage({type:'orbit-preview-navigate',file:file,hash:window.location.hash},'*');});})();";
         const navigationTag = "<script>" + navCode + "\n<" + "/script>";
+        const scrollCode = "(function(){var scheduled=false;window.addEventListener('scroll',function(){if(scheduled)return;scheduled=true;requestAnimationFrame(function(){scheduled=false;parent.postMessage({type:'orbit-preview-scroll',x:window.scrollX,y:window.scrollY},'*');});},{passive:true});window.addEventListener('message',function(e){var d=e.data;if(d&&d.type==='orbit-preview-restore-scroll'){window.scrollTo(Number(d.x)||0,Number(d.y)||0);}});parent.postMessage({type:'orbit-preview-scroll',x:window.scrollX,y:window.scrollY},'*');})();";
+        const scrollTag = "<script>" + scrollCode + "\n<" + "/script>";
 
-        if (/<\/body\s*>/i.test(html)) html = html.replace(/<\/body\s*>/i, scriptTag + navigationTag + "</body>");
+        if (/<\/body\s*>/i.test(html)) html = html.replace(/<\/body\s*>/i, scriptTag + navigationTag + scrollTag + "</body>");
         else html += scriptTag + navigationTag;
         elements.preview.onload = () => {
           if (!anchor) return;

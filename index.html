@@ -10,8 +10,8 @@
   <link rel="canonical" href="https://save-codes.github.io/my-code/">
   <meta property="og:type" content="website">
   <meta property="og:site_name" content="Orbit">
-  <meta property="og:title" content="Orbit — Free Online HTML, CSS & JavaScript Code Editor">
-  <meta property="og:description" content="Write HTML, CSS and JavaScript in your browser with live preview, project tools and AI coding assistance.">
+  <meta property="og:title" content="Orbit — Online Code Editor & Personal AI">
+  <meta property="og:description" content="Write HTML, CSS and JavaScript in your browser with live preview, project tools and optional personal AI using your own API key.">
   <meta property="og:url" content="https://save-codes.github.io/my-code/">
   <meta name="twitter:card" content="summary">
   <meta name="twitter:title" content="Orbit — Free Online Code Editor">
@@ -780,13 +780,13 @@
     "applicationCategory": "DeveloperApplication",
     "operatingSystem": "Any",
     "url": "https://save-codes.github.io/my-code/",
-    "description": "A free browser-based HTML, CSS and JavaScript code editor with live preview, project management and AI coding assistance.",
+    "description": "A free browser-based HTML, CSS and JavaScript code editor with live preview, project management and optional personal AI.",
     "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
     "featureList": [
       "Online HTML, CSS and JavaScript editing",
       "Live website preview",
       "Project and file management",
-      "AI coding assistance",
+      "Bring your own AI provider key",
       "Responsive device preview",
       "CSS color picker and HTML tag suggestions"
     ]
@@ -2487,7 +2487,7 @@ async function sendAiMessage(event) {
         saveEditorValue();
         const projectId = state.activeProject;
         const project = currentProject();
-        if(!project){addAiMessage("error","Create or open a project before asking the local AI to work on code.");return;}
+        if(!project){addAiMessage("error","Create or open a project before asking your connected AI to work on code.");return;}
         const activeFile = project.activeFile || "";
         const baseFiles = { ...project.files };
         const fileManifest = Object.keys(project.files).slice(0, 80);

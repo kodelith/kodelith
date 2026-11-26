@@ -285,7 +285,7 @@
     .preview-zoom-controls input{width:86px;accent-color:var(--accent);}
     .preview-zoom-controls button{border:1px solid #d1d5db;border-radius:6px;background:#fff;padding:4px 7px;color:#222;cursor:pointer;font:inherit;}
     .preview-zoom-controls output{min-width:34px;text-align:center;font-variant-numeric:tabular-nums;}
-    .preview-frame { width: 100%; max-width:100%; height: 100%; min-width:0; flex:1 1 auto; border: 0; border-radius: 7px; background: white; box-shadow:0 2px 12px #00000012; transform-origin:top center; transition:width .18s ease,transform .12s ease; }
+    .preview-frame { display:block; width:100%; max-width:100%; height:100%; min-height:0; min-width:0; flex:1 1 auto; border:0; border-radius:7px; background:white; box-shadow:0 2px 12px #00000012; transform-origin:top center; transition:width .18s ease,transform .12s ease; overflow:auto; overscroll-behavior:contain; }
     .preview-bottom-splitter { display:none; height:7px; flex:0 0 7px; cursor:row-resize; touch-action:none; background:var(--line); position:relative; z-index:6; }\n    .preview-bottom-splitter:hover,.preview-bottom-splitter.dragging,.preview-bottom-splitter:focus { background:var(--accent); outline:none; }\n    .preview-dimensions { flex:0 0 auto; padding:5px 12px 8px; color:var(--muted); background:#e8e8e8; text-align:center; font:10px "SFMono-Regular",Consolas,monospace; }
     .preview-device { width:104px; height:25px; padding:0 6px; border:1px solid var(--line); border-radius:6px; background:var(--panel-raised); color:var(--text); font-size:10px; }
     .command-backdrop { position:fixed; inset:0; z-index:100; display:flex; justify-content:center; align-items:flex-start; padding: min(15vh,110px) 16px 20px; background:#10182880; backdrop-filter:blur(3px); }
@@ -1926,7 +1926,7 @@ button.addEventListener("click", () => {
           if (!baseProject) { merged.projects[id] = JSON.parse(JSON.stringify(workProject)); continue; }
           const targetProject = merged.projects[id];
           if (!targetProject) {
-            if (JSON.stringify(workProject) !== JSON.stringify(baseProject)) merged.projects[id] = JSON.parse(JSON.stringify(workProject));
+            /* Keep a locally cached project if it is temporarily missing from the cloud response. */ merged.projects[id] = JSON.parse(JSON.stringify(workProject));
             continue;
           }
           const fileNames = new Set([...Object.keys(baseProject.files || {}),...Object.keys(workProject.files || {})]);
@@ -3208,7 +3208,7 @@ async function sendAiMessage(event) {
         });
         if(!linkedStyles.length&&typeof files["style.css"]==="string")linkedStyles.push(files["style.css"]);
         if(!linkedScripts.length&&typeof files["script.js"]==="string")linkedScripts.push(files["script.js"]);
-        const styleTag = linkedStyles.map(css=>"<style>"+css.replace(/<\/style/gi,"<\\/style")+"</style>").join("");
+        const styleTag = linkedStyles.map(css=>"<style>"+css.replace(/<\/style/gi,"<\\/style")+"</style>").join("") + "<style id=\"kodelith-live-css\"></style>";
         const scriptTag = linkedScripts.map(js=>"<script>"+js.replace(/<\/script/gi,"<"+"\\/script")+"\n<"+"/script>").join("");
         const consoleCode = "(function(){['log','info','warn','error'].forEach(function(level){var original=console[level];console[level]=function(){var text=Array.prototype.map.call(arguments,function(value){try{return typeof value==='string'?value:JSON.stringify(value)}catch(e){return String(value)}}).join(' ').slice(0,1800);parent.postMessage({type:'orbit-preview-console',level:level,text:text},'*');return original.apply(console,arguments);};});window.addEventListener('error',function(e){parent.postMessage({type:'orbit-preview-console',level:'error',text:String(e.message||'Preview error')},'*');});window.addEventListener('unhandledrejection',function(e){parent.postMessage({type:'orbit-preview-console',level:'error',text:'Unhandled promise: '+String(e.reason)},'*');});})();";
         const consoleTag = "<script>" + consoleCode + "\n<" + "/script>";
@@ -3217,7 +3217,7 @@ async function sendAiMessage(event) {
         const navCode = "(function(){function resolve(raw){if(!raw||raw.charAt(0)==='#')return null;if(raw.indexOf('//')===0||/^[a-z][a-z0-9+.-]*:/i.test(raw))return null;var clean=raw.split('#')[0].split('?')[0];if(!clean)return null;var base=" + JSON.stringify(fileName) + ".split('/');base.pop();var parts=(clean.charAt(0)==='/'?clean.slice(1):base.join('/')+(base.length?'/':'')+clean).split('/');var out=[];for(var i=0;i<parts.length;i++){var p=decodeURIComponent(parts[i]);if(!p||p==='.')continue;if(p==='..'){if(!out.length)return null;out.pop();}else out.push(p);}return out.join('/');}document.addEventListener('click',function(e){var a=e.target.closest&&e.target.closest('a[href]');if(!a||a.hasAttribute('download'))return;var href=a.getAttribute('href').trim();if(!href||href.charAt(0)==='#')return;if(/^(?:https?:)?\\/\\//i.test(href)||/^(?:mailto:|tel:)/i.test(href)){a.target='_blank';a.rel='noopener noreferrer';return;}if(a.target==='_blank')return;var file=resolve(href);if(!file)return;e.preventDefault();parent.postMessage({type:'orbit-preview-navigate',file:file,hash:window.location.hash},'*');});})();";
         const navigationTag = "<script>" + navCode + "\n<" + "/script>";
         const scrollCode = "(function(){var scheduled=false;function report(){parent.postMessage({type:'orbit-preview-scroll',x:window.scrollX,y:window.scrollY},'*');}window.addEventListener('scroll',function(){if(scheduled)return;scheduled=true;requestAnimationFrame(function(){scheduled=false;report();});},{passive:true});window.addEventListener('message',function(e){var d=e.data;if(d&&d.type==='orbit-preview-restore-scroll'){window.scrollTo(Number(d.x)||0,Number(d.y)||0);requestAnimationFrame(report);}});})();";
-        const scrollTag = "<script>" + scrollCode + "\n<" + "/script>";
+        const liveCode = "(function(){window.addEventListener('message',function(e){var d=e.data;if(!d||d.type!=='kodelith-live-update')return;if(d.kind==='css'){var style=document.getElementById('kodelith-live-css');if(style)style.textContent=String(d.content||'');}else if(d.kind==='js'){var old=document.getElementById('kodelith-live-js');if(old)old.remove();var script=document.createElement('script');script.id='kodelith-live-js';script.text=String(d.content||'');document.body.appendChild(script);}});})();";\n        const liveTag = "<script>" + liveCode + "\\n<" + "/script>";\n        const scrollTag = "<script>" + scrollCode + "\\n<" + "/script>";
 
         if (/<\/body\s*>/i.test(html)) html = html.replace(/<\/body\s*>/i, scriptTag + navigationTag + scrollTag + "</body>");
         else html += scriptTag + navigationTag + scrollTag;

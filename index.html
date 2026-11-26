@@ -1698,9 +1698,14 @@ button.addEventListener("click", () => {
       }
 
       function writeCloudCache(userId, workspace = state) {
-        if (!userId || !workspace) return;
-        try { localStorage.setItem(CLOUD_CACHE_PREFIX + userId, JSON.stringify(workspace)); }
-        catch (error) { console.warn("Could not update Orbit local cloud cache:",error); }
+        if (!userId || !workspace) return false;
+        try {
+          localStorage.setItem(CLOUD_CACHE_PREFIX + userId, JSON.stringify(workspace));
+          return true;
+        } catch (error) {
+          console.error("Could not update Orbit local cloud cache:",error);
+          return false;
+        }
       }
 
       function loadState() {
@@ -1740,8 +1745,13 @@ button.addEventListener("click", () => {
 
       function saveState() {
         if (cloudUser) {
+          const backedUp = writeCloudCache(cloudUser.id);
           if (cloudReady) saveCloudProjects();
-          else { writeCloudCache(cloudUser.id); elements.saveLabel.textContent = "Saved on this device"; elements.saveDot.style.background = "var(--orange)"; }
+          else {
+            elements.saveLabel.textContent = backedUp ? "Saved on this device" : "Local backup failed";
+            elements.saveDot.style.background = backedUp ? "var(--orange)" : "var(--red)";
+            elements.saveDot.title = backedUp ? "A local recovery copy is safe. Cloud sync is not ready yet." : "Browser storage could not save a recovery copy. Export a backup.";
+          }
           return;
         }
         elements.saveLabel.textContent = "Saving…";
@@ -1779,6 +1789,7 @@ button.addEventListener("click", () => {
       function saveCloudProjects() {
         const userId = cloudUser && cloudUser.id;
         if (!userId || !supabaseClient || !cloudReady) return;
+        writeCloudCache(userId);
         cloudSaveDirty = true;
         if (cloudSaveRunning) return cloudSaveQueue;
         cloudSaveRunning = true;
@@ -5024,14 +5035,29 @@ async function sendAiMessage(event) {
         if (event.key === "Escape" && !document.getElementById("chatBackdrop").hidden) closeChat();
         if (event.key === "Escape" && !elements.authBackdrop.hidden) closeAuth();
       });
-      window.addEventListener("beforeunload", () => {
+      function persistWorkspaceBeforeLeaving() {
         const project = currentProject();
         if (project && project.activeFile && project.activeFile === elements.editor.dataset.file) {
           project.files[project.activeFile] = elements.editor.value;
         }
-        if (!cloudUser) {
+        if (cloudUser) {
+          const backedUp = writeCloudCache(cloudUser.id);
+          if (!backedUp) console.error("Orbit could not create a local recovery copy before leaving.");
+          if (cloudReady) void saveCloudProjects();
+        } else {
           try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
           catch (error) { console.error("Could not save workspace before closing:", error); }
+        }
+      }
+      document.addEventListener("visibilitychange", () => {
+        if (document.visibilityState === "hidden") persistWorkspaceBeforeLeaving();
+      });
+      window.addEventListener("pagehide", persistWorkspaceBeforeLeaving);
+      window.addEventListener("beforeunload", persistWorkspaceBeforeLeaving);
+      window.addEventListener("online", () => {
+        if (cloudUser && cloudReady) {
+          cloudSaveDirty = true;
+          void saveCloudProjects();
         }
       });
 

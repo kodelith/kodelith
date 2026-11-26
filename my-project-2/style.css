@@ -1,0 +1,127 @@
+body {
+  background: #ffe8a8;
+
+}
+nav  {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 10px;
+  background-color: #eac8c8;
+  margin: -10px;
+}
+.nav1{
+  display: inline-block;
+  padding: 15px 30px;
+  background: #ec3636;
+  color: white;
+  text-decoration: none;
+  border-radius: 6px;
+  text-align: center;
+}
+
+.centre{
+
+  text-align: center;
+  color: #9e009e;
+  text-shadow: 10px 10px 15px;
+  font-size: 72px;
+  font-family: 'Poppins', sans-serif;
+  margin-bottom: 0px
+}
+
+.place{
+  text-align: center;
+  margin-bottom: 10px;
+  margin-top: 10px;
+  font-size:30px;
+  color: purple;
+
+}
+.opening{
+  font-family: 'Playfair Display', serif;
+  text-align: center;
+  margin-top: -5px;
+  font-size: 50px;
+  margin-bottom: 25px;
+  color: #0000a3;
+
+}
+
+.image-container{
+  width: 900px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  
+
+  gap: 30px;
+
+}
+
+.image2{
+  width: 900px;
+  height: 600px;
+  margin: 13px;
+}
+
+.last{
+
+  font-size: 30px;
+  margin-top: 50px;
+  font-family:'Poppins', sans-serif;
+  color: #9a429a;
+  text-shadow: 2px 3px 5px;
+  text-align:center;
+
+}
+.food-box {
+  border: 2px solid black;
+  height: 750px;
+  width: 598px;
+  margin-top: 20px;
+  display: flex;
+  justify-content: center;
+  border-radius: 15px;
+
+}
+.food-img{
+  display: flex;
+  align-self: flex-start;
+  margin-top: 20px;
+  border-radius: 10px;
+  width: 450px;
+  object-fit: cover;
+}
+.name{
+  text-align: center;
+  font-size: 55px;
+}
+.price{
+  color: #d60000;
+  text-align: center;
+  font-size:45px;
+  margin-top: -40px;
+
+}
+.container{
+  display: flex;
+  flex-wrap: wrap;
+  gap: 20px;
+  justify-content: center;
+  align-items: flex-start;
+}
+.buy {
+  padding: 12px 30px;
+  background-color: #e63946;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 18px;
+  font-weight: bold;
+  cursor: pointer;
+  margin-top: 20px;
+  display: block;
+
+  margin: 20px auto;
+}

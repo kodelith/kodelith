@@ -515,6 +515,7 @@
     body.dark-theme .ai-field input,body.dark-theme .ai-field select{background:#1e1e1e;border-color:#4b4b4b;color:var(--text)}
     body.dark-theme .ai-key-note{background:#1d3028;border-color:#315b45;color:#c6d8cd}
     @media(max-width:650px){.ai-panel{width:100%;border:0}.ai-setup{padding:14px}.ai-setup-card{padding:15px}}
+    .ai-messages[hidden],.ai-composer[hidden]{display:none!important}
 </style>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/codemirror@5.65.21/lib/codemirror.css">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/codemirror@5.65.21/theme/eclipse.css">
@@ -1172,7 +1173,7 @@ body.dark-theme .ai-composer textarea{background:var(--editor-bg);color:var(--te
       </div>
       <div class="ai-setup-card ai-provider-help">
         <h3>Before connecting</h3>
-        <p>Your provider may charge for API usage. Check its pricing and usage limits first. Only OpenAI-compatible chat-completions endpoints are supported. Custom endpoints must use HTTPS (or localhost).</p>
+        <p>Your provider may charge for API usage. Check its pricing and usage limits first. Only OpenAI-compatible chat-completions endpoints are supported. Your provider must allow browser CORS requests. Custom endpoints must use HTTPS (or localhost).</p>
       </div>
     </section>
     <div class="ai-messages" id="aiMessages" aria-live="polite" hidden>
@@ -2380,7 +2381,8 @@ button.addEventListener("click", () => {
         const endpoint=document.getElementById("aiEndpoint").value.trim().replace(/[/]+$/,"");
         const model=document.getElementById("aiModelInput").value.trim();
         const enteredKey=document.getElementById("aiApiKey").value.trim();
-        const key=enteredKey||aiApiKey;
+        const sameConnection=!!aiProviderConfig&&aiProviderConfig.provider===provider&&aiProviderConfig.endpoint.replace(/[/]+$/,"")===endpoint;
+        const key=enteredKey||(sameConnection?aiApiKey:"");
         if(!key){setAiSetupMessage("Enter an API key to connect.",false,true);document.getElementById("aiApiKey").focus();return;}
         if(!model){setAiSetupMessage("Enter the model name provided by your AI provider.",false,true);document.getElementById("aiModelInput").focus();return;}
         let parsed;

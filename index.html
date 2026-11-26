@@ -815,14 +815,59 @@
       /* Live preview layout safety: keep the pane measurable and visible unless explicitly toggled off. */
     .main-area:not(.preview-hidden) > .preview-area { display:flex !important; visibility:visible !important; min-width:0; min-height:180px; }
     .main-area.preview-hidden > .preview-area { display:none !important; }
-    @media (min-width:761px) {
-      /* Stack editor above preview and let the horizontal grip resize their heights. */
-      .main-area:not(.preview-hidden) { grid-template-columns:minmax(0,1fr); grid-template-rows:auto minmax(180px,42%) 7px minmax(220px,1fr); }
-      .main-area:not(.preview-hidden) > .editor-surface { grid-column:1; grid-row:2; min-height:180px; }
-      .main-area:not(.preview-hidden) > .preview-splitter { display:none; }
-      .main-area:not(.preview-hidden) > .preview-bottom-splitter { display:block; grid-column:1; grid-row:3; }
-      .main-area:not(.preview-hidden) > .preview-area { grid-column:1; grid-row:4; min-height:220px; border-left:0; border-top:1px solid var(--line); }
-      .main-area.preview-hidden { grid-template-columns:minmax(0,1fr); grid-template-rows:auto minmax(180px,1fr) 0 0; }
+    /* Stable stacked workspace: editor above a vertically resizable live preview. */
+    .main-area:not(.preview-hidden) {
+      display:flex !important;
+      flex-direction:column !important;
+      min-width:0;
+      min-height:0;
+      overflow:hidden;
+    }
+    .main-area:not(.preview-hidden) > .editor-top { flex:0 0 auto; }
+    .main-area:not(.preview-hidden) > .editor-surface {
+      display:flex;
+      flex:1 1 42%;
+      min-height:140px;
+      min-width:0;
+      grid-column:auto;
+      grid-row:auto;
+    }
+    .main-area:not(.preview-hidden) > .preview-splitter { display:none !important; }
+    .main-area:not(.preview-hidden) > .preview-bottom-splitter {
+      display:block;
+      flex:0 0 7px;
+      width:100%;
+      cursor:row-resize;
+    }
+    .main-area:not(.preview-hidden) > .preview-area {
+      display:flex !important;
+      flex:1 1 58%;
+      min-height:180px;
+      min-width:0;
+      grid-column:auto;
+      grid-row:auto;
+      border-left:0;
+      border-top:1px solid var(--line);
+    }
+    .main-area:not(.preview-hidden) > .preview-area .preview-frame-wrap {
+      flex:1 1 auto;
+      min-height:0;
+      overflow:hidden;
+    }
+    .main-area:not(.preview-hidden) > .preview-area .preview-frame {
+      display:block;
+      height:100%;
+      min-height:0;
+      flex:1 1 auto;
+    }
+    .main-area.preview-hidden { display:flex !important; flex-direction:column !important; }
+    .main-area.preview-hidden > .preview-area,
+    .main-area.preview-hidden > .preview-bottom-splitter { display:none !important; }
+    .main-area:not(.preview-hidden) > .terminal-panel {
+      flex:0 0 230px;
+      min-height:0;
+      grid-column:auto;
+      grid-row:auto;
     }
     @media (max-width:760px) {
       .main-area:not(.preview-hidden) { display:flex; flex-direction:column; min-height:0; }
@@ -1105,32 +1150,6 @@ body.dark-theme .ai-composer textarea{background:var(--editor-bg);color:var(--te
       <span class="status-muted" id="cursorPosition">Ln 1, Col 1</span>
     </footer>
   </div>
-
-  <section class="seo-content" aria-labelledby="seo-title">
-    <h1 id="seo-title">Free Online HTML, CSS &amp; JavaScript Code Editor</h1>
-    <p class="seo-lead">Orbit is a browser-based code editor for building and testing websites. Write HTML, style pages with CSS, add JavaScript, and see your changes in a live preview — without installing a desktop editor.</p>
-    <a class="seo-cta" href="#codeEditor">Start coding in Orbit</a>
-    <h2>A simple online editor for building websites</h2>
-    <p>Use Orbit as an online HTML editor, CSS editor and JavaScript editor in one workspace. Create projects, organize files, edit your code and preview the result beside the editor. Your workspace runs in the browser, so you can get started without setting up a local development environment.</p>
-    <div class="seo-feature-grid">
-      <article class="seo-feature"><h3>HTML, CSS and JavaScript</h3><p>Work with the core web languages in one browser-based coding workspace.</p></article>
-      <article class="seo-feature"><h3>Live website preview</h3><p>Run your page and check how your HTML, styles and scripts work together.</p></article>
-      <article class="seo-feature"><h3>Personal AI</h3><p>Connect a compatible AI provider with your own API key to review code, explain files and prepare changes for your review.</p></article>
-      <article class="seo-feature"><h3>Project and file management</h3><p>Keep website files organized into projects and export your work when you need it.</p></article>
-      <article class="seo-feature"><h3>Responsive preview</h3><p>Preview your pages at desktop, tablet and mobile dimensions.</p></article>
-      <article class="seo-feature"><h3>Helpful editing tools</h3><p>Use HTML tag suggestions, CSS color selection, formatting and familiar editor shortcuts.</p></article>
-    </div>
-    <h2>How to use the Orbit online code editor</h2>
-    <ol class="seo-steps"><li>Open the editor and create a project.</li><li>Create or open an HTML, CSS or JavaScript file and write your code.</li><li>Use Live Preview to run your page and check the result.</li></ol>
-    <h2>Frequently asked questions</h2>
-    <div class="seo-faq">
-      <details><summary>Is Orbit a free online code editor?</summary><p>Yes. Orbit is currently available as a free browser-based workspace for writing and previewing HTML, CSS and JavaScript.</p></details>
-      <details><summary>Can I write HTML, CSS and JavaScript in Orbit?</summary><p>Yes. Orbit brings HTML, CSS and JavaScript editing together with a live website preview.</p></details>
-      <details><summary>Do I need to install a code editor?</summary><p>No desktop installation is required to use Orbit. Open the website in a modern browser and start a project.</p></details>
-      <details><summary>Can I preview a website while coding?</summary><p>Yes. Orbit includes a live preview panel and device-size options for checking your website as you work.</p></details>
-      <details><summary>Can I connect my own AI provider?</summary><p>Yes. You can connect an OpenAI-compatible provider using your own API key. The key stays in the current browser tab and is not saved to your Orbit account.</p></details>
-    </div>
-  </section>
 
   <aside class="ai-panel" id="aiPanel" aria-label="Personal AI assistant" hidden>
     <div class="ai-head">
@@ -4854,7 +4873,7 @@ async function sendAiMessage(event) {
       if(window.ResizeObserver)new ResizeObserver(updatePreviewDimensions).observe(document.querySelector(".preview-frame-wrap"));
       window.addEventListener("resize",updatePreviewDimensions);
       const bottomSplitter=document.getElementById("previewBottomSplitter");let bottomDrag=null;
-      const setMobilePreviewSplit=clientY=>{const area=bottomSplitter.closest(".main-area");const rect=area.getBoundingClientRect();const topHeight=clientY-rect.top;const available=rect.height-44-7;const editorHeight=Math.max(140,Math.min(available-180,topHeight-44));const previewHeight=Math.max(180,available-editorHeight);if(window.matchMedia("(min-width:761px)").matches){area.style.gridTemplateRows=`auto ${editorHeight}px 7px ${previewHeight}px`;}else{area.querySelector(".editor-surface").style.flex=`0 0 ${editorHeight}px`;area.querySelector(".preview-area").style.flex=`0 0 ${previewHeight}px`;}bottomSplitter.setAttribute("aria-valuenow",String(Math.round(previewHeight/available*100)));requestAnimationFrame(updatePreviewDimensions);};
+      const setMobilePreviewSplit=clientY=>{const area=bottomSplitter.closest(".main-area");const rect=area.getBoundingClientRect();const terminal=area.querySelector(".terminal-panel");const terminalHeight=terminal&&!terminal.hidden?terminal.getBoundingClientRect().height:0;const available=Math.max(320,rect.height-44-7-terminalHeight);const editorHeight=Math.max(140,Math.min(available-180,clientY-rect.top-44));const previewHeight=Math.max(180,available-editorHeight);area.querySelector(".editor-surface").style.flex=`0 0 ${editorHeight}px`;area.querySelector(".preview-area").style.flex=`1 1 ${previewHeight}px`;bottomSplitter.setAttribute("aria-valuenow",String(Math.round(previewHeight/available*100)));requestAnimationFrame(updatePreviewDimensions);}const rect=area.getBoundingClientRect();const topHeight=clientY-rect.top;const available=rect.height-44-7;const editorHeight=Math.max(140,Math.min(available-180,topHeight-44));const previewHeight=Math.max(180,available-editorHeight);if(window.matchMedia("(min-width:761px)").matches){area.style.gridTemplateRows=`auto ${editorHeight}px 7px ${previewHeight}px`;}else{area.querySelector(".editor-surface").style.flex=`0 0 ${editorHeight}px`;area.querySelector(".preview-area").style.flex=`0 0 ${previewHeight}px`;}bottomSplitter.setAttribute("aria-valuenow",String(Math.round(previewHeight/available*100)));requestAnimationFrame(updatePreviewDimensions);};
       bottomSplitter.addEventListener("pointerdown",event=>{bottomDrag=event.pointerId;bottomSplitter.classList.add("dragging");bottomSplitter.setPointerCapture(event.pointerId);setMobilePreviewSplit(event.clientY);});
       bottomSplitter.addEventListener("pointermove",event=>{if(bottomDrag===event.pointerId)setMobilePreviewSplit(event.clientY);});
       const stopBottomDrag=event=>{if(bottomDrag===event.pointerId){bottomDrag=null;bottomSplitter.classList.remove("dragging");}};bottomSplitter.addEventListener("pointerup",stopBottomDrag);bottomSplitter.addEventListener("pointercancel",stopBottomDrag);

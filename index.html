@@ -869,6 +869,70 @@
       }
     }
 
+/* Keep Orbit's chrome fixed while only the code editor content scrolls. */
+    html, body {
+      height:100%;
+      min-height:0;
+      overflow:hidden;
+    }
+    .app {
+      height:100vh;
+      height:100dvh;
+      min-height:0;
+      overflow:hidden;
+    }
+    .workspace {
+      flex:1 1 auto;
+      height:calc(100% - 58px);
+      min-height:0;
+      overflow:hidden;
+    }
+    .main-area {
+      min-height:0;
+      height:100%;
+      overflow:hidden;
+    }
+    .main-area:not(.preview-hidden) {
+      grid-template-rows:auto minmax(0,1fr) 0;
+    }
+    .main-area:not(.preview-hidden) > .editor-top {
+      position:relative;
+      z-index:10;
+      min-height:44px;
+      flex:0 0 auto;
+      overflow:visible;
+    }
+    .main-area:not(.preview-hidden) > .editor-surface {
+      min-height:0;
+      height:100%;
+      overflow:hidden;
+      contain:layout paint;
+    }
+    .editor-surface .code-editor {
+      min-height:0;
+      height:100%;
+      overflow:auto !important;
+      overscroll-behavior:contain;
+    }
+    .editor-surface.codemirror-ready .CodeMirror {
+      height:100% !important;
+      min-height:0;
+      overflow:hidden;
+    }
+    .editor-surface.codemirror-ready .CodeMirror-scroll {
+      height:100%;
+      min-height:0;
+      overflow:auto !important;
+      overscroll-behavior:contain;
+    }
+    @media(max-width:760px) {
+      .app { height:100vh; height:100dvh; min-height:0; }
+      .workspace { min-height:0; overflow:hidden; }
+      .main-area:not(.preview-hidden) { min-height:0; height:100%; overflow:hidden; }
+      .main-area:not(.preview-hidden) > .editor-top { flex:0 0 auto; }
+      .main-area:not(.preview-hidden) > .editor-surface { min-height:0; }
+    }
+
 /* Orbit VS Code polish — CSS-only; existing DOM, IDs and behavior are untouched. */
 :root{
  color-scheme:light;--bg:#fff;--panel:#f8f8f8;--panel-raised:#fff;--panel-soft:#eee;

@@ -998,7 +998,7 @@ body.dark-theme .ai-composer textarea{background:var(--editor-bg);color:var(--te
       </nav>
 
       <aside class="sidebar" aria-label="Workspace">
-        <section class="projects-panel" aria-label="Projects" hidden>
+        <section class="projects-panel" aria-label="Projects">
           <div class="projects-panel-head">
             <span>PROJECTS</span><span class="projects-count" id="projectsCount">1</span>
             <button class="projects-add" id="sidebarNewProject" type="button" title="Create a new project" aria-label="Create a new project">＋</button>
@@ -2073,12 +2073,9 @@ elements.folderName.textContent = "WORKSPACE"; elements.statusProject.textConten
             event.preventDefault();
             showProjectContextMenu(event.clientX, event.clientY, projectId);
           });
+          row.append(item);
           elements.projectsList.append(row);
         }
-        elements.folderName.textContent = "WORKSPACE";
-        elements.statusProject.textContent = "Workspace";
-        elements.projectsCount.textContent = "";
-        elements.projectsList.replaceChildren();
         elements.fileList.replaceChildren();
         elements.fileList.ondragover=event=>{if(event.dataTransfer.types.includes("application/x-orbit-file")){event.preventDefault();event.dataTransfer.dropEffect="move";elements.fileList.classList.add("orbit-drop-root");}};
         elements.fileList.ondragleave=event=>{if(!elements.fileList.contains(event.relatedTarget))elements.fileList.classList.remove("orbit-drop-root");};

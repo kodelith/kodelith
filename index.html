@@ -4519,7 +4519,7 @@ async function sendAiMessage(event) {
         for(const [name,content] of entries){
           const path=normalizeDeployPath(name);
           const parts=path.split("/");
-          if(!path||path.startsWith("/")||parts.some(part=>!part||part==="."||part==="..")||/[\\u0000-\\u001f]/.test(path))throw new Error("Invalid file path: "+JSON.stringify(name));
+          if(!path||path.startsWith("/")||parts.some(part=>!part||part==="."||part==="..")||Array.from(path).some(ch=>{const code=ch.charCodeAt(0);return code<32||code===127;}))throw new Error("Invalid file path: "+JSON.stringify(name));
           if(parts.some(part=>/^\\.env(?:\\.|$)/i.test(part)||part.toLowerCase()===".git"||part.toLowerCase()==="node_modules"||part.toLowerCase()==="__macosx"))throw new Error("Kodelith blocked a private or generated file path: "+name);
           const size=encoder.encode(content).byteLength;
           if(size>20*1024*1024)throw new Error(name+" is larger than the 20 MB per-file limit.");

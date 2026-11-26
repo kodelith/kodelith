@@ -3128,7 +3128,25 @@ async function sendAiMessage(event) {
       let currentPreviewFile = "";
 
       function setPreviewDocument(markup) {
-        if(markup!==lastPreviewMarkup){lastPreviewMarkup=markup;elements.preview.srcdoc=markup;}
+        if(markup===lastPreviewMarkup)return;
+        const frame=elements.preview;
+        let savedX=0,savedY=0;
+        try{
+          savedX=frame.contentWindow?frame.contentWindow.scrollX:0;
+          savedY=frame.contentWindow?frame.contentWindow.scrollY:0;
+        }catch(_){}
+        lastPreviewMarkup=markup;
+        // A srcdoc update reloads the iframe. Restore the visitor's position
+        // after the new document has finished loading instead of jumping to top.
+        frame.addEventListener("load",()=>{
+          const restore=()=>{
+            try{frame.contentWindow.scrollTo(savedX,savedY);}catch(_){}
+          };
+          requestAnimationFrame(()=>requestAnimationFrame(restore));
+          window.setTimeout(restore,80);
+          window.setTimeout(restore,240);
+        },{once:true});
+        frame.srcdoc=markup;
       }
       function resolvePreviewAsset(from,raw) {
         const clean=String(raw||"").split("#")[0].split("?")[0].trim();

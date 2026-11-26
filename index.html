@@ -1922,7 +1922,10 @@ button.addEventListener("click", () => {
           cloudProjectIds = new Set(rows.map(row => row.id).filter(id => typeof id === "string"));
           let remoteWorkspace;
           if (!Object.keys(projects).length) {
-            if (!hasCachedProjects && Object.keys(localWorkspace.projects).length) {
+            if (hasCachedProjects) {
+              // A successful but empty cloud response must not erase a known-good local recovery copy.
+              remoteWorkspace = cachedWorkspace;
+            } else if (Object.keys(localWorkspace.projects).length) {
               const idMap = Object.fromEntries(Object.keys(localWorkspace.projects).map(id => [id,crypto.randomUUID()]));
               const importedProjects = Object.fromEntries(Object.entries(localWorkspace.projects).map(([id,project]) => {
                 const files = isLegacyStarterFiles(project.files) ? {} : project.files;

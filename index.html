@@ -1612,7 +1612,6 @@ button.addEventListener("click", () => {
             }
           });
           elements.editor.closest(".editor-surface").classList.add("codemirror-ready");
-          codeMirror.on("scroll", () => renderCssColorDecorations(elements.editor.value));
           elements.gutter.hidden = true;
         } catch (error) {
           console.error("CodeMirror could not start; using the built-in editor instead:", error);
@@ -2674,7 +2673,7 @@ async function sendAiMessage(event) {
             }
             cssColorPickerOpen=false;saveEditorValue();renderCssColorDecorations(elements.editor.value);
           });
-          picker.addEventListener("blur",()=>{cssColorPickerOpen=false;});
+          picker.addEventListener("blur",()=>{if(cssColorPickerOpen){cssColorPickerOpen=false;requestAnimationFrame(()=>renderCssColorDecorations(elements.editor.value));}});
           button.append(picker);
           return button;
         };
@@ -3118,7 +3117,7 @@ async function sendAiMessage(event) {
           const project=currentProject();if(!project||project.activeFile!==file)return;
           if(file&&elements.editor.dataset.file===file)project.files[file]=elements.editor.value;
           buildPreview(file||undefined);
-        },250);
+        },160);
       }
 
       let latestDiagnostics = [];
@@ -5025,7 +5024,6 @@ async function sendAiMessage(event) {
         if (event.key === "Escape" && !document.getElementById("chatBackdrop").hidden) closeChat();
         if (event.key === "Escape" && !elements.authBackdrop.hidden) closeAuth();
       });
-      window.addEventListener("resize", () => { if (currentProject()) renderCssColorDecorations(elements.editor.value); });
       window.addEventListener("beforeunload", () => {
         const project = currentProject();
         if (project && project.activeFile && project.activeFile === elements.editor.dataset.file) {

@@ -1519,6 +1519,66 @@ body.dark-theme .ai-composer textarea{background:var(--editor-bg);color:var(--te
 
       const STORAGE_KEY = "orbit-studio-v1";
       const CLOUD_CACHE_PREFIX = "orbit-cloud-cache-v1:";
+      const DEVICE_BACKUP_DB = "kodelith-device-backups-v1";
+      const DEVICE_BACKUP_STORE = "workspaces";
+      let deviceBackupTimer = 0;
+      let deviceBackupDatabasePromise = null;
+
+      function openDeviceBackupDatabase() {
+        if (!("indexedDB" in window)) return Promise.resolve(null);
+        if (!deviceBackupDatabasePromise) deviceBackupDatabasePromise = new Promise(resolve => {
+          let request;
+          try { request = indexedDB.open(DEVICE_BACKUP_DB, 1); }
+          catch (error) { console.warn("Kodelith device backup is unavailable:", error); resolve(null); return; }
+          request.onupgradeneeded = () => {
+            const db = request.result;
+            if (!db.objectStoreNames.contains(DEVICE_BACKUP_STORE)) db.createObjectStore(DEVICE_BACKUP_STORE);
+          };
+          request.onsuccess = () => resolve(request.result);
+          request.onerror = () => { console.warn("Kodelith could not open device backup storage:", request.error); resolve(null); };
+          request.onblocked = () => resolve(null);
+        });
+        return deviceBackupDatabasePromise;
+      }
+
+      async function writeDeviceBackup(key, workspace) {
+        if (!workspace || !workspace.projects) return false;
+        const db = await openDeviceBackupDatabase();
+        if (!db) return false;
+        return new Promise(resolve => {
+          try {
+            const tx = db.transaction(DEVICE_BACKUP_STORE, "readwrite");
+            tx.objectStore(DEVICE_BACKUP_STORE).put({ savedAt: Date.now(), workspace: JSON.parse(JSON.stringify(workspace)) }, key);
+            tx.oncomplete = () => resolve(true);
+            tx.onerror = tx.onabort = () => { console.warn("Kodelith device backup write failed:", tx.error); resolve(false); };
+          } catch (error) { console.warn("Kodelith device backup write failed:", error); resolve(false); }
+        });
+      }
+
+      async function readDeviceBackup(key) {
+        const db = await openDeviceBackupDatabase();
+        if (!db) return null;
+        return new Promise(resolve => {
+          try {
+            const tx = db.transaction(DEVICE_BACKUP_STORE, "readonly");
+            const request = tx.objectStore(DEVICE_BACKUP_STORE).get(key);
+            request.onsuccess = () => {
+              const value = request.result;
+              resolve(value && value.workspace && value.workspace.projects && typeof value.workspace.projects === "object" ? value.workspace : null);
+            };
+            request.onerror = () => resolve(null);
+          } catch { resolve(null); }
+        });
+      }
+
+      function scheduleDeviceBackup() {
+        window.clearTimeout(deviceBackupTimer);
+        deviceBackupTimer = window.setTimeout(() => {
+          const snapshot = JSON.parse(JSON.stringify(state));
+          void writeDeviceBackup("workspace", snapshot);
+          if (cloudUser) void writeDeviceBackup("cloud:" + cloudUser.id, snapshot);
+        }, 250);
+      }
       const ACCOUNT_SESSIONS_KEY = "orbit-saved-accounts-v1";
       const SUPABASE_URL = "https://xxielgvlkjrkdnhiddrh.supabase.co";
       const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_FIo9gJJ1rGSQGhxhHIy09w_HDI0LeLn";
@@ -1870,8 +1930,10 @@ button.addEventListener("click", () => {
       }
 
       function saveState() {
+        void writeDeviceBackup("workspace", state);
         if (cloudUser) {
           const backedUp = writeCloudCache(cloudUser.id);
+          void writeDeviceBackup("cloud:" + cloudUser.id, state);
           if (cloudReady) saveCloudProjects();
           else {
             elements.saveLabel.textContent = backedUp ? "Saved on this device" : "Local backup failed";
@@ -1897,6 +1959,7 @@ button.addEventListener("click", () => {
       }
 
       function scheduleSave() {
+        scheduleDeviceBackup();
         elements.saveLabel.textContent = "Unsaved changes";
         elements.saveDot.style.background = "var(--orange)";
         window.clearTimeout(saveTimer);
@@ -5349,8 +5412,10 @@ async function sendAiMessage(event) {
         if (project && project.activeFile && project.activeFile === elements.editor.dataset.file) {
           project.files[project.activeFile] = elements.editor.value;
         }
+        void writeDeviceBackup("workspace", state);
         if (cloudUser) {
           const backedUp = writeCloudCache(cloudUser.id);
+          void writeDeviceBackup("cloud:" + cloudUser.id, state);
           if (!backedUp) console.error("Kodelith could not create a local recovery copy before leaving.");
           if (cloudReady) void saveCloudProjects();
         } else {
@@ -5381,9 +5446,22 @@ async function sendAiMessage(event) {
       window.addEventListener("offline", () => { networkStatusBanner.hidden = false; });
       window.addEventListener("online", () => { networkStatusBanner.hidden = true; });
 
-      render();
-      if (codeMirror) codeMirror.refresh();
-      void initializeCloud();
+      (async () => {
+        // IndexedDB is a second, larger device-local recovery layer if localStorage is empty or full.
+        if (!Object.keys(state.projects || {}).length) {
+          const deviceCopy = await readDeviceBackup("workspace");
+          if (deviceCopy && Object.keys(deviceCopy.projects || {}).length) {
+            state = deviceCopy;
+            try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch (error) { console.warn("Could not restore the device backup into localStorage:", error); }
+            elements.saveLabel.textContent = "Recovered from device backup";
+            elements.saveDot.style.background = "var(--orange)";
+            showToast("Your workspace was recovered from this device's backup.");
+          }
+        }
+        render();
+        if (codeMirror) codeMirror.refresh();
+        void initializeCloud();
+      })();
     })();
   </script>
 </body>

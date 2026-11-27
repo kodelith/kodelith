@@ -53,7 +53,7 @@ nav  {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  
+
 
   gap: 30px;
 
@@ -76,13 +76,14 @@ nav  {
 
 }
 .food-box {
-  border: 2px solid black;
+  border: 2px solid #ad9f9f;
   height: 750px;
-  width: 598px;
+  width: 31vw;
   margin-top: 20px;
   display: flex;
   justify-content: center;
   border-radius: 15px;
+  box-shadow: 20px 17px 29px #7f7610;
 
 }
 .food-img{
@@ -107,7 +108,7 @@ nav  {
 .container{
   display: flex;
   flex-wrap: wrap;
-  gap: 20px;
+  gap: 2vw;
   justify-content: center;
   align-items: flex-start;
 }

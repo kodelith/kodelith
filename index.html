@@ -521,6 +521,19 @@
 
     #networkStatusBanner { position:fixed; top:12px; left:50%; transform:translateX(-50%); z-index:10000; width:min(560px,calc(100vw - 28px)); padding:11px 15px; border:1px solid #b42318; border-radius:9px; background:#fff1f0; color:#8f1d16; box-shadow:0 5px 22px #0002; font-size:12px; line-height:1.5; font-weight:600; text-align:center; }
     #networkStatusBanner[hidden] { display:none !important; }
+  .admin-modal{width:min(900px,96vw);max-height:min(88vh,820px);overflow:auto;padding:22px;background:var(--panel-raised)}
+  .admin-header{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;margin-bottom:18px}
+  .admin-header h2{margin:5px 0;font-size:22px}.admin-header p{margin:0;color:var(--muted);font-size:12px}
+  .admin-eyebrow{color:var(--accent);font-size:9px;font-weight:800;letter-spacing:.16em}
+  #adminClose{width:32px;height:32px;border:1px solid var(--line);border-radius:8px;background:var(--panel);cursor:pointer;font-size:20px}
+  .admin-stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:9px;margin:14px 0 22px}
+  .admin-stat{padding:13px;border:1px solid var(--line);border-radius:9px;background:var(--panel)}.admin-stat span{display:block;color:var(--muted);font-size:10px}.admin-stat strong{display:block;margin-top:6px;font-size:23px;font-variant-numeric:tabular-nums}
+  .admin-users-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:10px}.admin-users-head strong{display:block;font-size:13px}.admin-users-head small{display:block;margin-top:3px;color:var(--muted);font-size:10px}
+  #adminUserSearch{width:min(240px,48%);padding:8px 10px;border:1px solid var(--line);border-radius:7px;background:var(--panel);color:var(--text);font:inherit;font-size:12px}
+  .admin-user-list{display:grid;gap:6px;max-height:42vh;overflow:auto}.admin-user-row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 11px;border:1px solid var(--line);border-radius:8px;background:var(--panel-raised)}
+  .admin-user-name{min-width:0;font-size:12px;font-weight:700;overflow-wrap:anywhere}.admin-user-meta{margin-top:4px;color:var(--muted);font-size:10px}.admin-user-actions{display:flex;align-items:center;gap:7px;flex-shrink:0}.admin-user-status{font-size:10px;color:var(--green)}.admin-user-status.banned{color:var(--red)}.admin-user-actions button,.admin-footer button{padding:7px 10px;border:1px solid var(--line);border-radius:6px;background:var(--panel);cursor:pointer;font:inherit;font-size:11px}.admin-user-actions button.danger{color:var(--red)}
+  .admin-footer{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-top:14px;color:var(--muted);font-size:10px}
+  @media(max-width:620px){.admin-modal{padding:15px}.admin-stats{grid-template-columns:repeat(2,minmax(0,1fr))}.admin-user-row{align-items:flex-start}.admin-footer{align-items:flex-start;flex-direction:column}}
 </style>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/codemirror@5.65.21/lib/codemirror.css">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/codemirror@5.65.21/theme/eclipse.css">
@@ -1116,6 +1129,7 @@ body.dark-theme .ai-composer textarea{background:var(--editor-bg);color:var(--te
       <nav class="activity-bar" aria-label="Workspace tools">
         <button class="activity-button active" type="button" title="Explorer" aria-label="Explorer">▤</button>
         <div class="activity-bottom"></div>
+        <button class="activity-button" id="adminActivity" type="button" title="Admin console" aria-label="Admin console" hidden>⌘</button>
         <button class="activity-button" id="importActivity" type="button" title="Import project" aria-label="Import project">↥</button>
         <button class="activity-button" id="settingsActivity" type="button" title="Settings" aria-label="Settings">⚙</button>
         <button class="activity-button" id="friendsActivity" type="button" title="Friends" aria-label="Friends">♧<span class="friends-unread-dot" id="friendsUnreadDot" hidden aria-label="Unread messages"></span></button>
@@ -1428,6 +1442,15 @@ body.dark-theme .ai-composer textarea{background:var(--editor-bg);color:var(--te
       <p>Switch accounts instantly or add another account. Saved sessions stay on this device.</p>
       <div class="account-list" id="accountList"></div>
       <div class="modal-actions"><button type="button" id="accountAddButton" class="confirm">＋ Add account</button><button type="button" id="accountCloseButton">Close</button></div>
+    </section>
+  </div>
+  <div class="modal-backdrop" id="adminBackdrop" hidden>
+    <section class="modal admin-modal" role="dialog" aria-modal="true" aria-labelledby="adminTitle">
+      <header class="admin-header"><div><span class="admin-eyebrow">KODELITH CONTROL CENTER</span><h2 id="adminTitle">Admin console</h2><p>Private controls for the site owner.</p></div><button type="button" id="adminClose" aria-label="Close admin console">×</button></header>
+      <div class="admin-stats" id="adminStats"><div class="settings-empty">Loading platform stats…</div></div>
+      <div class="admin-users-head"><div><strong>Accounts</strong><small id="adminUserCount">Loading accounts…</small></div><input id="adminUserSearch" type="search" placeholder="Search username…" aria-label="Search accounts"></div>
+      <div class="admin-user-list" id="adminUserList"><div class="settings-empty">Loading accounts…</div></div>
+      <div class="admin-footer"><span>Admin actions are checked by the server on every request.</span><button type="button" id="adminRefresh">Refresh</button></div>
     </section>
   </div>
   <div class="modal-backdrop" id="authBackdrop" hidden>
@@ -1997,6 +2020,7 @@ button.addEventListener("click", () => {
         const recoveryWorkspace = hasCachedProjects ? cachedWorkspace : (Object.keys(localWorkspace.projects || {}).length ? localWorkspace : cachedWorkspace);
         const baselineWorkspace = JSON.parse(JSON.stringify(recoveryWorkspace || localWorkspace));
         cloudUser = session.user;
+        void refreshAdminAccess();
         cloudReady = false;
         loadedCloudUserId = userId;
         elements.accountButton.textContent = "Accounts";
@@ -2086,6 +2110,7 @@ button.addEventListener("click", () => {
         elements.accountButton.textContent = readSavedAccounts().length ? "Accounts" : "Sign in";
         elements.accountButton.title = "Manage accounts, add another account, or sign in.";
         elements.profileButton.hidden = true;
+        adminAccess=false;document.getElementById("adminActivity").hidden=true;document.getElementById("adminBackdrop").hidden=true;
         profileRecord = null;
         elements.storageCopy.textContent = "Sign in to save your projects to your account and open them on another device.";
         elements.saveLabel.textContent = "Saved locally";
@@ -3535,6 +3560,50 @@ async function sendAiMessage(event) {
         toastTimer = window.setTimeout(() => { elements.toast.hidden = true; }, 3600);
       }
 
+      const ADMIN_OWNER_ID = "4482b6fe-ee3f-4ab0-9564-a00a79e3689c";
+      let adminUsersCache = [];
+      let adminAccess = false;
+      async function refreshAdminAccess() {
+        const button=document.getElementById("adminActivity");
+        if(!button||!supabaseClient||!cloudUser){adminAccess=false;if(button)button.hidden=true;return false;}
+        try{const {data,error}=await supabaseClient.auth.getUser();const user=data?.user;adminAccess=!error&&user?.id===ADMIN_OWNER_ID&&user?.app_metadata?.role==="admin";}
+        catch{adminAccess=false;}
+        button.hidden=!adminAccess;if(!adminAccess)document.getElementById("adminBackdrop").hidden=true;return adminAccess;
+      }
+      function renderAdminStats(stats){
+        const host=document.getElementById("adminStats");host.replaceChildren();
+        [["Users",stats.users],["Projects",stats.projects],["Deployments",stats.deployments],["Bin items",stats.trash_items]].forEach(([label,value])=>{const card=document.createElement("div");card.className="admin-stat";const name=document.createElement("span");name.textContent=label;const count=document.createElement("strong");count.textContent=Number(value||0).toLocaleString();card.append(name,count);host.append(card);});
+      }
+      function renderAdminUsers(){
+        const host=document.getElementById("adminUserList");host.replaceChildren();const query=document.getElementById("adminUserSearch").value.trim().toLowerCase();
+        const rows=adminUsersCache.filter(user=>String(user.username||"").toLowerCase().includes(query)||String(user.display_name||"").toLowerCase().includes(query));
+        document.getElementById("adminUserCount").textContent=rows.length+" of "+adminUsersCache.length+" accounts";
+        if(!rows.length){const empty=document.createElement("div");empty.className="settings-empty";empty.textContent="No matching accounts.";host.append(empty);return;}
+        rows.forEach(user=>{
+          const row=document.createElement("div");row.className="admin-user-row";const info=document.createElement("div");info.style.minWidth="0";
+          const name=document.createElement("div");name.className="admin-user-name";name.textContent=(user.display_name?user.display_name+" · ":"")+"@"+user.username;
+          const meta=document.createElement("div");meta.className="admin-user-meta";meta.textContent="Joined "+(user.created_at?new Date(user.created_at).toLocaleDateString():"Unknown")+" · "+(user.last_sign_in_at?"Last active "+new Date(user.last_sign_in_at).toLocaleDateString():"Never signed in");info.append(name,meta);
+          const actions=document.createElement("div");actions.className="admin-user-actions";const status=document.createElement("span");status.className="admin-user-status"+(user.banned?" banned":"");status.textContent=user.is_admin?"ADMIN":user.banned?"SUSPENDED":"ACTIVE";actions.append(status);
+          if(!user.is_admin){const button=document.createElement("button");button.type="button";button.className=user.banned?"":"danger";button.textContent=user.banned?"Restore":"Suspend";button.addEventListener("click",()=>changeAdminUserStatus(user.id,!user.banned,user.username));actions.append(button);}
+          row.append(info,actions);host.append(row);
+        });
+      }
+      async function loadAdminPanel(){
+        if(!await refreshAdminAccess()){showToast("Admin access only.");return;}
+        document.getElementById("adminBackdrop").hidden=false;document.getElementById("adminStats").textContent="Loading platform stats…";document.getElementById("adminUserList").textContent="Loading accounts…";
+        try{const {data,error}=await supabaseClient.functions.invoke("admin-control",{body:{action:"overview"}});if(error)throw error;if(!data?.ok)throw new Error(data?.error||"Could not load admin data.");renderAdminStats(data.stats||{});adminUsersCache=Array.isArray(data.users)?data.users:[];renderAdminUsers();}
+        catch(error){console.error("Admin panel load failed:",error);document.getElementById("adminStats").textContent="Admin data unavailable.";document.getElementById("adminUserList").textContent=error.message||"Could not load accounts.";}
+      }
+      async function changeAdminUserStatus(userId,banned,username){
+        if(!await refreshAdminAccess())return;if(!window.confirm("Are you sure you want to "+(banned?"suspend":"restore")+" @"+username+"?"))return;
+        try{const {data,error}=await supabaseClient.functions.invoke("admin-control",{body:{action:"set-ban",userId,banned}});if(error)throw error;if(!data?.ok)throw new Error(data?.error||"Action failed.");showToast("@"+username+" "+(banned?"suspended.":"restored."));await loadAdminPanel();}
+        catch(error){console.error("Admin account action failed:",error);showToast(error.message||"Could not update account.");}
+      }
+      document.getElementById("adminActivity").addEventListener("click",loadAdminPanel);
+      document.getElementById("adminClose").addEventListener("click",()=>document.getElementById("adminBackdrop").hidden=true);
+      document.getElementById("adminRefresh").addEventListener("click",loadAdminPanel);
+      document.getElementById("adminUserSearch").addEventListener("input",renderAdminUsers);
+      document.getElementById("adminBackdrop").addEventListener("click",event=>{if(event.target===event.currentTarget)event.currentTarget.hidden=true;});
       let profileRecord = null;
       let profileViewOwnerId = null;
       let profilePreviewRows = [];

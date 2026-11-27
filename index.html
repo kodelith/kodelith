@@ -530,10 +530,11 @@
   .admin-stat{padding:13px;border:1px solid var(--line);border-radius:9px;background:var(--panel)}.admin-stat span{display:block;color:var(--muted);font-size:10px}.admin-stat strong{display:block;margin-top:6px;font-size:23px;font-variant-numeric:tabular-nums}
   .admin-users-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:10px}.admin-users-head strong{display:block;font-size:13px}.admin-users-head small{display:block;margin-top:3px;color:var(--muted);font-size:10px}
   #adminUserSearch{width:min(240px,48%);padding:8px 10px;border:1px solid var(--line);border-radius:7px;background:var(--panel);color:var(--text);font:inherit;font-size:12px}
+  .admin-user-tools{display:flex;align-items:center;gap:8px}.admin-user-tools button{padding:8px 10px;border:1px solid var(--line);border-radius:7px;background:var(--panel);cursor:pointer;font:inherit;font-size:11px;color:var(--text)}
   .admin-user-list{display:grid;gap:6px;max-height:42vh;overflow:auto}.admin-user-row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 11px;border:1px solid var(--line);border-radius:8px;background:var(--panel-raised)}
   .admin-user-name{min-width:0;font-size:12px;font-weight:700;overflow-wrap:anywhere}.admin-user-meta{margin-top:4px;color:var(--muted);font-size:10px}.admin-user-actions{display:flex;align-items:center;gap:7px;flex-shrink:0}.admin-user-status{font-size:10px;color:var(--green)}.admin-user-status.banned{color:var(--red)}.admin-user-actions button,.admin-footer button{padding:7px 10px;border:1px solid var(--line);border-radius:6px;background:var(--panel);cursor:pointer;font:inherit;font-size:11px}.admin-user-actions button.danger{color:var(--red)}
   .admin-footer{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-top:14px;color:var(--muted);font-size:10px}
-  @media(max-width:620px){.admin-modal{padding:15px}.admin-stats{grid-template-columns:repeat(2,minmax(0,1fr))}.admin-user-row{align-items:flex-start}.admin-footer{align-items:flex-start;flex-direction:column}}
+  @media(max-width:620px){.admin-modal{padding:15px}.admin-stats{grid-template-columns:repeat(2,minmax(0,1fr))}.admin-user-row{align-items:flex-start}.admin-footer{align-items:flex-start;flex-direction:column}.admin-user-tools{flex-wrap:wrap}.admin-user-tools input{width:100%}}
 </style>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/codemirror@5.65.21/lib/codemirror.css">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/codemirror@5.65.21/theme/eclipse.css">
@@ -1448,7 +1449,7 @@ body.dark-theme .ai-composer textarea{background:var(--editor-bg);color:var(--te
     <section class="modal admin-modal" role="dialog" aria-modal="true" aria-labelledby="adminTitle">
       <header class="admin-header"><div><span class="admin-eyebrow">KODELITH CONTROL CENTER</span><h2 id="adminTitle">Admin console</h2><p>Private controls for the site owner.</p></div><button type="button" id="adminClose" aria-label="Close admin console">×</button></header>
       <div class="admin-stats" id="adminStats"><div class="settings-empty">Loading platform stats…</div></div>
-      <div class="admin-users-head"><div><strong>Accounts</strong><small id="adminUserCount">Loading accounts…</small></div><input id="adminUserSearch" type="search" placeholder="Search username…" aria-label="Search accounts"></div>
+      <div class="admin-users-head"><div><strong>Accounts</strong><small id="adminUserCount">Loading accounts…</small></div><div class="admin-user-tools"><button type="button" id="adminInviteButton">＋ Invite username</button><input id="adminUserSearch" type="search" placeholder="Search username…" aria-label="Search accounts"></div></div>
       <div class="admin-user-list" id="adminUserList"><div class="settings-empty">Loading accounts…</div></div>
       <div class="admin-footer"><span>Admin actions are checked by the server on every request.</span><button type="button" id="adminRefresh">Refresh</button></div>
     </section>
@@ -3602,6 +3603,19 @@ async function sendAiMessage(event) {
       document.getElementById("adminActivity").addEventListener("click",loadAdminPanel);
       document.getElementById("adminClose").addEventListener("click",()=>document.getElementById("adminBackdrop").hidden=true);
       document.getElementById("adminRefresh").addEventListener("click",loadAdminPanel);
+      document.getElementById("adminInviteButton").addEventListener("click",async()=>{
+        if(!await refreshAdminAccess())return;
+        const username=window.prompt("Enter the new username (3–24 letters, numbers or underscores):");
+        if(username===null)return;
+        const clean=username.trim();
+        if(!/^[A-Za-z0-9_]{3,24}$/.test(clean)){showToast("Use 3–24 letters, numbers or underscores.");return;}
+        try{
+          const {data,error}=await supabaseClient.functions.invoke("admin-control",{body:{action:"create-invite",username:clean}});
+          if(error)throw error;if(!data?.ok)throw new Error(data?.error||"Could not create invite.");
+          showToast("Username @"+clean+" is ready for account activation.");await loadAdminPanel();
+        }catch(error){console.error("Admin invite failed:",error);showToast(error.message||"Could not create invite.");}
+      });
+
       document.getElementById("adminUserSearch").addEventListener("input",renderAdminUsers);
       document.getElementById("adminBackdrop").addEventListener("click",event=>{if(event.target===event.currentTarget)event.currentTarget.hidden=true;});
       let profileRecord = null;

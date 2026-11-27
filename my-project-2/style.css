@@ -126,3 +126,11 @@ nav  {
 
   margin: 20px auto;
 }
+.menu-head{
+  text-align: center;
+  margin: 1%;
+font-size: 4vh ; 
+  color: #0707cf;
+ text-shadow: 2px 2px 2px purple;
+  font-family:'Poppins', sans-serif;
+}

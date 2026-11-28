@@ -1785,6 +1785,28 @@ button.addEventListener("click", () => {
             dragDrop: true
           });
           const wrapper = codeMirror.getWrapperElement();
+
+          // VS Code-style multi-cursor: Option/Alt-click adds a cursor.
+          // A normal click uses CodeMirror's default behavior and returns to one cursor.
+          wrapper.addEventListener("mousedown", event => {
+            if (!event.altKey || event.button !== 0) return;
+            if (!event.target.closest(".CodeMirror-lines")) return;
+            event.preventDefault();
+            event.stopPropagation();
+            const position = codeMirror.coordsChar({
+              left: event.clientX,
+              top: event.clientY
+            }, "window");
+            if (typeof codeMirror.addSelection === "function") {
+              codeMirror.addSelection(position, position);
+            } else {
+              const selections = codeMirror.listSelections();
+              selections.push({ anchor: position, head: position });
+              codeMirror.setSelections(selections);
+            }
+            codeMirror.focus();
+          }, true);
+
           // Moving selected code by dragging now requires Ctrl+Option (macOS) or Ctrl+Alt (Windows/Linux).
           wrapper.addEventListener("dragstart", event => {
             if (!(event.ctrlKey && event.altKey)) {

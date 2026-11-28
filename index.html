@@ -3693,15 +3693,21 @@ async function sendAiMessage(event) {
           row.append(info,actions);host.append(row);
         });
       }
+      async function invokeAdminControl(body){
+        const {data,error}=await supabaseClient.functions.invoke("admin-control",{body});
+        if(error){let payload=null;try{payload=await error.context?.json();}catch{}throw new Error(payload?.detail||payload?.error||error.message||"Admin function failed.");}
+        if(!data?.ok)throw new Error(data?.error||"The admin request was not completed.");
+        return data;
+      }
       async function loadAdminPanel(){
         if(!await refreshAdminAccess()){showToast("Admin access only.");return;}
         document.getElementById("adminBackdrop").hidden=false;document.getElementById("adminStats").textContent="Loading platform stats…";document.getElementById("adminUserList").textContent="Loading accounts…";
-        try{const {data,error}=await supabaseClient.functions.invoke("admin-control",{body:{action:"overview"}});if(error)throw error;if(!data?.ok)throw new Error(data?.error||"Could not load admin data.");renderAdminStats(data.stats||{});adminUsersCache=Array.isArray(data.users)?data.users:[];renderAdminUsers();}
+        try{const data=await invokeAdminControl({action:"overview"});renderAdminStats(data.stats||{});adminUsersCache=Array.isArray(data.users)?data.users:[];renderAdminUsers();}
         catch(error){console.error("Admin panel load failed:",error);document.getElementById("adminStats").textContent="Admin data unavailable.";document.getElementById("adminUserList").textContent=error.message||"Could not load accounts.";}
       }
       async function changeAdminUserStatus(userId,banned,username){
         if(!await refreshAdminAccess())return;if(!window.confirm("Are you sure you want to "+(banned?"suspend":"restore")+" @"+username+"?"))return;
-        try{const {data,error}=await supabaseClient.functions.invoke("admin-control",{body:{action:"set-ban",userId,banned}});if(error)throw error;if(!data?.ok)throw new Error(data?.error||"Action failed.");showToast("@"+username+" "+(banned?"suspended.":"restored."));await loadAdminPanel();}
+        try{await invokeAdminControl({action:"set-ban",userId,banned});showToast("@"+username+" "+(banned?"suspended.":"restored."));await loadAdminPanel();}
         catch(error){console.error("Admin account action failed:",error);showToast(error.message||"Could not update account.");}
       }
       document.getElementById("adminActivity").addEventListener("click",loadAdminPanel);
@@ -3714,8 +3720,7 @@ async function sendAiMessage(event) {
         const clean=username.trim();
         if(!/^[A-Za-z0-9_]{3,24}$/.test(clean)){showToast("Use 3–24 letters, numbers or underscores.");return;}
         try{
-          const {data,error}=await supabaseClient.functions.invoke("admin-control",{body:{action:"create-invite",username:clean}});
-          if(error)throw error;if(!data?.ok)throw new Error(data?.error||"Could not create invite.");
+          await invokeAdminControl({action:"create-invite",username:clean});
           showToast("Username @"+clean+" is ready for account activation.");await loadAdminPanel();
         }catch(error){console.error("Admin invite failed:",error);showToast(error.message||"Could not create invite.");}
       });
@@ -4255,6 +4260,8 @@ async function sendAiMessage(event) {
         document.getElementById("friendsBackdrop").hidden=false;
         activeChatPeer=null;
         if(chatRefreshTimer){clearInterval(chatRefreshTimer);chatRefreshTimer=null;}
+        void loadFriendsHub(document.getElementById("friendSearchInput").value.trim());
+        void refreshUnreadMessageBadge();
       }
       async function sendChatMessage(event) {
         event.preventDefault();

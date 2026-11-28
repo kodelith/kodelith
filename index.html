@@ -94,6 +94,7 @@
     .activity-bottom { flex:1 1 auto; min-height:0; }
     .profile-activity { position:relative; margin-top:4px; border-top:1px solid var(--line); padding-top:7px; width:36px; height:36px; border-radius:50%; overflow:visible; border:2px solid var(--line-strong); padding:0; }
     #friendsActivity { position:relative; }
+    #friendsActivity:hover,#friendsActivity:focus { color:var(--muted); border-left-color:transparent; outline:none; box-shadow:none; }
     .friends-unread-dot { position:absolute; top:3px; right:3px; width:10px; height:10px; border:2px solid #f3f3f3; border-radius:50%; background:#e02424; box-shadow:0 0 0 1px #fff; }
     .modal.settings-modal { width:min(620px,100%); max-height:min(82vh,760px); overflow:auto; }
     .settings-tabs { display:flex; gap:6px; border-bottom:1px solid var(--line); margin:14px 0; padding-bottom:8px; }
@@ -728,7 +729,13 @@
     .chat-head{display:flex;align-items:center;justify-content:space-between;padding:15px 18px;border-bottom:1px solid var(--line)}
     .chat-head h2{margin:0;font-size:17px}.chat-head small{display:block;margin-top:3px;color:var(--muted);font-size:11px}
     .chat-head button{width:32px;height:32px;border:1px solid var(--line);border-radius:50%;background:var(--panel-soft);color:var(--text);font-size:20px;cursor:pointer}
-    .chat-messages{flex:1;min-height:0;overflow:auto;display:flex;flex-direction:column;gap:9px;padding:16px;background:var(--panel-soft)}
+    .chat-messages{flex:1;min-height:0;overflow:auto;display:flex;flex-direction:column;gap:9px;padding:16px;background:var(--panel-soft);transition:background .18s ease}
+    .chat-loading{min-height:100%;display:flex;align-items:center;justify-content:center;gap:10px;color:var(--muted);font-size:12px}
+    .chat-loading-spinner,.chat-send-spinner{width:17px;height:17px;border:2px solid color-mix(in srgb,var(--accent) 22%,transparent);border-top-color:var(--accent);border-radius:50%;animation:chat-buffer-spin .72s linear infinite;flex:0 0 auto}
+    .chat-send-spinner{width:13px;height:13px;border-color:#ffffff66;border-top-color:#fff}
+    @keyframes chat-buffer-spin{to{transform:rotate(360deg)}}
+    .chat-loading-error{display:grid;justify-items:center;gap:10px;align-content:center;min-height:100%;color:var(--muted);font-size:12px;text-align:center}
+    .chat-loading-error button{padding:7px 12px;border:1px solid var(--line);border-radius:7px;background:var(--panel);color:var(--text);cursor:pointer}
     .chat-bubble{max-width:82%;padding:9px 12px;border:1px solid var(--line);border-radius:13px;background:var(--panel);font-size:12px;line-height:1.5;white-space:pre-wrap;overflow-wrap:anywhere}
     .chat-bubble.mine{align-self:flex-end;border-color:#2563eb;background:#2563eb;color:white}
     .chat-time{display:block;margin-top:4px;font-size:9px;opacity:.68}
@@ -1772,9 +1779,17 @@ button.addEventListener("click", () => {
             autoCloseBrackets: true,
             autoCloseTags: true,
             styleActiveLine: true,
-            viewportMargin: 20
+            viewportMargin: 20,
+            dragDrop: true
           });
           const wrapper = codeMirror.getWrapperElement();
+          // Moving selected code by dragging now requires Ctrl+Option (macOS) or Ctrl+Alt (Windows/Linux).
+          wrapper.addEventListener("dragstart", event => {
+            if (!(event.ctrlKey && event.altKey)) {
+              event.preventDefault();
+              event.stopImmediatePropagation();
+            }
+          }, true);
           const inputListeners = new Set();
           let settingValue = false;
           elements.editor = {
@@ -4145,6 +4160,7 @@ async function sendAiMessage(event) {
       }
       function renderChatMessages(rows) {
         const list=document.getElementById("chatMessages");
+        list.setAttribute("aria-busy","false");
         const wasNearBottom=list.scrollHeight-list.scrollTop-list.clientHeight<90;
         list.replaceChildren();
         if(!rows.length){const empty=document.createElement("div");empty.className="friends-empty";empty.textContent="No messages yet. Say hello!";list.append(empty);}
@@ -4172,13 +4188,31 @@ async function sendAiMessage(event) {
         if(error)console.warn("Could not mark messages as read:",error);
         await refreshUnreadMessageBadge();
       }
-      async function loadChatMessages() {
+      function showChatBuffer(message="Loading messages…") {
+        const list=document.getElementById("chatMessages");
+        list.setAttribute("aria-busy","true");
+        list.innerHTML='<div class="chat-loading" role="status"><span class="chat-loading-spinner" aria-hidden="true"></span><span></span></div>';
+        list.querySelector(".chat-loading span:last-child").textContent=message;
+      }
+      function showChatLoadError() {
+        const list=document.getElementById("chatMessages");
+        list.setAttribute("aria-busy","false");
+        list.innerHTML='<div class="chat-loading-error"><span>Could not load messages. Check your connection.</span><button type="button" id="chatRetryLoad">Try again</button></div>';
+        list.querySelector("#chatRetryLoad").addEventListener("click",()=>void loadChatMessages(true));
+      }
+      async function loadChatMessages(showBuffer=false) {
         if(!activeChatPeer||!cloudUser||!supabaseClient)return;
         const peer=activeChatPeer.id;
-        const {data,error}=await supabaseClient.from("friend_messages").select("id,sender_id,recipient_id,content,created_at,read_at").or("and(sender_id.eq."+cloudUser.id+",recipient_id.eq."+peer+"),and(sender_id.eq."+peer+",recipient_id.eq."+cloudUser.id+")").order("created_at",{ascending:true}).limit(200);
-        if(error){console.error("Could not load chat:",error);return;}
-        if(activeChatPeer?.id!==peer)return;
-        renderChatMessages(data||[]);await markChatMessagesRead(peer);
+        if(showBuffer)showChatBuffer();
+        try{
+          const {data,error}=await supabaseClient.from("friend_messages").select("id,sender_id,recipient_id,content,created_at,read_at").or("and(sender_id.eq."+cloudUser.id+",recipient_id.eq."+peer+"),and(sender_id.eq."+peer+",recipient_id.eq."+cloudUser.id+")").order("created_at",{ascending:true}).limit(200);
+          if(error)throw error;
+          if(activeChatPeer?.id!==peer)return;
+          renderChatMessages(data||[]);await markChatMessagesRead(peer);
+        }catch(error){
+          console.error("Could not load chat:",error);
+          if(activeChatPeer?.id===peer)showChatLoadError();
+        }
       }
       async function openChat(profile) {
         const relation=relationForFriend(profile.id);
@@ -4186,12 +4220,14 @@ async function sendAiMessage(event) {
         activeChatPeer=profile;
         document.getElementById("chatTitle").textContent=friendDisplayName(profile);
         document.getElementById("chatSubtitle").textContent="@"+String(profile.username||"creator");
-        document.getElementById("chatMessages").innerHTML='<div class="friends-empty">Loading messages…</div>';
+        showChatBuffer();
         document.getElementById("chatInput").value="";
         document.getElementById("chatBackdrop").hidden=false;
+        document.getElementById("friendsBackdrop").hidden=true;
+        document.getElementById("friendsActivity").blur();
         if(chatRefreshTimer)clearInterval(chatRefreshTimer);
-        await loadChatMessages();
-        chatRefreshTimer=setInterval(()=>{if(!document.getElementById("chatBackdrop").hidden)void loadChatMessages();},3500);
+        void loadChatMessages();
+        chatRefreshTimer=setInterval(()=>{if(!document.getElementById("chatBackdrop").hidden)void loadChatMessages();},5000);
         document.getElementById("chatInput").focus();
       }
       function closeChat() {
@@ -4203,14 +4239,14 @@ async function sendAiMessage(event) {
         event.preventDefault();
         const content=document.getElementById("chatInput").value.trim();
         if(!content||!activeChatPeer||!cloudUser)return;
-        const button=document.getElementById("chatSend");button.disabled=true;
+        const button=document.getElementById("chatSend");button.disabled=true;button.setAttribute("aria-busy","true");button.innerHTML='<span class="chat-send-spinner" aria-hidden="true"></span> Sending';
         try{
           const {error}=await supabaseClient.from("friend_messages").insert({sender_id:cloudUser.id,recipient_id:activeChatPeer.id,content});
           if(error)throw error;
           document.getElementById("chatInput").value="";
           await loadChatMessages();
         }catch(error){console.error("Message send failed:",error);showToast(error.message||"Could not send message.");}
-        finally{button.disabled=false;document.getElementById("chatInput").focus();}
+        finally{button.disabled=false;button.removeAttribute("aria-busy");button.textContent="Send";document.getElementById("chatInput").focus();}
       }
 
       async function saveProfile(event) {

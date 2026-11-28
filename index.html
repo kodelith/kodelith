@@ -711,6 +711,8 @@
     .friend-person-info{display:grid;gap:3px;min-width:0;flex:1;text-align:left;border:0;background:transparent;color:var(--text);cursor:pointer}
     .friend-person-info strong{font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
     .friend-person-info small{font-size:10px;color:var(--muted)}
+    .friend-person-info .friend-message-preview{display:block;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--muted);font-size:10px;font-weight:450}
+    .friend-person-info .friend-message-preview.unread{color:var(--text);font-weight:750}
     .friend-person-action{flex:0 0 auto;padding:7px 11px;border:1px solid var(--line);border-radius:9px;background:var(--panel);color:var(--text);font-size:11px;font-weight:700;cursor:pointer}
     .friend-person-action.primary{border-color:#2563eb;background:#2563eb;color:#fff}
     .friend-person-action:disabled{opacity:.65;cursor:default}
@@ -3725,6 +3727,7 @@ async function sendAiMessage(event) {
       let profilePreviewRows = [];
       let friendRequestRows = [];
       let friendProfilesById = new Map();
+      let friendLatestMessagesById = new Map();
       let friendSearchTimer = null;
       let activeChatPeer = null;
       let chatRefreshTimer = null;
@@ -4063,7 +4066,14 @@ async function sendAiMessage(event) {
         const info=document.createElement("button");info.type="button";info.className="friend-person-info";
         const title=document.createElement("strong");title.textContent=friendDisplayName(profile)+(profile.username?.toLowerCase()==="sagar"?"  ✓":"");
         const handle=document.createElement("small");handle.textContent="@"+String(profile.username||"creator");
-        info.append(title,handle);info.addEventListener("click",()=>{document.getElementById("friendsBackdrop").hidden=true;void openProfile(profile.id);});
+        info.append(title,handle);
+        if(kind==="friend"){
+          const latest=friendLatestMessagesById.get(profile.id);
+          const preview=document.createElement("small");preview.className="friend-message-preview"+(latest?.unread?" unread":"");
+          preview.textContent=latest?(latest.mine?"You: ":"@"+String(latest.senderUsername||profile.username||"friend")+": ")+latest.content:"No messages yet";
+          preview.title=preview.textContent;info.append(preview);
+        }
+        info.addEventListener("click",()=>{document.getElementById("friendsBackdrop").hidden=true;void openProfile(profile.id);});
         const action=document.createElement("button");action.type="button";action.className="friend-person-action";
         if(relation?.status==="accepted"){
           const actions=document.createElement("div");actions.className="friend-card-actions";
@@ -4105,6 +4115,17 @@ async function sendAiMessage(event) {
           const accepted=friendRequestRows.filter(row=>row.status==="accepted");
           const otherProfiles=await fetchFriendProfiles(relatedIds);
           const byId=new Map(otherProfiles.map(profile=>[profile.id,profile]));
+          friendLatestMessagesById=new Map();
+          if(accepted.length){
+            const {data:recentMessages,error:messageError}=await supabaseClient.from("friend_messages").select("sender_id,recipient_id,content,created_at,read_at").or("sender_id.eq."+cloudUser.id+",recipient_id.eq."+cloudUser.id).order("created_at",{ascending:false}).limit(200);
+            if(messageError)throw messageError;
+            for(const message of recentMessages||[]){
+              const peerId=message.sender_id===cloudUser.id?message.recipient_id:message.sender_id;
+              if(friendLatestMessagesById.has(peerId))continue;
+              const sender=byId.get(message.sender_id);
+              friendLatestMessagesById.set(peerId,{content:String(message.content||"").replace(/\\s+/g," ").slice(0,90),mine:message.sender_id===cloudUser.id,unread:message.recipient_id===cloudUser.id&&!message.read_at,senderUsername:sender?.username||"friend",created_at:message.created_at});
+            }
+          }
           const incoming=pending.filter(row=>row.recipient_id===cloudUser.id);
           const outgoing=pending.filter(row=>row.sender_id===cloudUser.id);
           fillFriendList("incomingFriendRequests",incoming.map(row=>byId.get(row.sender_id)).filter(Boolean),"request");

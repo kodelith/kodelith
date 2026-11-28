@@ -4077,7 +4077,7 @@ async function sendAiMessage(event) {
         const action=document.createElement("button");action.type="button";action.className="friend-person-action";
         if(relation?.status==="accepted"){
           const actions=document.createElement("div");actions.className="friend-card-actions";
-          const message=document.createElement("button");message.type="button";message.className="friend-person-action message";message.textContent="Message";message.addEventListener("click",()=>void openChat(profile));
+          const message=document.createElement("button");message.type="button";message.className="friend-person-action message";message.textContent="Message";message.addEventListener("click",event=>{event.preventDefault();event.stopPropagation();void openChat(profile);});
           action.textContent="Remove";action.title="Remove friend";action.addEventListener("click",()=>void removeFriend(relation.id));
           actions.append(message,action);row.append(avatar,info,actions);return row;
         }else if(relation?.status==="pending"&&relation.recipient_id===cloudUser.id){
@@ -4243,8 +4243,8 @@ async function sendAiMessage(event) {
         document.getElementById("chatSubtitle").textContent="@"+String(profile.username||"creator");
         showChatBuffer();
         document.getElementById("chatInput").value="";
+        document.getElementById("friendsBackdrop").hidden=true;
         document.getElementById("chatBackdrop").hidden=false;
-        document.getElementById("friendsActivity").blur();
         if(chatRefreshTimer)clearInterval(chatRefreshTimer);
         void loadChatMessages();
         chatRefreshTimer=setInterval(()=>{if(!document.getElementById("chatBackdrop").hidden)void loadChatMessages();},5000);
@@ -4252,6 +4252,7 @@ async function sendAiMessage(event) {
       }
       function closeChat() {
         document.getElementById("chatBackdrop").hidden=true;
+        document.getElementById("friendsBackdrop").hidden=false;
         activeChatPeer=null;
         if(chatRefreshTimer){clearInterval(chatRefreshTimer);chatRefreshTimer=null;}
       }

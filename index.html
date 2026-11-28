@@ -4223,7 +4223,6 @@ async function sendAiMessage(event) {
         showChatBuffer();
         document.getElementById("chatInput").value="";
         document.getElementById("chatBackdrop").hidden=false;
-        document.getElementById("friendsBackdrop").hidden=true;
         document.getElementById("friendsActivity").blur();
         if(chatRefreshTimer)clearInterval(chatRefreshTimer);
         void loadChatMessages();
